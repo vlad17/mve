@@ -165,6 +165,11 @@ def train(mk_vectorized_env,
     tf.get_default_graph().finalize()
 
     for itr in range(onpol_iters):
+        with timeit('labelling actions', print_time):
+            to_label = data.unlabelled_obs()
+            labels = controller.label(to_label)
+            data.label_obs(labels)
+  
         with timeit('dynamics fit', print_time):
             dyn_model.fit(data)
 
@@ -214,7 +219,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', type=str, default='HalfCheetah-v1')
     parser.add_argument('--time', action='store_true', default=False)
-    parser.add_argument('--hard_cost', action='store_true', default=False)    
+    parser.add_argument('--hard_cost', action='store_true', default=False)
     # Experiment meta-params
     parser.add_argument('--exp_name', type=str, default='mb_mpc')
     parser.add_argument('--seed', type=int, default=[3], nargs='+')

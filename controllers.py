@@ -17,6 +17,9 @@ class Controller:
     def reset(self, nstates):
         pass
 
+    def label(self, _):
+        return None
+
 class RandomController(Controller):
     def __init__(self, env):
         super().__init__()
@@ -269,8 +272,6 @@ class MPCMF(Controller):
         self.update_op = tf.train.AdamOptimizer(learning_rate).minimize(
             self.mse)
 
-        self._labelled_acs = np.empty((0, self.ac_dim))
-
     def _exploit_policy(self, states_ns, reuse=True):
         ac_na = build_mlp(
             states_ns, scope='mpcmf_policy_mean',
@@ -279,12 +280,6 @@ class MPCMF(Controller):
         ac_na *= self.ac_space.high - self.ac_space.low
         ac_na += self.ac_space.low
         return ac_na
-
-    def _pr(self, data):
-        mse = self.sess.run(self.mse, feed_dict={
-                self.input_state_ph_ns: data.stationary_obs(),
-                self.expert_action_ph_na: self._labelled_acs})
-        print(mse)
 
     def _explore_policy(self, state_ns):
         if self.explore_std == 0:
@@ -311,24 +306,23 @@ class MPCMF(Controller):
             return self._exploit_policy(state_ns, reuse=True)
 
     def fit(self, data):
-        self._add_labels(data)
         all_obs = data.stationary_obs()
-        all_acs = self._labelled_acs
+        if self.dagger:
+            all_acs = data.stationary_labelled_acs()
+        else:
+            # if not in dagger mode then the expert already took the actions
+            all_acs = data.stationary_acs()
         nexamples = len(all_obs)
         assert nexamples == len(all_acs), (nexamples, len(all_acs))
         per_epoch = max(nexamples // self.batch_size, 1)
         batches = np.random.randint(nexamples, size=(
             self.epochs * per_epoch, self.batch_size))
-        self._pr(data)          
         for i, batch_idx in enumerate(batches, 1):
             input_states_sample = all_obs[batch_idx]
             label_actions_sample = all_acs[batch_idx]
             self.sess.run(self.update_op, feed_dict={
                 self.input_state_ph_ns: input_states_sample,
                 self.expert_action_ph_na: label_actions_sample})
-            if (i + 1) % (self.epochs * per_epoch // 10) == 0:
-                print('epoch', (i + 1) // per_epoch, 'of', self.epochs)
-                self._pr(data)
 
     def get_action(self, states_ns):
         if not self.dagger:
@@ -337,20 +331,15 @@ class MPCMF(Controller):
         return self.sess.run(self.policy_action_na, feed_dict={
             self.input_state_ph_ns: states_ns})
 
-    def _add_labels(self, data):
+    def get_action(self, states_ns):
         if not self.dagger:
-            # if not in dagger mode, expert's already doing the rollouts
-            self._labelled_acs = data.stationary_acs()
-            return
+            return self.mpc.get_action(states_ns)
 
-        # assumes data is getting appended (so prefix stays the same)
+        return self.sess.run(self.policy_action_na, feed_dict={
+            self.input_state_ph_ns: states_ns})
 
-        obs = data.stationary_obs()
-        acs = self._labelled_acs
-        env_horizon = data.obs.shape[0]
-        assert (len(obs) - len(acs)) % env_horizon == 0
+    def label(self, states_ns):
+        if not self.dagger:
+            return None
 
-        to_label = obs[len(acs):]
-        new_acs = self.mpc.get_action(to_label)
-        self._labelled_acs = np.concatenate(
-            [self._labelled_acs, new_acs], axis=0)
+        return self.mpc.get_action(states_ns)

@@ -81,6 +81,7 @@ class Dataset:
         self.next_obs = np.empty((horizon, 0, self.ob_dim))
         self.acs = np.empty((horizon, 0, self.ac_dim))
         self.rewards = np.empty((horizon, 0))
+        self.labelled_acs = np.empty((horizon, 0, self.ac_dim))        
 
     def add_paths(self, paths):
         """ Aggregate data """
@@ -96,6 +97,30 @@ class Dataset:
         self.acs = np.concatenate(acs, axis=1)
         self.rewards = np.concatenate(rewards, axis=1)
         self.next_obs = np.concatenate(next_obs, axis=1)
+
+    def unlabelled_obs(self):
+        # assumes data is getting appended (so prefix stays the same)
+        # as long as items are only modified through methods of this class
+        # this should be ok
+
+        obs = self.stationary_obs()
+        acs = self.stationary_labelled_acs()
+        num_unlabelled = len(obs) - len(acs)
+        return obs[-num_unlabelled:]
+
+    def label_obs(self, acs):
+        if acs is None:
+            return
+        env_horizon = self.obs.shape[0]
+        num_acs, ac_dim = acs.shape
+        assert ac_dim == self.ac_dim, (ac_dim, self.ac_dim)
+        assert num_acs % env_horizon == 0, (num_acs, env_horizon)
+        acs = acs.reshape(env_horizon, -1, ac_dim)
+        self.labelled_acs = np.concatenate(
+            [self.labelled_acs, acs], axis=1)
+
+    def stationary_labelled_acs(self):
+        return self.labelled_acs.reshape(-1, self.ac_dim)
 
     def stationary_obs(self):
         return self.obs.reshape(-1, self.ob_dim)
