@@ -24,44 +24,40 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
 
 ## Recreating the Report
 
-    # extra stuff
-    # --dagger is very bad, TODO try plato instead
-    
-    python main.py --onpol_iters 20 --exp_name rand-mpc --exp_name randmpc --seed 5
-    python main.py --onpol_iters 20 --agent mpcmf --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate "1e-3" --con_batch_size 512 --exp_name uniflmpc --seed 5 --time --explore_std 0 
-    python main.py --onpol_iters 20 --agent mpcmf --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate "1e-3" --con_batch_size 512 --exp_name norm0.01lmpc --seed 5 --time --explore_std 0.01
-    python main.py --onpol_iters 20 --agent mpcmf --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate "1e-3" --con_batch_size 512 --exp_name norm0.10lmpc --seed 5 --time --explore_std 0.1
-    python main.py --onpol_iters 20 --agent mpcmf --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate "1e-3" --con_batch_size 512 --exp_name norm1.00lmpc --seed 5 --time --explore_std 1.00
-
-    function dn {
-    echo "data/$1_HalfCheetah-v1"
-    }
+    # Figure 1, easy cost
+    python main.py --onpol_iters 30 --agent mpc --exp_name mpc-easy --seed 1 --time
+    python main.py --onpol_iters 30 --agent bootstrap --exp_name bootstrap-easy --seed 1 --time \
+        --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
+        --con_batch_size 512 --explore_std 0
+    python main.py --onpol_iters 30 --agent bootstrap --exp_name normboot-easy --seed 1 --time  \
+        --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
+        --con_batch_size 512 --explore_std 1
     ./fake-display.sh python plot.py \
-    $(dn randmpc) $(dn uniflmpc) $(dn norm0.01lmpc) $(dn norm0.10lmpc) $(dn norm1.00lmpc) \
-    --value AverageReturn --outprefix lmpc- \
-    --legend "random sampling MPC" "learned MPC, Unif" "learned MPC,  N(pi, 0.01w)" "learned MPC, N(pi, 0.10w)" "learned MPC, N(pi, 1.00w)"
-
-    python main.py --onpol_iters 30 --agent mpcmf --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate "1e-3" --con_batch_size 512 --exp_name mpcmf-unif --seed 1 5 10 15 20 --time
-    python main.py --onpol_iters 30 --agent mpcmf --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate "1e-3" --con_batch_size 512 --exp_name mpcmf-norm --seed 1 5 10 15 20 --time --explore_std 1.00
-    python main.py --onpol_iters 30 --agent mpc --exp_name mpc-long --seed 1 5 10 15 20 --time
-    function dn {
-    echo "data/$1_HalfCheetah-v1"
-    }
+        data/mpc-easy_HalfCheetah-v1 data/bootstrap-easy_HalfCheetah-v1 \
+        data/normboot-easy_HalfCheetah-v1 --value AverageReturn \
+        --outprefix easy- --legend "MPC" "uniform BMPC" "normal BMPC"
+        
+    # Figure 2, hard cost
+    python main.py --onpol_iters 30 --agent mpc --exp_name mpc-hard --seed 1 --time --hard_cost
+    python main.py --onpol_iters 30 --agent bootstrap --exp_name bootstrap-hard --seed 1 --time \
+        --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
+        --con_batch_size 512 --explore_std 0 --hard_cost
+    python main.py --onpol_iters 30 --agent bootstrap --exp_name normboot-hard --seed 1 --time  \
+        --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
+        --con_batch_size 512 --explore_std 1 --hard_cost
     ./fake-display.sh python plot.py \
-        $(dn mpc-long) $(dn mpcmf-unif) $(dn mpcmf-norm) \
-        --value AverageReturn --outprefix long- \
-        --legend "random MPC" "learned MPC, Unif" "learned MPC, N(pi, 1w)"
+        data/mpc-hard_HalfCheetah-v1 data/bootstrap-hard_HalfCheetah-v1 \
+        data/normboot-hard_HalfCheetah-v1 --value AverageReturn \
+        --outprefix hard- --legend "MPC" "uniform BMPC" "normal BMPC"
 
-    python main.py --onpol_iters 30 --agent mpcmf --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate "1e-3" --con_batch_size 512 --exp_name mpcmf-unif-hard --seed 1 5 10 15 20 --time --hard_cost
-    python main.py --onpol_iters 30 --agent mpcmf --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate "1e-3" --con_batch_size 512 --exp_name mpcmf-norm-hard --seed 1 5 10 15 20 --time --explore_std 1.00 --hard_cost
-    python main.py --onpol_iters 30 --agent mpc --exp_name mpc-long-hard --seed 1 5 10 15 20 --time --hard_cost
-    function dn {
-    echo "data/$1_HalfCheetah-v1"
-    }
+    # Figure 3, dagger attempt
+    python main.py --onpol_iters 30 --agent dagger --exp_name norm-dag-hard --seed 1 --time  \
+        --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
+        --con_batch_size 512 --explore_std 1 --hard_cost
     ./fake-display.sh python plot.py \
-        $(dn mpc-long-hard) $(dn mpcmf-unif-hard) $(dn mpcmf-norm-hard) \
-        --value AverageReturn --outprefix hard- \
-        --legend "random MPC" "learned MPC, Unif" "learned MPC, N(pi, 1w)"
+        data/norm-dag-hard_HalfCheetah-v1 data/normboot-hard_HalfCheetah-v1 \
+        data/normboot-hard_HalfCheetah-v1 --value AverageReturn \
+        --outprefix hard- --legend "dagger BMPC" "normal BMPC"
 
     pdflatex report.tex
     pdflatex report.tex

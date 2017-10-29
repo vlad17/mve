@@ -16,13 +16,13 @@
 
 We consider learning the dynamics for the \texttt{HalfCheetah-v1} environment and using those dynamics to simulate rollouts with random actions, taking the action that resulted in the lowest cost after the simulation.
 
-Unless otherwise specified, all parameters are their defaults: 5 different seeds for each setup, 60 epochs of dynamics training on the full dataset per on-policy iteration, a dynamics batch size of 512, maximum episode length of 1000, 1000 simulated paths in the MPC controller (each of which has a horizon of 15), and 10 paths sampled by the initial random agent and then by the MPC controller that are aggregated every policy iteration. The learning rate was the default $10^{-3}$.
+Unless otherwise specified, all parameters are their defaults: 5 different seeds (TODO: for now only 1) for each setup, 60 epochs of dynamics training on the full dataset per on-policy iteration, a dynamics batch size of 512, maximum episode length of 1000, 1000 simulated paths in the MPC controller (each of which has a horizon of 15), and 10 paths sampled by the initial random agent and then by the MPC controller that are aggregated every policy iteration. The learning rate was the default $10^{-3}$.
 
 Instead of random sampling during the simulations, one might attempt to have a more intelligent MPC rollout. In particular, we can have a policy learn the from the MPC expert: every iteration we train a neural network from our aggregated policy to mimic the MPC rollout. Then, when we sample, we use MPC control, but only with the first action randomly sampled at uniform. All then next actions are taken by the learned policy. By having more reasonable simulated rollouts, MPC can choose smarter initial actions. The neural network training wasn't a noticeable additional time cost, but resulted in much-improved performance (Fig.~\ref{fig:mpcmf}).
 
 \begin{figure}[!h]
   \begin{center}
-    {\includegraphics[width=0.8\textwidth]{long-AverageReturn.pdf}}
+    {\includegraphics[width=0.8\textwidth]{easy-AverageReturn.pdf}}
   \end{center}
   \caption{Average return over policy aggregation iterations for the learning-based sampling MPC agent, compared to the standard uniform sampling MPC agent.}
 \label{fig:mpcmf}

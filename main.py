@@ -84,7 +84,6 @@ def train(mk_vectorized_env,
           no_delta_norm=False,
           exp_name='',
           explore_std=0,
-          dagger=False,
           hard_cost=False,
           ):
 
@@ -258,7 +257,6 @@ def main():
     # MPC Controller
     parser.add_argument('--mpc_horizon', '-m', type=int, default=15)
     parser.add_argument('--explore_std', type=float, default=0.0)
-    parser.add_argument('--dagger', action='store_true', default=False)
     # For comparisons
     parser.add_argument('--no_aggregate', action='store_true', default=False)
     parser.add_argument('--agent', type=str, default='mpc')
@@ -339,7 +337,6 @@ def main():
                   no_delta_norm=args.no_delta_norm,
                   exp_name=args.exp_name,
                   explore_std=args.explore_std,
-                  dagger=args.dagger,
                   hard_cost=args.hard_cost,
                   )
 
