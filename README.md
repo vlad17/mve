@@ -4,10 +4,23 @@ Improve expert controllers by using a learned policy within the MPC expansion.
 
 ## Requirements
 
-* MuJoCo 1.31, with the appropriate key available.
+* MuJoCo 1.31, with the appropriate key available - [MuJoCo downloads](https://www.roboti.us/index.html)
 * Python 3.5
-* Python packages `gym[all] numpy matplotlib seaborn pandas`, tensorflow installed separately.
-* `xvfb` - only necessary if on server, else just remove `./fake-display.sh` below.
+* Python packages, mentioned below.
+* `xvfb` - only necessary if on server to generate images, else just remove `./fake-display.sh` calls below when re-creating the report.
+* System dependencies for `gym` - [gym README](https://github.com/openai/gym/blob/master/README.rst)
+* System dependencies for `universe` - [universe README](https://github.com/openai/universe/blob/master/README.rst)
+
+Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
+
+    conda create -y -n gpu-tfgpu-py35 python=3.5
+    conda install -y numpy
+    conda install -y scipy
+    pip install tensorflow-gpu
+    conda install -y -c anaconda pandas 
+    conda install -y -c anaconda seaborn 
+    pip install gym[all] # make sure to install system deps first!
+    pip install universe # make sure to install system deps first!
 
 ## Recreating the Report
 
