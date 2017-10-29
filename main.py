@@ -22,7 +22,8 @@ import numpy as np
 import tensorflow as tf
 import gym
 from dynamics import NNDynamicsModel
-from controllers import MPCcontroller, RandomController, BPTT, MPCMF
+from controllers import (
+    RandomController, MPC, BootstrappedMPC, DaggerMPC, DeterministicLearner)
 import cost_functions
 import time
 import logz
@@ -47,7 +48,7 @@ def sample(env,
     controller.reset(len(obs_n))
     paths = [Path(env, obs, horizon) for obs in obs_n]
     for t in range(horizon):
-        acs_n = controller.get_action(obs_n)
+        acs_n = controller.act(obs_n)
         obs_n, reward_n, done_n, _ = env.step(acs_n)
         for p, path in enumerate(paths):
             done_n[p] |= path.next(obs_n[p], reward_n[p], acs_n[p])
@@ -124,39 +125,51 @@ def train(mk_vectorized_env,
                                 width=dyn_width,
                                 sess=sess)
     if agent == 'mpc':
-        controller = MPCcontroller(env=env,
-                                   dyn_model=dyn_model,
-                                   horizon=mpc_horizon,
-                                   cost_fn=tf_cost_fn,
-                                   num_simulated_paths=num_simulated_paths,
-                                   sess=sess)
+        controller = MPC(env=env,
+                         dyn_model=dyn_model,
+                         horizon=mpc_horizon,
+                         cost_fn=tf_cost_fn,
+                         num_simulated_paths=num_simulated_paths,
+                         sess=sess,
+                         learner=None)
     elif agent == 'random':
         controller = random_controller
-    elif agent == 'bptt':
-        controller = BPTT(env=env,
-                          dyn_model=dyn_model,
-                          horizon=mpc_horizon,
-                          cost_fn=tf_cost_fn,
-                          learning_rate=con_learning_rate,
-                          depth=con_depth,
-                          width=con_width,
-                          batch_size=con_batch_size,
-                          epochs=con_epochs,
-                          sess=sess)
-    elif agent == 'mpcmf':
-        controller = MPCMF(env=env,
-                           dyn_model=dyn_model,
-                           horizon=mpc_horizon,
-                           cost_fn=tf_cost_fn,
-                           num_simulated_paths=num_simulated_paths,
-                           learning_rate=con_learning_rate,
-                           depth=con_depth,
-                           width=con_width,
-                           batch_size=con_batch_size,
-                           epochs=con_epochs,
-                           dagger=dagger,
-                           explore_std=explore_std,
-                           sess=sess)
+    elif agent == 'bootstrap':
+        learner = DeterministicLearner(
+            env=env,
+            learning_rate=con_learning_rate,
+            depth=con_depth,
+            width=con_width,
+            batch_size=con_batch_size,
+            epochs=con_epochs,
+            explore_std=explore_std,
+            sess=sess)
+        controller = BootstrappedMPC(
+            env=env,
+            dyn_model=dyn_model,
+            horizon=mpc_horizon,
+            cost_fn=tf_cost_fn,
+            num_simulated_paths=num_simulated_paths,
+            learner=learner,
+            sess=sess)
+    elif agent == 'dagger':
+        learner = DeterministicLearner(
+            env=env,
+            learning_rate=con_learning_rate,
+            depth=con_depth,
+            width=con_width,
+            batch_size=con_batch_size,
+            epochs=con_epochs,
+            explore_std=explore_std,
+            sess=sess)
+        controller = DaggerMPC(
+            env=env,
+            dyn_model=dyn_model,
+            horizon=mpc_horizon,
+            cost_fn=tf_cost_fn,
+            num_simulated_paths=num_simulated_paths,
+            learner=learner,
+            sess=sess)        
     else:
         raise ValueError('agent type {} unrecognized'.format(agent))
 
