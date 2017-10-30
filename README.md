@@ -56,8 +56,8 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
         --con_batch_size 512 --explore_std 1 --hard_cost
     ./fake-display.sh python plot.py \
         data/norm-dag-hard_HalfCheetah-v1 data/normboot-hard_HalfCheetah-v1 \
-        data/normboot-hard_HalfCheetah-v1 --value AverageReturn \
-        --outprefix hard- --legend "dagger BMPC" "normal BMPC"
+        --value AverageReturn \
+        --outprefix dag- --legend "dagger BMPC" "normal BMPC"
 
     pdflatex report.tex
     pdflatex report.tex
