@@ -25,11 +25,14 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
 ## Recreating the Report
 
     # Figure 1, easy cost
-    python main.py --onpol_iters 30 --agent mpc --exp_name mpc-easy --seed 1 --time
-    python main.py --onpol_iters 30 --agent bootstrap --exp_name bootstrap-easy --seed 1 --time \
+    python main.py --onpol_iters 30 --agent mpc --exp_name mpc-easy \
+        --seed 1 5 10 15 20 --time
+    python main.py --onpol_iters 30 --agent bootstrap --exp_name bootstrap-easy \
+        --seed 1 5 10 15 20 --time \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 0
-    python main.py --onpol_iters 30 --agent bootstrap --exp_name normboot-easy --seed 1 --time  \
+    python main.py --onpol_iters 30 --agent bootstrap --exp_name normboot-easy \
+        --seed 1 5 10 15 20 --time \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 1
     ./fake-display.sh python plot.py \
@@ -39,11 +42,14 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
     mv easy-AverageReturn.pdf report
         
     # Figure 2, hard cost
-    python main.py --onpol_iters 30 --agent mpc --exp_name mpc-hard --seed 1 --time --hard_cost
-    python main.py --onpol_iters 30 --agent bootstrap --exp_name bootstrap-hard --seed 1 --time \
+    python main.py --onpol_iters 30 --agent mpc --exp_name mpc-hard \
+        --seed 1 5 10 15 20 --time --hard_cost
+    python main.py --onpol_iters 30 --agent bootstrap --exp_name bootstrap-hard \
+        --seed 1 5 10 15 20 --time --hard_cost \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 0 --hard_cost
-    python main.py --onpol_iters 30 --agent bootstrap --exp_name normboot-hard --seed 1 --time  \
+    python main.py --onpol_iters 30 --agent bootstrap --exp_name normboot-hard \
+        --seed 1 5 10 15 20 --time --hard_cost \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 1 --hard_cost
     ./fake-display.sh python plot.py \
@@ -53,7 +59,8 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
     mv hard-AverageReturn.pdf report
 
     # Figure 3, dagger attempt
-    python main.py --onpol_iters 30 --agent dagger --exp_name norm-dag-hard --seed 1 --time  \
+    python main.py --onpol_iters 30 --agent dagger --exp_name norm-dag-hard \
+        --seed 1 5 10 15 20 --time  \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 1 --hard_cost
     ./fake-display.sh python plot.py \
