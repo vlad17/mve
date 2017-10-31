@@ -36,6 +36,7 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
         data/mpc-easy_HalfCheetah-v1 data/bootstrap-easy_HalfCheetah-v1 \
         data/normboot-easy_HalfCheetah-v1 --value AverageReturn \
         --outprefix easy- --legend "MPC" "uniform BMPC" "normal BMPC"
+    mv easy-AverageReturn.pdf report
         
     # Figure 2, hard cost
     python main.py --onpol_iters 30 --agent mpc --exp_name mpc-hard --seed 1 --time --hard_cost
@@ -49,6 +50,7 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
         data/mpc-hard_HalfCheetah-v1 data/bootstrap-hard_HalfCheetah-v1 \
         data/normboot-hard_HalfCheetah-v1 --value AverageReturn \
         --outprefix hard- --legend "MPC" "uniform BMPC" "normal BMPC"
+    mv hard-AverageReturn.pdf report
 
     # Figure 3, dagger attempt
     python main.py --onpol_iters 30 --agent dagger --exp_name norm-dag-hard --seed 1 --time  \
@@ -58,6 +60,9 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
         data/norm-dag-hard_HalfCheetah-v1 data/normboot-hard_HalfCheetah-v1 \
         --value AverageReturn \
         --outprefix dag- --legend "dagger BMPC" "normal BMPC"
-
+    mv dag-AverageReturn.pdf report
+    
+    cd report
     pdflatex report.tex
     pdflatex report.tex
+    cd .. 
