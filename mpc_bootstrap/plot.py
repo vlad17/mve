@@ -1,8 +1,8 @@
+import json
+import os
 import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
-import json
-import os
 
 """
 Using the plotter:
@@ -63,7 +63,7 @@ def plot_data(data, value="AverageReturn", prefix=''):
 def get_datasets(fpath, condition=None):
     unit = 0
     datasets = []
-    for root, dir, files in os.walk(fpath):
+    for root, _, files in os.walk(fpath):
         if 'log.txt' in files:
             param_path = open(os.path.join(root, 'params.json'))
             params = json.load(param_path)

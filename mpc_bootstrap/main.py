@@ -1,3 +1,20 @@
+"""Bootstrap MPC entry point."""
+
+import shutil
+import json
+import time
+import os
+import numpy as np
+import tensorflow as tf
+from dynamics import NNDynamicsModel
+from controllers import (
+    RandomController, MPC, BootstrappedMPC, DaggerMPC, DeterministicLearner)
+import cost_functions
+import logz
+from cheetah_env import HalfCheetahEnvNew
+from utils import Path, Dataset, timeit
+from gym.envs import register
+
 # Need to monkey-patch universe
 # see https://github.com/openai/universe/pull/211
 from universe.vectorized import MultiprocessingEnv
@@ -14,25 +31,6 @@ def bugfix_seed(self, seed):
     return [[seed_i] for seed_i in seed]
 
 MultiprocessingEnv._seed = bugfix_seed
-
-import shutil
-import sys
-import json
-import numpy as np
-import tensorflow as tf
-import gym
-from dynamics import NNDynamicsModel
-from controllers import (
-    RandomController, MPC, BootstrappedMPC, DaggerMPC, DeterministicLearner)
-import cost_functions
-import time
-import logz
-import os
-import copy
-import matplotlib.pyplot as plt
-from cheetah_env import HalfCheetahEnvNew
-from utils import Path, Dataset, timeit
-from gym.envs import register
 
 def sample(env,
            controller,
@@ -85,7 +83,7 @@ def train(mk_vectorized_env,
           exp_name='',
           explore_std=0,
           hard_cost=False,
-          ):
+         ):
 
     locals_ = locals()
     not_picklable = [
@@ -112,7 +110,8 @@ def train(mk_vectorized_env,
     # Build dynamics model and MPC controllers.
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
-    config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+    opt_opts = config.graph_options.optimizer_options
+    opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
     sess = tf.Session(config=config)
     dyn_model = NNDynamicsModel(env=env,
                                 norm_data=data,
@@ -168,7 +167,7 @@ def train(mk_vectorized_env,
             cost_fn=tf_cost_fn,
             num_simulated_paths=num_simulated_paths,
             learner=learner,
-            sess=sess)        
+            sess=sess)
     else:
         raise ValueError('agent type {} unrecognized'.format(agent))
 
@@ -181,7 +180,7 @@ def train(mk_vectorized_env,
             to_label = data.unlabelled_obs()
             labels = controller.label(to_label)
             data.label_obs(labels)
-  
+
         with timeit('dynamics fit', print_time):
             dyn_model.fit(data)
 
@@ -200,7 +199,8 @@ def train(mk_vectorized_env,
             returns = most_recent.rewards.sum(axis=0)
 
             costs = cost_functions.trajectory_cost_fn(
-                cost_fn, most_recent.obs, most_recent.acs, most_recent.next_obs)
+                cost_fn, most_recent.obs, most_recent.acs,
+                most_recent.next_obs)
 
             mse = dyn_model.dataset_mse(most_recent)
 
@@ -213,7 +213,7 @@ def train(mk_vectorized_env,
         logz.log_tabular('StdCost', np.std(costs))
         logz.log_tabular('MinimumCost', np.min(costs))
         logz.log_tabular('MaximumCost', np.max(costs))
-        # In terms of true environment reward of your rolled out trajectory using the MPC controller
+        # In terms of true env reward of rolled out traj using MPC controller
         logz.log_tabular('AverageReturn', np.mean(returns))
         logz.log_tabular('StdReturn', np.std(returns))
         logz.log_tabular('MinimumReturn', np.min(returns))
@@ -264,7 +264,7 @@ def main():
     args = parser.parse_args()
 
     # Make data directory if it does not already exist
-    if not(os.path.exists('data')):
+    if not os.path.exists('data'):
         os.makedirs('data')
     logdir_base = args.exp_name + '_' + args.env_name
     logdir_base = os.path.join('data', logdir_base)
@@ -282,7 +282,7 @@ def main():
         print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
 
     # Make env
-    if args.env_name is "HalfCheetah-v1":
+    if args.env_name == "HalfCheetah-v1":
         env = HalfCheetahEnvNew()
         if args.hard_cost:
             cost_fn = cost_functions.hard_cheetah_cost_fn
@@ -338,7 +338,7 @@ def main():
                   exp_name=args.exp_name,
                   explore_std=args.explore_std,
                   hard_cost=args.hard_cost,
-                  )
+                 )
 
 
 if __name__ == "__main__":
