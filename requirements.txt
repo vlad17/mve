@@ -1,0 +1,12 @@
+numpy
+scipy
+pandas
+seaborn
+# CPU
+https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.3.0-cp35-cp35m-linux_x86_64.whl
+# GPU
+# https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow_gpu-1.3.0-cp35-cp35m-linux_x86_64.whl
+gym
+gym[atari]
+universe
+mujoco-py == 0.5.7
