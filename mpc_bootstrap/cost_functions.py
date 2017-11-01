@@ -1,3 +1,5 @@
+"""Cost functions for use by the MPC controller"""
+
 import numpy as np
 import tensorflow as tf
 
@@ -7,7 +9,8 @@ import tensorflow as tf
 # Environment-specific cost functions:
 #
 
-def cheetah_cost_fn(state, action, next_state):
+def cheetah_cost_fn(state, _, next_state):
+    """A numpy-specific cost function for HalfCheetah, easy version"""
     assert len(state.shape) == 2
     heading_penalty_factor = 10
     scores = np.zeros((state.shape[0],))
@@ -29,7 +32,9 @@ def cheetah_cost_fn(state, action, next_state):
     return scores
     # scores += 0.1 * (np.sum(action**2))
 
-def tf_cheetah_cost_fn(state, action, next_state, cost):
+
+def tf_cheetah_cost_fn(state, _, next_state, cost):
+    """A tf-specific cost function for HalfCheetah, easy version"""
     heading_penalty_factor = tf.constant(10.)
 
     front_leg = state[:, 5]
@@ -38,11 +43,13 @@ def tf_cheetah_cost_fn(state, action, next_state, cost):
 
     front_shin = state[:, 6]
     my_range = 0
-    cost += tf.cast(front_shin >= my_range, tf.float32) * heading_penalty_factor
+    cost += tf.cast(front_shin >= my_range, tf.float32) * \
+        heading_penalty_factor
 
     front_foot = state[:, 7]
     my_range = 0
-    cost += tf.cast(front_foot >= my_range, tf.float32) * heading_penalty_factor
+    cost += tf.cast(front_foot >= my_range, tf.float32) * \
+        heading_penalty_factor
 
     cost -= (next_state[:, 17] - state[:, 17]) / 0.01
     return cost
@@ -52,13 +59,16 @@ def tf_cheetah_cost_fn(state, action, next_state, cost):
 # A harder, less supervised version of the cheetah_cost_fn
 
 def hard_cheetah_cost_fn(state, action, next_state):
+    """A numpy-specific cost function for HalfCheetah, hard version"""
     assert len(state.shape) == 2
     scores = np.zeros((state.shape[0],))
     scores += 0.1 * np.square(action).sum(axis=1)
     scores -= (next_state[:, 17] - state[:, 17]) / 0.01
     return scores
 
+
 def hard_tf_cheetah_cost_fn(state, action, next_state, cost):
+    """A tf-specific cost function for HalfCheetah, hard version"""
     cost += tf.reduce_sum(tf.square(action), axis=1)
     cost -= (next_state[:, 17] - state[:, 17]) / 0.01
     return cost
@@ -70,8 +80,12 @@ def hard_tf_cheetah_cost_fn(state, action, next_state, cost):
 
 
 def trajectory_cost_fn(cost_fn, states, actions, next_states):
+    """
+    Given a numpy cost function for a transition, this computes the
+    whole-trajectory cost.
+    """
     # assumes axes are (time, batch, state/action dim)
-    # can handle     # assumes axes are (time, batch, state/action dim)
+    # can handle (time, state/action dim) as a single batch.
     assert len(states.shape) >= 2, states.shape
     if len(states.shape) == 2:
         return trajectory_cost_fn(
@@ -81,6 +95,6 @@ def trajectory_cost_fn(cost_fn, states, actions, next_states):
             next_states[:, np.newaxis, :])[0]
     assert len(states.shape) == 3, states.shape
     trajectory_costs = 0
-    for t in range(len(actions)):
-        trajectory_costs += cost_fn(states[t], actions[t], next_states[t])
+    for obs, acs, next_obs in zip(states, actions, next_states):
+        trajectory_costs += cost_fn(obs, acs, next_obs)
     return trajectory_costs

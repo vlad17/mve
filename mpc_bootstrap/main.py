@@ -1,38 +1,43 @@
+# pylint: skip-file
+# TODO: above is only a stop-gap
+
+"""Bootstrap MPC entry point."""
+
 # Need to monkey-patch universe
 # see https://github.com/openai/universe/pull/211
 from universe.vectorized import MultiprocessingEnv
 
+import shutil
+import json
+import time
+import os
+import numpy as np
+import tensorflow as tf
+from dynamics import NNDynamicsModel
+from controllers import (
+    RandomController, MPC, BootstrappedMPC, DaggerMPC, DeterministicLearner)
+import cost_functions
+import logz
+from cheetah_env import HalfCheetahEnvNew
+from utils import Path, Dataset, timeit
+from gym.envs import register
+
+
 def bugfix_seed_n(worker_n, seed_n):
     accumulated = 0
     for worker in worker_n:
-        seed_m = seed_n[accumulated:accumulated+worker.m]
+        seed_m = seed_n[accumulated:accumulated + worker.m]
         worker.seed_start(seed_m)
         accumulated += worker.m
+
 
 def bugfix_seed(self, seed):
     bugfix_seed_n(self.worker_n, seed)
     return [[seed_i] for seed_i in seed]
 
+
 MultiprocessingEnv._seed = bugfix_seed
 
-import shutil
-import sys
-import json
-import numpy as np
-import tensorflow as tf
-import gym
-from dynamics import NNDynamicsModel
-from controllers import (
-    RandomController, MPC, BootstrappedMPC, DaggerMPC, DeterministicLearner)
-import cost_functions
-import time
-import logz
-import os
-import copy
-import matplotlib.pyplot as plt
-from cheetah_env import HalfCheetahEnvNew
-from utils import Path, Dataset, timeit
-from gym.envs import register
 
 def sample(env,
            controller,
@@ -112,7 +117,8 @@ def train(mk_vectorized_env,
     # Build dynamics model and MPC controllers.
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
-    config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+    opt_opts = config.graph_options.optimizer_options
+    opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
     sess = tf.Session(config=config)
     dyn_model = NNDynamicsModel(env=env,
                                 norm_data=data,
@@ -168,7 +174,7 @@ def train(mk_vectorized_env,
             cost_fn=tf_cost_fn,
             num_simulated_paths=num_simulated_paths,
             learner=learner,
-            sess=sess)        
+            sess=sess)
     else:
         raise ValueError('agent type {} unrecognized'.format(agent))
 
@@ -181,7 +187,7 @@ def train(mk_vectorized_env,
             to_label = data.unlabelled_obs()
             labels = controller.label(to_label)
             data.label_obs(labels)
-  
+
         with timeit('dynamics fit', print_time):
             dyn_model.fit(data)
 
@@ -200,7 +206,8 @@ def train(mk_vectorized_env,
             returns = most_recent.rewards.sum(axis=0)
 
             costs = cost_functions.trajectory_cost_fn(
-                cost_fn, most_recent.obs, most_recent.acs, most_recent.next_obs)
+                cost_fn, most_recent.obs, most_recent.acs,
+                most_recent.next_obs)
 
             mse = dyn_model.dataset_mse(most_recent)
 
@@ -213,7 +220,7 @@ def train(mk_vectorized_env,
         logz.log_tabular('StdCost', np.std(costs))
         logz.log_tabular('MinimumCost', np.min(costs))
         logz.log_tabular('MaximumCost', np.max(costs))
-        # In terms of true environment reward of your rolled out trajectory using the MPC controller
+        # In terms of true env reward of rolled out traj using MPC controller
         logz.log_tabular('AverageReturn', np.mean(returns))
         logz.log_tabular('StdReturn', np.std(returns))
         logz.log_tabular('MinimumReturn', np.min(returns))
@@ -264,7 +271,7 @@ def main():
     args = parser.parse_args()
 
     # Make data directory if it does not already exist
-    if not(os.path.exists('data')):
+    if not os.path.exists('data'):
         os.makedirs('data')
     logdir_base = args.exp_name + '_' + args.env_name
     logdir_base = os.path.join('data', logdir_base)
@@ -282,7 +289,7 @@ def main():
         print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
 
     # Make env
-    if args.env_name is "HalfCheetah-v1":
+    if args.env_name == "HalfCheetah-v1":
         env = HalfCheetahEnvNew()
         if args.hard_cost:
             cost_fn = cost_functions.hard_cheetah_cost_fn
@@ -290,7 +297,6 @@ def main():
         else:
             cost_fn = cost_functions.cheetah_cost_fn
             tf_cost_fn = cost_functions.tf_cheetah_cost_fn
-
 
     env_id = env.__class__.__name__ + '-v0'
     entry = env.__class__.__module__ + ':' + env.__class__.__name__

@@ -1,5 +1,3 @@
-import json
-
 """
 
 Some simple logging functionality, inspired by rllab's logging.
@@ -10,21 +8,22 @@ tab-separated-values file (some_folder_name/log.txt)
 
 To load the learning curves, you can do, for example
 
-A = np.genfromtxt('/tmp/expt_1468984536/log.txt',delimiter='\t',dtype=None, names=True)
-A['EpRewMean']
+    A = np.genfromtxt('/expdir/seeddir/log.txt',delimiter='\t',
+                      dtype=None, names=True)
+    A['EpRewMean']
 
 """
 
-import os.path as osp
-import shutil
-import time
 import atexit
+import json
 import os
-import subprocess
+import os.path as osp
 import pickle
+import time
+
 import tensorflow as tf
 
-color2num = dict(
+_COLOR_TO_NUM = dict(
     gray=30,
     red=31,
     green=32,
@@ -38,8 +37,12 @@ color2num = dict(
 
 
 def colorize(string, color, bold=False, highlight=False):
+    """
+    Returns a string with the correct shell escape sequence to be printed in
+    color.
+    """
     attr = []
-    num = color2num[color]
+    num = _COLOR_TO_NUM[color]
     if highlight:
         num += 10
     attr.append(str(num))
@@ -49,6 +52,7 @@ def colorize(string, color, bold=False, highlight=False):
 
 
 class G:
+    """Logging singleton"""
     output_dir = None
     output_file = None
     first_row = True
@@ -63,9 +67,10 @@ def configure_output_dir(d=None):
     G.first_row = True
     G.log_headers = []
     G.log_current_row = {}
-    G.output_dir = d or "/tmp/experiments/%i" % int(time.time())
+    G.output_dir = d or '/tmp/experiments/%i' % int(time.time())
     if osp.exists(G.output_dir):
-        print("Log dir %s already exists! Delete it first or use a different dir" % G.output_dir)
+        print('Log dir %s already exists! Delete it or use a different dir'
+              % G.output_dir)
     else:
         os.makedirs(G.output_dir)
     G.output_file = open(osp.join(G.output_dir, "log.txt"), 'w')
@@ -82,12 +87,19 @@ def log_tabular(key, val):
     if G.first_row:
         G.log_headers.append(key)
     else:
-        assert key in G.log_headers, "Trying to introduce a new key %s that you didn't include in the first iteration" % key
-    assert key not in G.log_current_row, "You already set %s this iteration. Maybe you forgot to call dump_tabular()" % key
+        assert key in G.log_headers, (
+            'Trying to introduce a new key %s'
+            'that you did not include in the first iteration' % key)
+    assert key not in G.log_current_row, (
+        'You already set %s this iteration. '
+        'Maybe you forgot to call dump_tabular()' % key)
     G.log_current_row[key] = val
 
 
 def save_params(params):
+    """
+    Record the parameters for the current experiment.
+    """
     with open(osp.join(G.output_dir, "params.json"), 'w') as out:
         out.write(json.dumps(params, separators=(
             ',\n', '\t:\t'), sort_keys=True))
