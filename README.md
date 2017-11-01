@@ -14,18 +14,25 @@ Improve expert controllers by using a learned policy within the MPC expansion.
 Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
 
     conda create -y -n gpu-tfgpu-py35 python=3.5
+    source activate gpu-tfgpu-py35
     conda install -y numpy
     conda install -y scipy
     pip install tensorflow-gpu
-    conda install -y -c anaconda pandas 
-    conda install -y -c anaconda seaborn 
+    conda install -y -c anaconda pandas
+    conda install -y -c anaconda seaborn
     pip install gym[all] # make sure to install system deps first!
     pip install universe # make sure to install system deps first!
+
+Or, using `requirements.txt`:
+
+    conda create -y -n gpu-tfgpu-py35 python=3.5
+    source activate gpu-tfgpu-py35
+    pip install -r requirements.txt
 
 ## Recreating the Report
 
     cd mpc_bootstrap
-    
+
     # Figure 1, easy cost
     python main.py --onpol_iters 30 --agent mpc --exp_name mpc-easy \
         --seed 1 5 10 15 20 --time
@@ -42,7 +49,7 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
         ../data/normboot-easy_HalfCheetah-v1 --value AverageReturn \
         --outprefix easy- --legend "MPC" "uniform BMPC" "normal BMPC"
     mv easy-AverageReturn.pdf ../report
-        
+
     # Figure 2, hard cost
     python main.py --onpol_iters 30 --agent mpc --exp_name mpc-hard \
         --seed 1 5 10 15 20 --time --hard_cost
@@ -70,8 +77,8 @@ Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
         --value AverageReturn \
         --outprefix dag- --legend "dagger BMPC" "normal BMPC"
     mv dag-AverageReturn.pdf ../report
-    
+
     cd ../report
     pdflatex report.tex
     pdflatex report.tex
-    cd .. 
+    cd ..
