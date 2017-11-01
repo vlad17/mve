@@ -1,10 +1,14 @@
-import tensorflow as tf
+"""File for the base classes and implementations for controlling policies."""
+
 import numpy as np
-import time
+import tensorflow as tf
+
 from utils import get_ac_dim, get_ob_dim, build_mlp
 
+
 class Policy:
-    """A Policy represents a possibly stateful agent.""" 
+    """A Policy represents a possibly stateful agent."""
+
     def act(self, states_ns):
         """
         Return the action for every state in states_ns, where the batch size
@@ -12,14 +16,16 @@ class Policy:
         """
         raise NotImplementedError
 
-class Learner(Policy):
+
+class Learner(Policy):  # pylint: disable=abstract-method
     """
     A learner acts in a manner that is most conducive to its own learning,
     as long as the resulting states are labelled with correct actions to have
     taken by an expert. Given such a labelled dataset, it can also learn from
     it. Only stateless/stationary policy learners are currently supported.
     """
-    def tf_action(states_ns, is_initial=False):
+
+    def tf_action(self, states_ns, is_initial=False):
         """
         Return the TF tensor for the action that the learner would take.
         The learner may choose to take different actions depending on whether
@@ -32,27 +38,37 @@ class Learner(Policy):
         """Fit the learner to the specified labels."""
         raise NotImplementedError
 
-class Controller(Policy):
+
+class Controller(Policy):  # pylint: disable=abstract-method
     """
     A possibly stateful controller, which decides which actions to take.
     A controller might choose to label the dataset.
     """
+
     def reset(self, nstates):
+        """
+        For stateful RNN-based controllers, this should be called at the
+        beginning of each rollout to reset the state.
+        """
         pass
 
     def fit(self, data):
         """A controller might fit internal learners here."""
         pass
 
-    def label(self, _):
-        return None
+    def label(self, states_ns):
+        """Optionally label a dataset's existing states with new actions."""
+        pass
+
 
 class RandomController(Controller):
+    """An agent that acts uniformly randomly in the action space."""
+
     def __init__(self, env):
         self.ac_space = env.action_space
 
-    def act(self, states):
-        nstates = len(states)
+    def act(self, states_ns):
+        nstates = len(states_ns)
         return self._sample_n(nstates)
 
     def _sample_n(self, n):
@@ -62,7 +78,28 @@ class RandomController(Controller):
             size=(n,) + self.ac_space.shape)
 
 
+def _create_random_policy(ac_space):
+    def _policy(state_ns, **_):
+        n = tf.shape(state_ns)[0]
+        ac_dim = ac_space.low.shape
+        ac_na = tf.random_uniform((n,) + ac_dim)
+        ac_na *= (ac_space.high - ac_space.low)
+        ac_na += ac_space.low
+        return ac_na
+    return _policy
+
+
 class MPC(Controller):
+    """
+    Random MPC if learner is None. Otherwise, MPC which takes the action
+    specified by learner during simulated rollouts. Otherwise, the learner
+    specified a function accepting a TF tensor of batched states and
+    returning a TF tensor of batched actions, tf_action.
+
+    In addition, policy should accept a keyword is_initial which indicates
+    whether this is the first action in the simulated rollout.
+    """
+
     def __init__(self,
                  env,
                  dyn_model,
@@ -71,24 +108,14 @@ class MPC(Controller):
                  num_simulated_paths=10,
                  sess=None,
                  learner=None):
-        """
-        Random MPC if learner is None. Otherwise, MPC which takes the action
-        specified by learner during simulated rollouts. Otherwise, the learner
-        specified a function accepting a TF tensor of batched states and
-        returning a TF tensor of batched actions, tf_action.
-
-        In addition, policy should accept a keyword is_initial which indicates
-        whether this is the first action in the simulated rollout.
-        """
-        self.ac_dim = get_ac_dim(env)
-        self.ac_space = env.action_space
+        self._ac_dim = get_ac_dim(env)
         self.sess = sess
         self.num_simulated_paths = num_simulated_paths
 
         # compute the rollout in full TF to keep all computation on the GPU
         # a = action dim
         # s = state dim
-        # n = batch size = num states to get MPC actions for * simulated rollouts
+        # n = batch size = num states for which MPC act * simulated rollouts
         # i = number of states in batch for act
         self.input_state_ph_is = tf.placeholder(
             tf.float32, [None, get_ob_dim(env)], 'mpc_input_state')
@@ -96,13 +123,14 @@ class MPC(Controller):
         # use the specified policy during MPC rollouts
         ac_space = env.action_space
         if learner is None:
-            policy = self._create_random_policy(ac_space)
+            policy = _create_random_policy(ac_space)
         else:
             policy = learner.tf_action
         self.initial_action_na = policy(state_ns, is_initial=True)
         self.input_action_ph_na = tf.placeholder(
-            tf.float32, [None, self.ac_dim], 'mpc_input_action')
-        def body(t, state_ns, action_na, costs):
+            tf.float32, [None, self._ac_dim], 'mpc_input_action')
+
+        def _body(t, state_ns, action_na, costs):
             next_state_ns = dyn_model.predict_tf(state_ns, action_na)
             next_costs = cost_fn(state_ns, action_na, next_state_ns, costs)
             next_action_na = policy(next_state_ns, is_initial=False)
@@ -113,19 +141,8 @@ class MPC(Controller):
             state_ns,
             self.input_action_ph_na,
             tf.zeros((n,))]
-        self.loop = tf.while_loop(lambda t, _, __, ___: t < horizon, body,
+        self.loop = tf.while_loop(lambda t, _, __, ___: t < horizon, _body,
                                   loop_vars, back_prop=False)
-
-    @staticmethod
-    def _create_random_policy(ac_space):
-        def policy(state_ns, **_):
-            n = tf.shape(state_ns)[0]
-            ac_dim = ac_space.low.shape
-            ac_na = tf.random_uniform((n,) + ac_dim)
-            ac_na *= (ac_space.high - ac_space.low)
-            ac_na += ac_space.low
-            return ac_na
-        return policy
 
     def _act(self, states):
         nstates = len(states)
@@ -142,28 +159,31 @@ class MPC(Controller):
             self.num_simulated_paths, nstates).T
         best_ac_ix_i = per_state_simulation_costs_ip.argmin(axis=1)
         action_samples_ipa = np.swapaxes(action_na.reshape(
-            self.num_simulated_paths, nstates, self.ac_dim), 0, 1)
+            self.num_simulated_paths, nstates, self._ac_dim), 0, 1)
         best_ac_ia = action_samples_ipa[np.arange(nstates), best_ac_ix_i, :]
 
         return best_ac_ia
 
-    def act(self, states):
+    def act(self, states_ns):
         # This batch size is specific to HalfCheetah and my setup.
         # A more appropriate version of this method should query
         # GPU memory size, and use the state dimension + MPC horizon
         # to figure out the appropriate batch amount.
         batch_size = 500
-        if len(states) <= batch_size:
-            return self._act(states)
+        if len(states_ns) <= batch_size:
+            return self._act(states_ns)
 
-        acs = np.empty((len(states), self.ac_dim))
-        for i in range(0, len(states) - batch_size + 1, batch_size):
+        acs = np.empty((len(states_ns), self._ac_dim))
+        for i in range(0, len(states_ns) - batch_size + 1, batch_size):
             loc = slice(i, i + batch_size)
-            acs[loc] = self._act(states[loc])
+            acs[loc] = self._act(states_ns[loc])
         return acs
 
-class DeterministicLearner(Learner):
+
+# TODO: reduce the number of instance attributes here
+class DeterministicLearner(Learner):  # pylint: disable=too-many-instance-attributes
     """Only noisy on first action."""
+
     def __init__(self,
                  env,
                  learning_rate=None,
@@ -171,7 +191,7 @@ class DeterministicLearner(Learner):
                  width=None,
                  batch_size=None,
                  epochs=None,
-                 explore_std=0, # 0 means use uniform exploration, >0 normal
+                 explore_std=0,  # 0 means use uniform exploration, >0 normal
                  sess=None):
         self.sess = sess
         self.batch_size = batch_size
@@ -195,7 +215,7 @@ class DeterministicLearner(Learner):
         mse = tf.losses.mean_squared_error(
             self.expert_action_ph_na,
             self.policy_action_na)
-        
+
         self.update_op = tf.train.AdamOptimizer(learning_rate).minimize(mse)
 
     def _exploit_policy(self, states_ns, reuse=True):
@@ -209,7 +229,7 @@ class DeterministicLearner(Learner):
 
     def _explore_policy(self, state_ns):
         if self.explore_std == 0:
-            random_policy = MPC._create_random_policy(self.ac_space)
+            random_policy = _create_random_policy(self.ac_space)
             return random_policy(state_ns)
 
         ac_na = self._exploit_policy(state_ns, reuse=True)
@@ -222,11 +242,10 @@ class DeterministicLearner(Learner):
         ac_na = tf.maximum(ac_na, self.ac_space.low)
         return ac_na
 
-    def tf_action(self, state_ns, is_initial=True):
+    def tf_action(self, states_ns, is_initial=True):
         if is_initial:
-            return self._explore_policy(state_ns)
-        else:
-            return self._exploit_policy(state_ns, reuse=True)
+            return self._explore_policy(states_ns)
+        return self._exploit_policy(states_ns, reuse=True)
 
     def fit(self, obs, acs):
         nexamples = len(obs)
@@ -234,7 +253,7 @@ class DeterministicLearner(Learner):
         per_epoch = max(nexamples // self.batch_size, 1)
         batches = np.random.randint(nexamples, size=(
             self.epochs * per_epoch, self.batch_size))
-        for i, batch_idx in enumerate(batches, 1):
+        for batch_idx in batches:
             input_states_sample = obs[batch_idx]
             label_actions_sample = acs[batch_idx]
             self.sess.run(self.update_op, feed_dict={
@@ -245,7 +264,13 @@ class DeterministicLearner(Learner):
         return self.sess.run(self.policy_action_na, feed_dict={
             self.input_state_ph_ns: states_ns})
 
+
 class BootstrappedMPC(Controller):
+    """
+    A bootstrapping version of the MPC controller. Learn a policy from MPC
+    rollout data, and use it to run the simulations after the first action.
+    """
+
     def __init__(self,
                  env,
                  dyn_model,
@@ -267,7 +292,13 @@ class BootstrappedMPC(Controller):
         acs = data.stationary_acs()
         self.learner.fit(obs, acs)
 
+
 class DaggerMPC(Controller):
+    """
+    Like BootstrappedMPC, but use the learned policy to take actions
+    and DAgger to learn.
+    """
+
     def __init__(self,
                  env,
                  dyn_model,
