@@ -1,9 +1,11 @@
 from contextlib import contextmanager
 import time
+import types
 
 import tensorflow as tf
 import gym
 import numpy as np
+
 
 @contextmanager
 def timeit(name, print_time):
@@ -12,6 +14,7 @@ def timeit(name, print_time):
     t = time.time() - t
     if print_time:
         print('{} took {:0.1f} seconds'.format(name, t))
+
 
 def get_ac_dim(env):
     ac_space = env.action_space
@@ -81,7 +84,7 @@ class Dataset:
         self.next_obs = np.empty((horizon, 0, self.ob_dim))
         self.acs = np.empty((horizon, 0, self.ac_dim))
         self.rewards = np.empty((horizon, 0))
-        self.labelled_acs = np.empty((horizon, 0, self.ac_dim))        
+        self.labelled_acs = np.empty((horizon, 0, self.ac_dim))
 
     def add_paths(self, paths):
         """ Aggregate data """
@@ -147,3 +150,34 @@ def build_mlp(input_placeholder,
             out = tf.layers.dense(out, size, activation=activation)
         out = tf.layers.dense(out, output_size, activation=output_activation)
     return out
+
+
+def inherit_doc(cls):
+    """
+    From SO: https://stackoverflow.com/questions/8100166
+
+    This will copy all the missing documentation for methods from the parent
+    classes.
+
+    :param type cls: class to fix up.
+    :return type: the fixed class.
+    """
+    for name, func in vars(cls).items():
+        if isinstance(func, types.FunctionType) and not func.__doc__:
+            for parent in cls.__bases__:
+                parfunc = getattr(parent, name, None)
+                if parfunc and getattr(parfunc, '__doc__', None):
+                    func.__doc__ = parfunc.__doc__
+                    break
+        elif isinstance(func, property) and not func.fget.__doc__:
+            for parent in cls.__bases__:
+                parprop = getattr(parent, name, None)
+                if parprop and getattr(parprop.fget, '__doc__', None):
+                    newprop = property(fget=func.fget,
+                                       fset=func.fset,
+                                       fdel=func.fdel,
+                                       doc=parprop.fget.__doc__)
+                    setattr(cls, name, newprop)
+                    break
+
+    return cls
