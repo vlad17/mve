@@ -1,9 +1,3 @@
-import json
-import os
-import seaborn as sns
-import pandas as pd
-import matplotlib.pyplot as plt
-
 """
 Using the plotter:
 
@@ -45,11 +39,17 @@ to compare them -- see their learning curves side-by-side. Just call
 and it will plot them both! They will be given titles in the legend according
 to their exp_name parameters. If you want to use custom legend titles, use
 the --legend flag and then provide a title for each logdir.
-
 """
 
+import json
+import os
 
-def plot_data(data, value="AverageReturn", prefix=''):
+import seaborn as sns
+import pandas as pd
+import matplotlib.pyplot as plt
+
+
+def _plot_data(data, value="AverageReturn", prefix=''):
     if isinstance(data, list):
         data = pd.concat(data, ignore_index=True)
     sns.set(style="darkgrid", font_scale=1.5)
@@ -60,7 +60,7 @@ def plot_data(data, value="AverageReturn", prefix=''):
     plt.clf()
 
 
-def get_datasets(fpath, condition=None):
+def _get_datasets(fpath, condition=None):
     unit = 0
     datasets = []
     for root, _, files in os.walk(fpath):
@@ -89,7 +89,9 @@ def get_datasets(fpath, condition=None):
 
 
 def main():
+    """Entry point for plot.py"""
     import argparse
+    # TODO: print __module__.__doc__ as help (appropriately formatted)
     parser = argparse.ArgumentParser()
     parser.add_argument('logdir', nargs='*')
     parser.add_argument('--legend', nargs='*')
@@ -106,17 +108,17 @@ def main():
     data = []
     if use_legend:
         for logdir, legend_title in zip(args.logdir, args.legend):
-            data += get_datasets(logdir, legend_title)
+            data += _get_datasets(logdir, legend_title)
     else:
         for logdir in args.logdir:
-            data += get_datasets(logdir)
+            data += _get_datasets(logdir)
 
     if isinstance(args.value, list):
         values = args.value
     else:
         values = [args.value]
     for value in values:
-        plot_data(data, value=value, prefix=args.outprefix)
+        _plot_data(data, value=value, prefix=args.outprefix)
 
 
 if __name__ == "__main__":
