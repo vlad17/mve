@@ -1,5 +1,9 @@
 """Bootstrap MPC entry point."""
 
+# Need to monkey-patch universe
+# see https://github.com/openai/universe/pull/211
+from universe.vectorized import MultiprocessingEnv
+
 import shutil
 import json
 import time
@@ -15,22 +19,22 @@ from cheetah_env import HalfCheetahEnvNew
 from utils import Path, Dataset, timeit
 from gym.envs import register
 
-# Need to monkey-patch universe
-# see https://github.com/openai/universe/pull/211
-from universe.vectorized import MultiprocessingEnv
 
 def bugfix_seed_n(worker_n, seed_n):
     accumulated = 0
     for worker in worker_n:
-        seed_m = seed_n[accumulated:accumulated+worker.m]
+        seed_m = seed_n[accumulated:accumulated + worker.m]
         worker.seed_start(seed_m)
         accumulated += worker.m
+
 
 def bugfix_seed(self, seed):
     bugfix_seed_n(self.worker_n, seed)
     return [[seed_i] for seed_i in seed]
 
+
 MultiprocessingEnv._seed = bugfix_seed
+
 
 def sample(env,
            controller,
@@ -83,7 +87,7 @@ def train(mk_vectorized_env,
           exp_name='',
           explore_std=0,
           hard_cost=False,
-         ):
+          ):
 
     locals_ = locals()
     not_picklable = [
@@ -291,7 +295,6 @@ def main():
             cost_fn = cost_functions.cheetah_cost_fn
             tf_cost_fn = cost_functions.tf_cheetah_cost_fn
 
-
     env_id = env.__class__.__name__ + '-v0'
     entry = env.__class__.__module__ + ':' + env.__class__.__name__
     register(env_id, entry_point=entry)
@@ -338,7 +341,7 @@ def main():
                   exp_name=args.exp_name,
                   explore_std=args.explore_std,
                   hard_cost=args.hard_cost,
-                 )
+                  )
 
 
 if __name__ == "__main__":
