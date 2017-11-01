@@ -1,3 +1,8 @@
+"""
+Common recipes for dealing with TF and gym classes, as well as common
+Python patterns
+"""
+
 from contextlib import contextmanager
 import time
 import types
@@ -9,6 +14,7 @@ import numpy as np
 
 @contextmanager
 def timeit(name, print_time):
+    """Enclose a with-block with this to print out block runtime"""
     t = time.time()
     yield
     t = time.time() - t
@@ -17,6 +23,7 @@ def timeit(name, print_time):
 
 
 def get_ac_dim(env):
+    """Retrieve action dimension, assuming a continuous space"""
     ac_space = env.action_space
     assert isinstance(ac_space, gym.spaces.Box), type(ac_space)
     assert len(ac_space.shape) == 1, ac_space.shape
@@ -24,6 +31,7 @@ def get_ac_dim(env):
 
 
 def get_ob_dim(env):
+    """Retrieve observation dimension, assuming a continuous space"""
     ob_space = env.observation_space
     assert isinstance(ob_space, gym.spaces.Box), type(ob_space)
     assert len(ob_space.shape) == 1, ob_space.shape
@@ -31,6 +39,8 @@ def get_ob_dim(env):
 
 
 class Path:
+    """Store rewards and transitions from a single fixed-horizon rollout"""
+
     def __init__(self, env, initial_obs, horizon):
         super().__init__()
         self._obs = np.empty((horizon, get_ob_dim(env)))
@@ -42,6 +52,7 @@ class Path:
         self._obs[0] = initial_obs
 
     def next(self, next_obs, reward, ac):
+        """Append a new transition to currently-stored ones"""
         assert self._idx < self._horizon, (self._idx, self._horizon)
         self._next_obs[self._idx] = next_obs
         self._rewards[self._idx] = reward
@@ -54,30 +65,42 @@ class Path:
 
     @property
     def obs(self):
+        """All observed states so far."""
         assert self._idx == self._horizon, (self._idx, self._horizon)
         return self._obs
 
     @property
     def acs(self):
+        """All actions so far."""
         assert self._idx == self._horizon, (self._idx, self._horizon)
         return self._acs
 
     @property
     def rewards(self):
+        """All rewards so far."""
         assert self._idx == self._horizon, (self._idx, self._horizon)
         return self._rewards
 
     @property
     def next_obs(self):
+        """All states transitioned into so far."""
         assert self._idx == self._horizon, (self._idx, self._horizon)
         return self._next_obs
 
 
 class Dataset:
-    """ Stores all data in time x batch x state/action dim order """
+    """
+    Stores all data for transitions across several rollouts.
+
+    The order of actions, observations, and rewards returned by the
+    stationary* methods is internally consistent: the action taken
+    in dataset.stationary_acs()[i] is the action taken from state
+    dataset.stationary_obs()[i], resulting in the i-th reward, etc.
+    """
 
     def __init__(self, env, horizon):
         super().__init__()
+        # not time by batch by state/action dimension order
         self.ac_dim = get_ac_dim(env)
         self.ob_dim = get_ob_dim(env)
         self.obs = np.empty((horizon, 0, self.ob_dim))
@@ -87,7 +110,7 @@ class Dataset:
         self.labelled_acs = np.empty((horizon, 0, self.ac_dim))
 
     def add_paths(self, paths):
-        """ Aggregate data """
+        """Aggregate data from a list of paths"""
         obs = [path.obs[:, np.newaxis, :] for path in paths]
         obs.append(self.obs)
         acs = [path.acs[:, np.newaxis, :] for path in paths]
@@ -102,6 +125,7 @@ class Dataset:
         self.next_obs = np.concatenate(next_obs, axis=1)
 
     def unlabelled_obs(self):
+        """Return observations for which there is no labelled action"""
         # assumes data is getting appended (so prefix stays the same)
         # as long as items are only modified through methods of this class
         # this should be ok
@@ -112,6 +136,7 @@ class Dataset:
         return obs[-num_unlabelled:]
 
     def label_obs(self, acs):
+        """Label the first len(acs) observations with the given actions"""
         if acs is None:
             return
         env_horizon = self.obs.shape[0]
@@ -123,15 +148,19 @@ class Dataset:
             [self.labelled_acs, acs], axis=1)
 
     def stationary_labelled_acs(self):
+        """Return all labelled actions across all rollouts"""
         return self.labelled_acs.reshape(-1, self.ac_dim)
 
     def stationary_obs(self):
+        """Return all observations across all rollouts"""
         return self.obs.reshape(-1, self.ob_dim)
 
     def stationary_next_obs(self):
+        """Return all resulting observations across all rollouts"""
         return self.next_obs.reshape(-1, self.ob_dim)
 
     def stationary_acs(self):
+        """Return all taken actions across all rollouts"""
         return self.acs.reshape(-1, self.ac_dim)
 
 
@@ -142,8 +171,12 @@ def build_mlp(input_placeholder,
               size=500,
               activation=tf.tanh,
               output_activation=None,
-              reuse=None
-              ):
+              reuse=None):
+    """
+    Create an MLP with the corresponding hyperparameters. Make sure to keep
+    the scope the same and to set reuse=True to reuse the same weight
+    parameters between invocations.
+    """
     out = input_placeholder
     with tf.variable_scope(scope, reuse=reuse):
         for _ in range(n_layers):
