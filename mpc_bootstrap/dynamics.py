@@ -1,5 +1,8 @@
+"""Learn the (stationary) dynamics from transitions"""
+
 import tensorflow as tf
 import numpy as np
+
 from utils import get_ac_dim, get_ob_dim, build_mlp
 
 
@@ -12,15 +15,19 @@ class _NodeltaNormalizer:
         self.eps = eps
 
     def norm_obs(self, obs):
+        """normalize observations"""
         return (obs - self.mean_ob) / (self.std_ob + self.eps)
 
     def norm_acs(self, acs):
+        """normalize actions"""
         return (acs - self.mean_ac) / (self.std_ac + self.eps)
 
     def denorm_delta(self, deltas):
+        """denormalize deltas"""
         return deltas * self.std_ob
 
     def norm_delta(self, deltas):
+        """normalize deltas"""
         return deltas / (self.std_ob + self.eps)
 
 
@@ -36,19 +43,25 @@ class _DeltaNormalizer:
         self.eps = eps
 
     def norm_obs(self, obs):
+        """normalize observations"""
         return (obs - self.mean_ob) / (self.std_ob + self.eps)
 
     def norm_acs(self, acs):
+        """normalize actions"""
         return (acs - self.mean_ac) / (self.std_ac + self.eps)
 
     def norm_delta(self, deltas):
+        """normalize deltas"""
         return (deltas - self.mean_delta) / (self.std_delta + self.eps)
 
     def denorm_delta(self, deltas):
+        """denormalize deltas"""
         return deltas * self.std_delta + self.mean_delta
 
 
-class NNDynamicsModel():
+class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
+    """Stationary neural-network-based dynamics model."""
+
     def __init__(self,
                  env,
                  norm_data,
@@ -58,8 +71,7 @@ class NNDynamicsModel():
                  learning_rate,
                  depth,
                  width,
-                 sess
-                 ):
+                 sess):
         self.epochs = epochs
         self.batch_size = batch_size
 
@@ -98,6 +110,7 @@ class NNDynamicsModel():
             train_mse)
 
     def fit(self, data):
+        """Fit the dynamics to the given dataset of transitions"""
         # I actually tried out the tf.contrib.train.Dataset API, and
         # it was *slower* than this feed_dict method. I figure that the
         # data throughput per batch is small enough (since the data is so
@@ -131,10 +144,11 @@ class NNDynamicsModel():
             standard_predicted_state_diff_ns
 
     def predict_tf(self, states, actions):
-        """Same as predict, but generates a tensor"""
+        """Same as predict, but generates a tensor for the prediction"""
         return self._predict_tf(states, actions, reuse=True)[0]
 
     def predict(self, states, actions):
+        """Return an array for the predicted next state"""
         next_states = self.sess.run(self.predicted_next_state_ns, feed_dict={
             self.input_state_ph_ns: states,
             self.input_action_ph_na: actions,
@@ -142,6 +156,7 @@ class NNDynamicsModel():
         return next_states
 
     def dataset_mse(self, data):
+        """Return the MSE of predictions for the given dataset"""
         mse = self.sess.run(self.mse, feed_dict={
             self.input_state_ph_ns: data.stationary_obs(),
             self.input_action_ph_na: data.stationary_acs(),
