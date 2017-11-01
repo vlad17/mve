@@ -4,14 +4,17 @@ Improve expert controllers by using a learned policy within the MPC expansion.
 
 ## Requirements
 
+Here are setup-specific requirements that you really, really have to do yourself:
+
 * MuJoCo 1.31, with the appropriate key available - [MuJoCo downloads](https://www.roboti.us/index.html)
-* Python 3.5
-* Python packages, mentioned below.
-* `xvfb` - only necessary if on server to generate images, else just remove `./fake-display.sh` calls below when re-creating the report.
+* Python 3.5 (`scripts/` assume this is the `python` and `pip` in `PATH`)
+
+Other system dependencies:
+
 * System dependencies for `gym` - [gym README](https://github.com/openai/gym/blob/master/README.rst)
 * System dependencies for `universe` - [universe README](https://github.com/openai/universe/blob/master/README.rst)
 
-Example installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
+Example conda installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
 
     conda create -y -n gpu-tfgpu-py35 python=3.5
     source activate gpu-tfgpu-py35
@@ -28,6 +31,16 @@ Or, using `requirements.txt`:
     conda create -y -n gpu-tfgpu-py35 python=3.5
     source activate gpu-tfgpu-py35
     pip install -r requirements.txt
+    
+## Scripts
+
+All scripts are available in `scripts/`, and should be run from the repo root.
+
+| script | purpose |
+| ------ | ------- |
+| `fake-display.sh` | wraps a command with a simulated display |
+| `lint.sh` | invokes `pylint` with the appropriate flags for this repo |
+| `ubuntu-install.sh` | installs all deps except MuJoCo/python on Ubuntu 14.04 or Ubuntu 16.04 |
 
 ## Recreating the Report
 
@@ -44,7 +57,7 @@ Or, using `requirements.txt`:
         --seed 1 5 10 15 20 --time \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 1
-    ../fake-display.sh python plot.py \
+    ../scripts/fake-display.sh python plot.py \
         ../data/mpc-easy_HalfCheetah-v1 ../data/bootstrap-easy_HalfCheetah-v1 \
         ../data/normboot-easy_HalfCheetah-v1 --value AverageReturn \
         --outprefix easy- --legend "MPC" "uniform BMPC" "normal BMPC"
@@ -61,7 +74,7 @@ Or, using `requirements.txt`:
         --seed 1 5 10 15 20 --time --hard_cost \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 1 --hard_cost
-    ../fake-display.sh python plot.py \
+    ../scripts/fake-display.sh python plot.py \
         ../data/mpc-hard_HalfCheetah-v1 ../data/bootstrap-hard_HalfCheetah-v1 \
         ../data/normboot-hard_HalfCheetah-v1 --value AverageReturn \
         --outprefix hard- --legend "MPC" "uniform BMPC" "normal BMPC"
@@ -72,7 +85,7 @@ Or, using `requirements.txt`:
         --seed 1 5 10 15 20 --time  \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 1 --hard_cost
-    ../fake-display.sh python plot.py \
+    ../scripts/fake-display.sh python plot.py \
         ../data/norm-dag-hard_HalfCheetah-v1 ../data/normboot-hard_HalfCheetah-v1 \
         --value AverageReturn \
         --outprefix dag- --legend "dagger BMPC" "normal BMPC"

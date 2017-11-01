@@ -1,0 +1,11 @@
+sudo: required
+language: python
+dist: trusty
+python:
+  - "3.5"
+install:
+  - pip install --upgrade pylint
+  - ./scripts/ubuntu-install.sh
+script:
+  - ./scripts/lint.sh
+  - ./scripts/basic_tests.sh
