@@ -81,7 +81,7 @@ class Dataset:
         self.next_obs = np.empty((horizon, 0, self.ob_dim))
         self.acs = np.empty((horizon, 0, self.ac_dim))
         self.rewards = np.empty((horizon, 0))
-        self.labelled_acs = np.empty((horizon, 0, self.ac_dim))        
+        self.labelled_acs = np.empty((horizon, 0, self.ac_dim))
 
     def add_paths(self, paths):
         """ Aggregate data """
@@ -140,7 +140,7 @@ def build_mlp(input_placeholder,
               activation=tf.tanh,
               output_activation=None,
               reuse=None
-              ):
+             ):
     out = input_placeholder
     with tf.variable_scope(scope, reuse=reuse):
         for _ in range(n_layers):
