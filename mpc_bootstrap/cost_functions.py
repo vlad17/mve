@@ -69,7 +69,7 @@ def hard_cheetah_cost_fn(state, action, next_state):
 
 def hard_tf_cheetah_cost_fn(state, action, next_state, cost):
     """A tf-specific cost function for HalfCheetah, hard version"""
-    cost += tf.reduce_sum(tf.square(action), axis=1)
+    cost += 0.1 * tf.reduce_sum(tf.square(action), axis=1)
     cost -= (next_state[:, 17] - state[:, 17]) / 0.01
     return cost
 

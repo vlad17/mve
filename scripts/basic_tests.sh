@@ -54,12 +54,12 @@ python main.py $flags $instance
 
 cmd="plot.py"
 
-instance="--value DynamicsMSE --legend x"
-../scripts/fake-display.sh python plot.py data/plotexp_HalfCheetah-v1 $instance
-rm DynamicsMSE.pdf
+instance="data/plotexp_HalfCheetah-v1:DynamicsMSE:x"
+python plot.py $instance --outfile x.pdf --yaxis x
+rm x.pdf
 
-instance="--value AverageReturn --legend x"
-../scripts/fake-display.sh python plot.py data/plotexp_HalfCheetah-v1 $instance
-rm AverageReturn.pdf
+instance="data/plotexp_HalfCheetah-v1:AverageReturn:x"
+python plot.py $instance --outfile y.pdf --yaxis y
+rm y.pdf
 
 trap '' EXIT

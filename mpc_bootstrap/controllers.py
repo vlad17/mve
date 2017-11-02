@@ -3,7 +3,8 @@
 import numpy as np
 import tensorflow as tf
 
-from utils import get_ac_dim, get_ob_dim, build_mlp
+import logz
+from utils import get_ac_dim, get_ob_dim, build_mlp, Dataset
 
 
 class Policy:
@@ -16,13 +17,21 @@ class Policy:
         """
         raise NotImplementedError
 
+    def reset(self, nstates):
+        """
+        For stateful RNN-based policies, this should be called at the
+        beginning of each rollout to reset the state.
+        """
+        pass
+
 
 class Learner(Policy):  # pylint: disable=abstract-method
     """
     A learner acts in a manner that is most conducive to its own learning,
     as long as the resulting states are labelled with correct actions to have
     taken by an expert. Given such a labelled dataset, it can also learn from
-    it. Only stateless/stationary policy learners are currently supported.
+    it. Only stateless/stationary policy learners are currently supported
+    (don't override reset()).
     """
 
     def tf_action(self, states_ns, is_initial=False):
@@ -45,19 +54,16 @@ class Controller(Policy):  # pylint: disable=abstract-method
     A controller might choose to label the dataset.
     """
 
-    def reset(self, nstates):
-        """
-        For stateful RNN-based controllers, this should be called at the
-        beginning of each rollout to reset the state.
-        """
-        pass
-
     def fit(self, data):
         """A controller might fit internal learners here."""
         pass
 
     def label(self, states_ns):
         """Optionally label a dataset's existing states with new actions."""
+        pass
+
+    def log(self, **kwargs):
+        """A controller might log additional stats here."""
         pass
 
 
@@ -279,6 +285,7 @@ class BootstrappedMPC(Controller):
                  num_simulated_paths=None,
                  learner=None,
                  sess=None):
+        self.env = env
         self.learner = learner
         self.mpc = MPC(
             env, dyn_model, horizon, cost_fn, num_simulated_paths, sess,
@@ -291,6 +298,20 @@ class BootstrappedMPC(Controller):
         obs = data.stationary_obs()
         acs = data.stationary_acs()
         self.learner.fit(obs, acs)
+
+    def log(self, **kwargs):
+        # TODO: get rid of this circular dep once sample.py exists
+        from main import sample
+        horizon = kwargs['horizon']
+        render = False
+        paths = sample(self.env, self.learner, horizon, render)
+        data = Dataset(self.env, horizon)
+        data.add_paths(paths)
+        returns = data.rewards.sum(axis=0)
+        logz.log_tabular('LearnerAverageReturn', np.mean(returns))
+        logz.log_tabular('LearnerStdReturn', np.std(returns))
+        logz.log_tabular('LearnerMinimumReturn', np.min(returns))
+        logz.log_tabular('LearnerMaximumReturn', np.max(returns))
 
 
 class DaggerMPC(Controller):

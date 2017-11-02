@@ -38,13 +38,10 @@ All scripts are available in `scripts/`, and should be run from the repo root.
 
 | script | purpose |
 | ------ | ------- |
-| `fake-display.sh` | wraps a command with a simulated display |
 | `lint.sh` | invokes `pylint` with the appropriate flags for this repo |
 | `ubuntu-install.sh` | installs all deps except MuJoCo/python on Ubuntu 14.04 or Ubuntu 16.04 |
 
 ## Recreating the Report
-
-    cd mpc_bootstrap
 
     # Figure 1, easy cost
     python main.py --onpol_iters 30 --agent mpc --exp_name mpc-easy \
@@ -57,11 +54,11 @@ All scripts are available in `scripts/`, and should be run from the repo root.
         --seed 1 5 10 15 20 --time \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 1
-    ../scripts/fake-display.sh python plot.py \
-        ../data/mpc-easy_HalfCheetah-v1 ../data/bootstrap-easy_HalfCheetah-v1 \
-        ../data/normboot-easy_HalfCheetah-v1 --value AverageReturn \
-        --outprefix easy- --legend "MPC" "uniform BMPC" "normal BMPC"
-    mv easy-AverageReturn.pdf ../report
+    python plot.py \
+        "../data/mpc-easy_HalfCheetah-v1:AverageReturn:MPC" \
+        "../data/bootstrap-easy_HalfCheetah-v1:AverageReturn:uniform BMPC" \
+        "../data/normboot-easy_HalfCheetah-v1:AverageReturn:normal BMPC" \
+        --outfile ../report/easy-AverageReturn.pdf --yaxis "average rollout return"
 
     # Figure 2, hard cost
     python main.py --onpol_iters 30 --agent mpc --exp_name mpc-hard \
@@ -74,22 +71,21 @@ All scripts are available in `scripts/`, and should be run from the repo root.
         --seed 1 5 10 15 20 --time --hard_cost \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 1 --hard_cost
-    ../scripts/fake-display.sh python plot.py \
-        ../data/mpc-hard_HalfCheetah-v1 ../data/bootstrap-hard_HalfCheetah-v1 \
-        ../data/normboot-hard_HalfCheetah-v1 --value AverageReturn \
-        --outprefix hard- --legend "MPC" "uniform BMPC" "normal BMPC"
-    mv hard-AverageReturn.pdf ../report
+    python plot.py \
+        "../data/mpc-hard_HalfCheetah-v1:AverageReturn:MPC" \
+        "../data/bootstrap-hard_HalfCheetah-v1:AverageReturn:uniform BMPC" \
+        "../data/normboot-hard_HalfCheetah-v1:AverageReturn:normal BMPC" \
+        --outfile ../report/hard-AverageReturn.pdf --yaxis "average rollout return"
 
     # Figure 3, dagger attempt
     python main.py --onpol_iters 30 --agent dagger --exp_name norm-dag-hard \
         --seed 1 5 10 15 20 --time  \
         --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 \
         --con_batch_size 512 --explore_std 1 --hard_cost
-    ../scripts/fake-display.sh python plot.py \
-        ../data/norm-dag-hard_HalfCheetah-v1 ../data/normboot-hard_HalfCheetah-v1 \
-        --value AverageReturn \
-        --outprefix dag- --legend "dagger BMPC" "normal BMPC"
-    mv dag-AverageReturn.pdf ../report
+    python plot.py \
+        "../data/normboot-hard_HalfCheetah-v1:AverageReturn:normal BMPC" \
+        "../data/norm-dag-hard_HalfCheetah-v1:AverageReturn:dagger BMPC" \
+        --outfile ../report/dag-AverageReturn.pdf --yaxis "average rollout return"
 
     cd ../report
     pdflatex report.tex

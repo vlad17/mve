@@ -31,8 +31,10 @@ class HalfCheetahEnvNew(mujoco_env.MujocoEnv, utils.EzPickle):
         return np.concatenate([
             self.model.data.qpos.flat[1:],
             self.model.data.qvel.flat,
-            self.get_body_com("torso").flat,
-            # TODO: find out why the below was filtered by HW4
+            # TODO: all the below are required to make the reward
+            # a function of the observations
+            # self.get_body_com("torso").flat,
+            self.model.data.qpos.flat[:1]
             # self.get_body_comvel("torso").flat,
         ])
 

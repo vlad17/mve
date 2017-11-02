@@ -210,6 +210,7 @@ def train(mk_vectorized_env,
                 most_recent.next_obs)
 
             mse = dyn_model.dataset_mse(most_recent)
+            controller.log(horizon=env_horizon)
 
         # LOGGING
         # Statistics for performance of MPC policy using
