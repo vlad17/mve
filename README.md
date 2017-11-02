@@ -95,3 +95,7 @@ All scripts are available in `scripts/`, and should be run from the repo root.
     pdflatex report.tex
     pdflatex report.tex
     cd ..
+
+## Adding MuJoCo key to CI securely
+
+Just use the [manual encryption instructions](https://docs.travis-ci.com/user/encrypting-files/#Manual-Encryption) here. `.travis.yml` is already configured to securely unencrypt mjkey.txt.gpg.

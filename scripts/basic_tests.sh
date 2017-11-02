@@ -2,10 +2,16 @@
 # Very simple invocations that validate things don't blow up in all command-line configurations.
 # Doesn't do any semantic checking, but will catch egregious errors.
 # Don't source this.
-
-exit 0 # TODO: need to add mjkey.txt to travis somehow
+# If arguments are specified, they are assumed to be the path for the
+# MuJoCo key and installation.
+#
+# ./scripts/basic_tests.sh # uses ~/.mujoco/ paths
+# ./scripts/basic_tests.sh mjkey.txt mjpro131 # uses specified paths
 
 set -euo pipefail
+
+export MUJOCO_PY_MJKEY_PATH=$(readlink -f "$1")
+export MUJOCO_PY_MJPRO_PATH=$(readlink -f "$2")
 
 flags="--dyn_epochs 1 --con_epochs 1 --ep_len 5 --mpc_horizon 3"
 flags+=" --simulated_paths 2 --onpol_paths 3 --random_paths 3"

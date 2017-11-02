@@ -36,3 +36,6 @@ sudo apt-get -qq update
 sudo apt-get install -y golang libjpeg-turbo8-dev make
 
 pip install -r requirements.txt
+
+# universe requires old gym
+pip install gym[all]==0.7.4
