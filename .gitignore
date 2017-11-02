@@ -116,3 +116,7 @@ out/*
 
 *.lprof
 logdir
+
+# autogenned by flyceck
+flycheck_*.py
+*_flycheck.py
