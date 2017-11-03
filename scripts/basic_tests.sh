@@ -46,7 +46,16 @@ python main.py $small_flags $instance
 instance="--agent dagger"
 python main.py $small_flags $instance
 
+instance="--agent dagger --delay 5"
+python main.py $small_flags $instance
+
 instance="--agent bootstrap --hard_cost"
+python main.py $small_flags $instance
+
+instance="--agent bootstrap --deterministic_learner"
+python main.py $small_flags $instance
+
+instance="--agent bootstrap --no_extra_explore"
 python main.py $small_flags $instance
 
 instance="--agent random --onpol_iters 3 --exp_name plotexp"

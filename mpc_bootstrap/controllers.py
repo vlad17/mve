@@ -24,6 +24,10 @@ class Policy:
         """
         pass
 
+    def log(self, **kwargs):
+        """A policy might log additional stats here."""
+        pass
+
 
 class Learner(Policy):  # pylint: disable=abstract-method
     """
@@ -60,10 +64,6 @@ class Controller(Policy):  # pylint: disable=abstract-method
 
     def label(self, states_ns):
         """Optionally label a dataset's existing states with new actions."""
-        pass
-
-    def log(self, **kwargs):
-        """A controller might log additional stats here."""
         pass
 
 
@@ -226,7 +226,7 @@ class DeterministicLearner(Learner):  # pylint: disable=too-many-instance-attrib
 
     def _exploit_policy(self, states_ns, reuse=True):
         ac_na = build_mlp(
-            states_ns, scope='mpcmf_policy_mean',
+            states_ns, scope='learner_policy_mean',
             n_layers=self.depth, size=self.width, activation=tf.nn.relu,
             output_activation=tf.sigmoid, reuse=reuse)
         ac_na *= self.ac_space.high - self.ac_space.low
@@ -271,6 +271,109 @@ class DeterministicLearner(Learner):  # pylint: disable=too-many-instance-attrib
             self.input_state_ph_ns: states_ns})
 
 
+class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attributes
+    """Noisy everywhere"""
+
+    def __init__(self,
+                 env,
+                 learning_rate=None,
+                 depth=None,
+                 width=None,
+                 batch_size=None,
+                 epochs=None,
+                 no_extra_explore=False,
+                 sess=None):
+        self.sess = sess
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.ac_dim = get_ac_dim(env)
+        self.width = width
+        self.depth = depth
+        self.ac_space = env.action_space
+        self.extra_explore = not no_extra_explore
+
+        # create placeholder for training an MPC learner
+        # a = action dim
+        # s = state dim
+        # n = batch size
+        self.input_state_ph_ns = tf.placeholder(
+            tf.float32, [None, get_ob_dim(env)])
+        self.policy_action_na = self._exploit_policy(
+            self.input_state_ph_ns, reuse=None)
+        self.expert_action_ph_na = tf.placeholder(
+            tf.float32, [None, self.ac_dim])
+        nll = tf.negative(
+            tf.reduce_mean(self._pdf(self.input_state_ph_ns,
+                                     self.expert_action_ph_na)))
+        # TODO: consider an l2_loss on policy actions?
+        policy_vars = tf.get_collection(
+            tf.GraphKeys.GLOBAL_VARIABLES, scope='learner_policy')
+        self.update_op = tf.train.AdamOptimizer(learning_rate).minimize(
+            nll, var_list=policy_vars)
+
+    def _pdf(self, states_ns, expert_acs_na):
+        ac_na = build_mlp(
+            states_ns, scope='learner_policy',
+            n_layers=self.depth, size=self.width, activation=tf.nn.relu,
+            output_activation=tf.sigmoid, reuse=True)
+        expert_acs_na -= self.ac_space.low
+        expert_acs_na /= self.ac_space.high - self.ac_space.low
+        with tf.variable_scope('learner_policy', reuse=True):
+            logstd_a = tf.get_variable('logstd', [self.ac_dim],
+                                       initializer=tf.constant_initializer(0))
+        norm = tf.contrib.distributions.MultivariateNormalDiag(
+            tf.zeros([self.ac_dim]), tf.exp(logstd_a))
+        return norm.log_prob(expert_acs_na - ac_na)
+
+    def _exploit_policy(self, states_ns, reuse=True):
+        ac_na = build_mlp(
+            states_ns, scope='learner_policy',
+            n_layers=self.depth, size=self.width, activation=tf.nn.relu,
+            output_activation=tf.sigmoid, reuse=reuse)
+        with tf.variable_scope('learner_policy', reuse=reuse):
+            logstd_a = tf.get_variable('logstd', [self.ac_dim],
+                                       initializer=tf.constant_initializer(0))
+        perturb_na = tf.random_normal([tf.shape(states_ns)[0], self.ac_dim])
+        ac_na += perturb_na * tf.exp(logstd_a)
+        ac_na = tf.clip_by_value(ac_na, 0, 1)
+        ac_na *= self.ac_space.high - self.ac_space.low
+        ac_na += self.ac_space.low
+        return ac_na
+
+    def _explore_policy(self, state_ns):
+        random_policy = _create_random_policy(self.ac_space)
+        return random_policy(state_ns)
+
+    def tf_action(self, states_ns, is_initial=True):
+        if is_initial and self.extra_explore:
+            return self._explore_policy(states_ns)
+        return self._exploit_policy(states_ns, reuse=True)
+
+    def fit(self, obs, acs):
+        nexamples = len(obs)
+        assert nexamples == len(acs), (nexamples, len(acs))
+        per_epoch = max(nexamples // self.batch_size, 1)
+        batches = np.random.randint(nexamples, size=(
+            self.epochs * per_epoch, self.batch_size))
+        for batch_idx in batches:
+            input_states_sample = obs[batch_idx]
+            label_actions_sample = acs[batch_idx]
+            self.sess.run(self.update_op, feed_dict={
+                self.input_state_ph_ns: input_states_sample,
+                self.expert_action_ph_na: label_actions_sample})
+
+    def act(self, states_ns):
+        return self.sess.run(self.policy_action_na, feed_dict={
+            self.input_state_ph_ns: states_ns})
+
+    def log(self, **kwargs):
+        with tf.variable_scope('learner_policy', reuse=True):
+            logstd_a = tf.get_variable('logstd')
+        std_a = np.exp(self.sess.run(logstd_a))
+        logz.log_tabular('LearnerPolicyStdAverage', np.mean(std_a))
+        logz.log_tabular('LearnerPolicyStdStd', np.std(std_a))
+
+
 class BootstrappedMPC(Controller):
     """
     A bootstrapping version of the MPC controller. Learn a policy from MPC
@@ -312,6 +415,7 @@ class BootstrappedMPC(Controller):
         logz.log_tabular('LearnerStdReturn', np.std(returns))
         logz.log_tabular('LearnerMinimumReturn', np.min(returns))
         logz.log_tabular('LearnerMaximumReturn', np.max(returns))
+        self.learner.log()
 
 
 class DaggerMPC(Controller):
@@ -327,19 +431,62 @@ class DaggerMPC(Controller):
                  cost_fn=None,
                  num_simulated_paths=None,
                  learner=None,
+                 delay=5,
                  sess=None):
         self.learner = learner
         self.mpc = MPC(
             env, dyn_model, horizon, cost_fn, num_simulated_paths, sess,
             learner)
+        # TODO: the goal of this delay is to let the dynamics learn how
+        # the expert behaves so that the expert gets good (since it has a
+        # useful dynamics function)
+        # But this isn't enough. The dynamics model can't learn
+        # on learner transitions and be used by the MPC controller to plan:
+        # only dynamics that are trained on controller transitions are
+        # usuable. Maybe we can get rid of the delay; and split our
+        # real rollouts between the MPC controller and the learner?
+        # that way dynamics can be learning both transitions /
+        # both transition distributions.
+        self.delay = delay
+        self.env = env
+        # the first round should always be labelled since it's random data
+        # this is a bit awkward with delay, we just use a flag.
+        self.first_round = True
 
     def act(self, states_ns):
+        if self.delay > 0:
+            return self.mpc.act(states_ns)
         return self.learner.act(states_ns)
 
     def label(self, states_ns):
+        if self.delay > 0 and not self.first_round:
+            return None
         return self.mpc.act(states_ns)
 
     def fit(self, data):
+        if self.delay > 0 and not self.first_round:
+            self.delay -= 1
+            acs = data.stationary_acs()
+        else:
+            self.first_round = False
+            acs = data.stationary_labelled_acs()
         obs = data.stationary_obs()
-        acs = data.stationary_labelled_acs()
         self.learner.fit(obs, acs)
+
+    def log(self, **kwargs):
+        # TODO: get rid of this circular dep once sample.py exists
+        from main import sample
+        if self.delay > 0:
+            returns = [0]
+        else:
+            horizon = kwargs['horizon']
+            render = False
+            paths = sample(self.env, self.mpc, horizon, render)
+            data = Dataset(self.env, horizon)
+            data.add_paths(paths)
+            returns = data.rewards.sum(axis=0)
+        logz.log_tabular('ExpertAverageReturn', np.mean(returns))
+        logz.log_tabular('ExpertStdReturn', np.std(returns))
+        logz.log_tabular('ExpertMinimumReturn', np.min(returns))
+        logz.log_tabular('ExpertMaximumReturn', np.max(returns))
+        self.learner.log()

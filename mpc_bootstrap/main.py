@@ -15,7 +15,7 @@ import numpy as np
 import tensorflow as tf
 from dynamics import NNDynamicsModel
 from controllers import (
-    RandomController, MPC, BootstrappedMPC, DaggerMPC, DeterministicLearner)
+    RandomController, MPC, BootstrappedMPC, DaggerMPC, DeterministicLearner, StochasticLearner)
 import cost_functions
 import logz
 from cheetah_env import HalfCheetahEnvNew
@@ -90,6 +90,9 @@ def train(mk_vectorized_env,
           exp_name='',
           explore_std=0,
           hard_cost=False,
+          deterministic=False,
+          no_extra_explore=False,
+          delay=0,
           ):
 
     locals_ = locals()
@@ -139,42 +142,46 @@ def train(mk_vectorized_env,
                          learner=None)
     elif agent == 'random':
         controller = random_controller
-    elif agent == 'bootstrap':
-        learner = DeterministicLearner(
-            env=env,
-            learning_rate=con_learning_rate,
-            depth=con_depth,
-            width=con_width,
-            batch_size=con_batch_size,
-            epochs=con_epochs,
-            explore_std=explore_std,
-            sess=sess)
-        controller = BootstrappedMPC(
-            env=env,
-            dyn_model=dyn_model,
-            horizon=mpc_horizon,
-            cost_fn=tf_cost_fn,
-            num_simulated_paths=num_simulated_paths,
-            learner=learner,
-            sess=sess)
-    elif agent == 'dagger':
-        learner = DeterministicLearner(
-            env=env,
-            learning_rate=con_learning_rate,
-            depth=con_depth,
-            width=con_width,
-            batch_size=con_batch_size,
-            epochs=con_epochs,
-            explore_std=explore_std,
-            sess=sess)
-        controller = DaggerMPC(
-            env=env,
-            dyn_model=dyn_model,
-            horizon=mpc_horizon,
-            cost_fn=tf_cost_fn,
-            num_simulated_paths=num_simulated_paths,
-            learner=learner,
-            sess=sess)
+    elif agent == 'bootstrap' or agent == 'dagger':
+        if deterministic:
+            learner = DeterministicLearner(
+                env=env,
+                learning_rate=con_learning_rate,
+                depth=con_depth,
+                width=con_width,
+                batch_size=con_batch_size,
+                epochs=con_epochs,
+                explore_std=explore_std,
+                sess=sess)
+        else:
+            learner = StochasticLearner(
+                env=env,
+                learning_rate=con_learning_rate,
+                depth=con_depth,
+                width=con_width,
+                batch_size=con_batch_size,
+                epochs=con_epochs,
+                no_extra_explore=no_extra_explore,
+                sess=sess)
+        if agent == 'bootstrap':
+            controller = BootstrappedMPC(
+                env=env,
+                dyn_model=dyn_model,
+                horizon=mpc_horizon,
+                cost_fn=tf_cost_fn,
+                num_simulated_paths=num_simulated_paths,
+                learner=learner,
+                sess=sess)
+        else:  # dagger
+            controller = DaggerMPC(
+                env=env,
+                dyn_model=dyn_model,
+                horizon=mpc_horizon,
+                delay=delay,
+                cost_fn=tf_cost_fn,
+                num_simulated_paths=num_simulated_paths,
+                learner=learner,
+                sess=sess)
     else:
         raise ValueError('agent type {} unrecognized'.format(agent))
 
@@ -265,6 +272,12 @@ def main():
     # MPC Controller
     parser.add_argument('--mpc_horizon', '-m', type=int, default=15)
     parser.add_argument('--explore_std', type=float, default=0.0)
+    parser.add_argument('--no_extra_explore', action='store_true',
+                        default=False)
+    parser.add_argument('--deterministic_learner', action='store_true',
+                        default=False)
+    # delay for dagger
+    parser.add_argument('--delay', type=int, default=0)
     # For comparisons
     parser.add_argument('--no_aggregate', action='store_true', default=False)
     parser.add_argument('--agent', type=str, default='mpc')
@@ -345,6 +358,9 @@ def main():
                   exp_name=args.exp_name,
                   explore_std=args.explore_std,
                   hard_cost=args.hard_cost,
+                  deterministic=args.deterministic_learner,
+                  no_extra_explore=args.no_extra_explore,
+                  delay=args.delay,
                   )
 
 
