@@ -30,12 +30,4 @@ sudo apt-get install -y \
      xorg-dev libboost-all-dev swig
 sudo apt-get install -y libsdl2-dev || sudo apt-get install -f
 
-# universe deps
-sudo add-apt-repository -y ppa:ubuntu-lxc/lxd-stable  # for newer golang
-sudo apt-get -qq update
-sudo apt-get install -y golang libjpeg-turbo8-dev make
-
 pip install -r requirements.txt
-
-# universe requires old gym
-pip install gym[all]==0.7.4

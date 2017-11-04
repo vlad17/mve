@@ -1,11 +1,4 @@
-# pylint: skip-file
-# TODO: above is only a stop-gap
-
 """Bootstrap MPC entry point."""
-
-# Need to monkey-patch universe
-# see https://github.com/openai/universe/pull/211
-from universe.vectorized import MultiprocessingEnv
 
 import shutil
 import json
@@ -13,30 +6,16 @@ import time
 import os
 import numpy as np
 import tensorflow as tf
+from multiprocessing_env import MultiprocessingEnv
 from dynamics import NNDynamicsModel
 from controllers import (
-    RandomController, MPC, BootstrappedMPC, DaggerMPC, DeterministicLearner, StochasticLearner)
+    RandomController, MPC, BootstrappedMPC, DaggerMPC,
+    DeterministicLearner, StochasticLearner)
 import cost_functions
 import logz
 from cheetah_env import HalfCheetahEnvNew
 from utils import Path, Dataset, timeit
-from gym.envs import register
 
-
-def bugfix_seed_n(worker_n, seed_n):
-    accumulated = 0
-    for worker in worker_n:
-        seed_m = seed_n[accumulated:accumulated + worker.m]
-        worker.seed_start(seed_m)
-        accumulated += worker.m
-
-
-def bugfix_seed(self, seed):
-    bugfix_seed_n(self.worker_n, seed)
-    return [[seed_i] for seed_i in seed]
-
-
-MultiprocessingEnv._seed = bugfix_seed
 
 
 def sample(env,
@@ -62,37 +41,37 @@ def sample(env,
     return paths
 
 
-def train(mk_vectorized_env,
-          print_time,
-          cost_fn,
-          tf_cost_fn,
-          logdir=None,
-          render=False,
-          dyn_learning_rate=1e-3,
-          con_learning_rate=1e-4,
-          onpol_iters=10,
-          dyn_epochs=1,
-          con_epochs=1,
-          dyn_batch_size=1,
-          con_batch_size=1,
-          num_paths_random=10,
-          num_paths_onpol=10,
-          num_simulated_paths=10000,
-          env_horizon=1000,
-          mpc_horizon=15,
-          dyn_depth=0,
-          dyn_width=0,
-          con_depth=0,
-          con_width=0,
-          no_aggregate=False,
-          agent='mpc',
-          no_delta_norm=False,
-          exp_name='',
-          explore_std=0,
-          hard_cost=False,
-          deterministic=False,
-          no_extra_explore=False,
-          delay=0,
+def _train(mk_vectorized_env,
+           print_time,
+           cost_fn,
+           tf_cost_fn,
+           logdir=None,
+           render=False,
+           dyn_learning_rate=1e-3,
+           con_learning_rate=1e-4,
+           onpol_iters=10,
+           dyn_epochs=1,
+           con_epochs=1,
+           dyn_batch_size=1,
+           con_batch_size=1,
+           num_paths_random=10,
+           num_paths_onpol=10,
+           num_simulated_paths=10000,
+           env_horizon=1000,
+           mpc_horizon=15,
+           dyn_depth=0,
+           dyn_width=0,
+           con_depth=0,
+           con_width=0,
+           no_aggregate=False,
+           agent='mpc',
+           no_delta_norm=False,
+           exp_name='', # pylint: disable=unused-argument
+           explore_std=0,
+           hard_cost=False, # pylint: disable=unused-argument
+           deterministic=False,
+           no_extra_explore=False,
+           delay=0,
           ):
 
     locals_ = locals()
@@ -104,7 +83,6 @@ def train(mk_vectorized_env,
         del locals_[x]
     # requires additional effort to pickle
     env = mk_vectorized_env(num_paths_random)
-    locals_['env_id'] = env.spec.id
     logz.configure_output_dir(logdir)
     with open(os.path.join(logdir, 'params.json'), 'w') as f:
         json.dump(locals_, f)
@@ -240,7 +218,7 @@ def train(mk_vectorized_env,
     sess.__exit__(None, None, None)
 
 
-def main():
+def _main():
 
     import argparse
     parser = argparse.ArgumentParser()
@@ -304,7 +282,6 @@ def main():
 
     # Make env
     if args.env_name == "HalfCheetah-v1":
-        env = HalfCheetahEnvNew()
         if args.hard_cost:
             cost_fn = cost_functions.hard_cheetah_cost_fn
             tf_cost_fn = cost_functions.hard_tf_cheetah_cost_fn
@@ -312,16 +289,13 @@ def main():
             cost_fn = cost_functions.cheetah_cost_fn
             tf_cost_fn = cost_functions.tf_cheetah_cost_fn
 
-    env_id = env.__class__.__name__ + '-v0'
-    entry = env.__class__.__module__ + ':' + env.__class__.__name__
-    register(env_id, entry_point=entry)
-
     def mk_vectorized_env(n):
-        env = MultiprocessingEnv(env_id)
-        env.configure(n=n)
+        """Generates vectorized multiprocessing env."""
+        envs = [HalfCheetahEnvNew() for _ in range(n)]
+        mp_env = MultiprocessingEnv(envs)
         seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]
-        env.seed(seeds)
-        return env
+        mp_env.seed(seeds)
+        return mp_env
 
     for seed in args.seed:
         g = tf.Graph()
@@ -330,39 +304,39 @@ def main():
             # Set seed
             np.random.seed(seed)
             tf.set_random_seed(seed)
-            train(mk_vectorized_env=mk_vectorized_env,
-                  print_time=args.time,
-                  cost_fn=cost_fn,
-                  tf_cost_fn=tf_cost_fn,
-                  logdir=logdir_seed,
-                  render=args.render,
-                  dyn_learning_rate=args.dyn_learning_rate,
-                  con_learning_rate=args.con_learning_rate,
-                  onpol_iters=args.onpol_iters,
-                  dyn_epochs=args.dyn_epochs,
-                  con_epochs=args.con_epochs,
-                  dyn_batch_size=args.dyn_batch_size,
-                  con_batch_size=args.con_batch_size,
-                  num_paths_random=args.random_paths,
-                  num_paths_onpol=args.onpol_paths,
-                  num_simulated_paths=args.simulated_paths,
-                  env_horizon=args.ep_len,
-                  mpc_horizon=args.mpc_horizon,
-                  dyn_depth=args.dyn_depth,
-                  dyn_width=args.dyn_width,
-                  con_depth=args.con_depth,
-                  con_width=args.con_width,
-                  no_aggregate=args.no_aggregate,
-                  agent=args.agent,
-                  no_delta_norm=args.no_delta_norm,
-                  exp_name=args.exp_name,
-                  explore_std=args.explore_std,
-                  hard_cost=args.hard_cost,
-                  deterministic=args.deterministic_learner,
-                  no_extra_explore=args.no_extra_explore,
-                  delay=args.delay,
+            _train(mk_vectorized_env=mk_vectorized_env,
+                   print_time=args.time,
+                   cost_fn=cost_fn,
+                   tf_cost_fn=tf_cost_fn,
+                   logdir=logdir_seed,
+                   render=args.render,
+                   dyn_learning_rate=args.dyn_learning_rate,
+                   con_learning_rate=args.con_learning_rate,
+                   onpol_iters=args.onpol_iters,
+                   dyn_epochs=args.dyn_epochs,
+                   con_epochs=args.con_epochs,
+                   dyn_batch_size=args.dyn_batch_size,
+                   con_batch_size=args.con_batch_size,
+                   num_paths_random=args.random_paths,
+                   num_paths_onpol=args.onpol_paths,
+                   num_simulated_paths=args.simulated_paths,
+                   env_horizon=args.ep_len,
+                   mpc_horizon=args.mpc_horizon,
+                   dyn_depth=args.dyn_depth,
+                   dyn_width=args.dyn_width,
+                   con_depth=args.con_depth,
+                   con_width=args.con_width,
+                   no_aggregate=args.no_aggregate,
+                   agent=args.agent,
+                   no_delta_norm=args.no_delta_norm,
+                   exp_name=args.exp_name,
+                   explore_std=args.explore_std,
+                   hard_cost=args.hard_cost,
+                   deterministic=args.deterministic_learner,
+                   no_extra_explore=args.no_extra_explore,
+                   delay=args.delay,
                   )
 
 
 if __name__ == "__main__":
-    main()
+    _main()

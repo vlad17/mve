@@ -12,7 +12,6 @@ Here are setup-specific requirements that you really, really have to do yourself
 Other system dependencies:
 
 * System dependencies for `gym` - [gym README](https://github.com/openai/gym/blob/master/README.rst)
-* System dependencies for `universe` - [universe README](https://github.com/openai/universe/blob/master/README.rst)
 
 Example conda installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
 
@@ -24,7 +23,6 @@ Example conda installation with GPU (for CPU, modify `tensorflow-gpu` to `tensor
     conda install -y -c anaconda pandas
     conda install -y -c anaconda seaborn
     pip install gym[all] # make sure to install system deps first!
-    pip install universe # make sure to install system deps first!
 
 Or, using `requirements.txt`:
 

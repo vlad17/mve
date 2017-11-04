@@ -8,4 +8,3 @@ https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.3.0-cp35-cp35m-
 # https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow_gpu-1.3.0-cp35-cp35m-linux_x86_64.whl
 mujoco-py == 0.5.7
 gym[all]
-universe
