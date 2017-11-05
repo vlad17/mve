@@ -110,7 +110,7 @@ class MPC(Controller):
                  env,
                  dyn_model,
                  horizon=5,
-                 cost_fn=None,
+                 reward_fn=None,
                  num_simulated_paths=10,
                  sess=None,
                  learner=None):
@@ -136,11 +136,12 @@ class MPC(Controller):
         self.input_action_ph_na = tf.placeholder(
             tf.float32, [None, self._ac_dim], 'mpc_input_action')
 
-        def _body(t, state_ns, action_na, costs):
+        def _body(t, state_ns, action_na, rewards):
             next_state_ns = dyn_model.predict_tf(state_ns, action_na)
-            next_costs = cost_fn(state_ns, action_na, next_state_ns, costs)
+            next_rewards = reward_fn(
+                state_ns, action_na, next_state_ns, rewards)
             next_action_na = policy(next_state_ns, is_initial=False)
-            return [t + 1, next_state_ns, next_action_na, next_costs]
+            return [t + 1, next_state_ns, next_action_na, next_rewards]
         n = tf.shape(state_ns)[0]
         loop_vars = [
             0,
@@ -155,15 +156,15 @@ class MPC(Controller):
 
         action_na = self.sess.run(self.initial_action_na,
                                   feed_dict={self.input_state_ph_is: states})
-        _, _, _, trajectory_costs_n = self.sess.run(self.loop, feed_dict={
+        _, _, _, trajectory_rewards_n = self.sess.run(self.loop, feed_dict={
             self.input_state_ph_is: states,
             self.input_action_ph_na: action_na})
 
         # p = num simulated paths, i = nstates
         # note b/c of the way tf.tile works we need to reshape by p then i
-        per_state_simulation_costs_ip = trajectory_costs_n.reshape(
+        per_state_simulation_rewards_ip = trajectory_rewards_n.reshape(
             self.num_simulated_paths, nstates).T
-        best_ac_ix_i = per_state_simulation_costs_ip.argmin(axis=1)
+        best_ac_ix_i = per_state_simulation_rewards_ip.argmax(axis=1)
         action_samples_ipa = np.swapaxes(action_na.reshape(
             self.num_simulated_paths, nstates, self._ac_dim), 0, 1)
         best_ac_ia = action_samples_ipa[np.arange(nstates), best_ac_ix_i, :]
@@ -384,14 +385,14 @@ class BootstrappedMPC(Controller):
                  env,
                  dyn_model,
                  horizon=None,
-                 cost_fn=None,
+                 reward_fn=None,
                  num_simulated_paths=None,
                  learner=None,
                  sess=None):
         self.env = env
         self.learner = learner
         self.mpc = MPC(
-            env, dyn_model, horizon, cost_fn, num_simulated_paths, sess,
+            env, dyn_model, horizon, reward_fn, num_simulated_paths, sess,
             learner)
 
     def act(self, states_ns):
@@ -428,14 +429,14 @@ class DaggerMPC(Controller):
                  env,
                  dyn_model,
                  horizon=None,
-                 cost_fn=None,
+                 reward_fn=None,
                  num_simulated_paths=None,
                  learner=None,
                  delay=5,
                  sess=None):
         self.learner = learner
         self.mpc = MPC(
-            env, dyn_model, horizon, cost_fn, num_simulated_paths, sess,
+            env, dyn_model, horizon, reward_fn, num_simulated_paths, sess,
             learner)
         # TODO: the goal of this delay is to let the dynamics learn how
         # the expert behaves so that the expert gets good (since it has a

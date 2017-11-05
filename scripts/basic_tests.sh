@@ -49,16 +49,7 @@ python main.py $small_flags $instance
 instance="--agent dagger --delay 5"
 python main.py $small_flags $instance
 
-instance="--agent random --easy_cost"
-python main.py $small_flags $instance
-
-instance="--agent random --com_pos"
-python main.py $small_flags $instance
-
-instance="--agent random --com_vel"
-python main.py $small_flags $instance
-
-instance="--agent random --action_regularization 0.5"
+instance="--agent random --env_name hc-easy"
 python main.py $small_flags $instance
 
 instance="--agent bootstrap --deterministic_learner"
@@ -72,11 +63,11 @@ python main.py $flags $instance
 
 cmd="plot.py"
 
-instance="data/plotexp_hc:DynamicsMSE:x"
+instance="data/plotexp_hc-hard:DynamicsMSE:x"
 python plot.py $instance --outfile x.pdf --yaxis x
 rm x.pdf
 
-instance="data/plotexp_hc:AverageReturn:x"
+instance="data/plotexp_hc-hard:AverageReturn:x"
 python plot.py $instance --outfile y.pdf --yaxis y
 rm y.pdf
 

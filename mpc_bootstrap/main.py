@@ -11,7 +11,7 @@ from dynamics import NNDynamicsModel
 from controllers import (
     RandomController, MPC, BootstrappedMPC, DaggerMPC,
     DeterministicLearner, StochasticLearner)
-from envs import WhiteBoxMuJoCo, CostCalculator, HalfCheetahEnvFS
+from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
 import logz
 from utils import Path, Dataset, timeit
 
@@ -40,10 +40,9 @@ def sample(env,
     return paths
 
 
-def _train(mk_vectorized_env,
-           print_time,
-           mk_env,
-           env_kwargs, # pylint: disable=unused-argument
+def _train(env_name='',
+           print_time=False,
+           frame_skip=1,
            logdir=None,
            render=False,
            dyn_learning_rate=1e-3,
@@ -73,20 +72,35 @@ def _train(mk_vectorized_env,
           ):
 
     locals_ = locals()
-    del locals_['mk_vectorized_env'] # function not jsonnable
-    del locals_['mk_env'] # function not jsonnable
-    env = mk_vectorized_env(num_paths_random)
     logz.configure_output_dir(logdir)
     with open(os.path.join(logdir, 'params.json'), 'w') as f:
         json.dump(locals_, f)
 
+    def mk_env():
+        """Generates an unvectorized env."""
+        if env_name == 'hc-hard':
+            return WhiteBoxHalfCheetahHard(frame_skip)
+        elif env_name == 'hc-easy':
+            return WhiteBoxHalfCheetahEasy(frame_skip)
+        else:
+            raise ValueError('env {} unsupported'.format(env_name))
+
+    def mk_vectorized_env(n):
+        """Generates vectorized multiprocessing env."""
+        envs = [mk_env() for _ in range(n)]
+        mp_env = MultiprocessingEnv(envs)
+        seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]
+        mp_env.seed(seeds)
+        return mp_env
+
     # Need random initial data to kickstart dynamics
-    random_controller = RandomController(env)
-    paths = sample(env, random_controller,
+    venv = mk_vectorized_env(num_paths_random)
+    random_controller = RandomController(venv)
+    paths = sample(venv, random_controller,
                    env_horizon, render)
-    data = Dataset(env, env_horizon)
+    data = Dataset(venv, env_horizon)
     data.add_paths(paths)
-    env = mk_vectorized_env(num_paths_onpol)
+    venv = mk_vectorized_env(num_paths_onpol)
 
     original_env = mk_env()
 
@@ -96,7 +110,7 @@ def _train(mk_vectorized_env,
     opt_opts = config.graph_options.optimizer_options
     opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
     sess = tf.Session(config=config)
-    dyn_model = NNDynamicsModel(env=env,
+    dyn_model = NNDynamicsModel(env=venv,
                                 norm_data=data,
                                 no_delta_norm=no_delta_norm,
                                 batch_size=dyn_batch_size,
@@ -106,10 +120,10 @@ def _train(mk_vectorized_env,
                                 width=dyn_width,
                                 sess=sess)
     if agent == 'mpc':
-        controller = MPC(env=env,
+        controller = MPC(env=venv,
                          dyn_model=dyn_model,
                          horizon=mpc_horizon,
-                         cost_fn=original_env.tf_cost,
+                         reward_fn=original_env.tf_reward,
                          num_simulated_paths=num_simulated_paths,
                          sess=sess,
                          learner=None)
@@ -118,7 +132,7 @@ def _train(mk_vectorized_env,
     elif agent == 'bootstrap' or agent == 'dagger':
         if deterministic:
             learner = DeterministicLearner(
-                env=env,
+                env=venv,
                 learning_rate=con_learning_rate,
                 depth=con_depth,
                 width=con_width,
@@ -128,7 +142,7 @@ def _train(mk_vectorized_env,
                 sess=sess)
         else:
             learner = StochasticLearner(
-                env=env,
+                env=venv,
                 learning_rate=con_learning_rate,
                 depth=con_depth,
                 width=con_width,
@@ -138,27 +152,25 @@ def _train(mk_vectorized_env,
                 sess=sess)
         if agent == 'bootstrap':
             controller = BootstrappedMPC(
-                env=env,
+                env=venv,
                 dyn_model=dyn_model,
                 horizon=mpc_horizon,
-                cost_fn=original_env.tf_cost,
+                reward_fn=original_env.tf_reward,
                 num_simulated_paths=num_simulated_paths,
                 learner=learner,
                 sess=sess)
         else:  # dagger
             controller = DaggerMPC(
-                env=env,
+                env=venv,
                 dyn_model=dyn_model,
                 horizon=mpc_horizon,
                 delay=delay,
-                cost_fn=original_env.tf_cost,
+                reward_fn=original_env.tf_reward,
                 num_simulated_paths=num_simulated_paths,
                 learner=learner,
                 sess=sess)
     else:
         raise ValueError('agent type {} unrecognized'.format(agent))
-
-    cost_calc = CostCalculator(env_horizon, original_env)
 
     sess.__enter__()
     tf.global_variables_initializer().run()
@@ -177,39 +189,24 @@ def _train(mk_vectorized_env,
             controller.fit(data)
 
         with timeit('sample controller', print_time):
-            paths = sample(env, controller, env_horizon, render)
+            paths = sample(venv, controller, env_horizon, render)
 
         if not no_aggregate:
             data.add_paths(paths)
 
         with timeit('gathering statistics', print_time):
-            most_recent = Dataset(env, env_horizon)
+            most_recent = Dataset(venv, env_horizon)
             most_recent.add_paths(paths)
             returns = most_recent.rewards.sum(axis=0)
-
-            with sess.as_default():
-                costs = cost_calc.trajectory_cost(
-                    most_recent.obs, most_recent.acs, most_recent.next_obs)
-
             mse = dyn_model.dataset_mse(most_recent)
             controller.log(horizon=env_horizon)
 
-        # LOGGING
-        # Statistics for performance of MPC policy using
-        # our learned dynamics model
         logz.log_tabular('Iteration', itr)
-        # In terms of cost function which your MPC controller uses to plan
-        logz.log_tabular('AverageCost', np.mean(costs))
-        logz.log_tabular('StdCost', np.std(costs))
-        logz.log_tabular('MinimumCost', np.min(costs))
-        logz.log_tabular('MaximumCost', np.max(costs))
-        # In terms of true env reward of rolled out traj using MPC controller
         logz.log_tabular('AverageReturn', np.mean(returns))
         logz.log_tabular('StdReturn', np.std(returns))
         logz.log_tabular('MinimumReturn', np.min(returns))
         logz.log_tabular('MaximumReturn', np.max(returns))
         logz.log_tabular('DynamicsMSE', mse)
-
         logz.dump_tabular()
 
     sess.__exit__(None, None, None)
@@ -219,7 +216,7 @@ def _main():
 
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', type=str, default='hc')
+    parser.add_argument('--env_name', type=str, default='hc-hard')
     parser.add_argument('--time', action='store_true', default=False)
     # Experiment meta-params
     parser.add_argument('--exp_name', type=str, default='mb_mpc')
@@ -256,15 +253,12 @@ def _main():
     parser.add_argument('--no_aggregate', action='store_true', default=False)
     parser.add_argument('--agent', type=str, default='mpc')
     parser.add_argument('--no_delta_norm', action='store_true', default=False)
-    # cost fn / env
+    # env
     parser.add_argument('--frame_skip', type=int, default=1)
-    parser.add_argument('--easy_cost', action='store_true', default=False)
-    parser.add_argument('--com_pos', action='store_true', default=False)
-    parser.add_argument('--com_vel', action='store_true', default=False)
-    parser.add_argument('--action_regularization', type=float, default=0.1)
     args = parser.parse_args()
 
     # Make data directory if it does not already exist
+    # TODO: this procedure should be in utils
     if not os.path.exists('data'):
         os.makedirs('data')
     logdir_base = args.exp_name + '_' + args.env_name
@@ -282,27 +276,6 @@ def _main():
     with open(os.path.join(logdir, 'starttime.txt'), 'w') as f:
         print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
 
-    # Make env
-    assert args.env_name == 'hc', 'only hc env supported'
-    env_kwargs = {'com_pos': args.com_pos, 'com_vel': args.com_vel,
-                  'easy_cost': args.easy_cost,
-                  'action_regularization': args.action_regularization}
-
-    def mk_env():
-        """Generates an unvectorized env."""
-        return WhiteBoxMuJoCo(HalfCheetahEnvFS(args.frame_skip), **env_kwargs)
-
-    def mk_vectorized_env(n):
-        """Generates vectorized multiprocessing env."""
-        envs = [mk_env() for _ in range(n)]
-        mp_env = MultiprocessingEnv(envs)
-        seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]
-        mp_env.seed(seeds)
-        return mp_env
-
-    ek2 = dict(env_kwargs)
-    ek2['frame_skip'] = args.frame_skip
-
     for seed in args.seed:
         g = tf.Graph()
         logdir_seed = os.path.join(logdir, str(seed))
@@ -310,10 +283,9 @@ def _main():
             # Set seed
             np.random.seed(seed)
             tf.set_random_seed(seed)
-            _train(mk_vectorized_env=mk_vectorized_env,
+            _train(env_name=args.env_name,
                    print_time=args.time,
-                   mk_env=mk_env,
-                   env_kwargs=ek2,
+                   frame_skip=args.frame_skip,
                    logdir=logdir_seed,
                    render=args.render,
                    dyn_learning_rate=args.dyn_learning_rate,
