@@ -143,7 +143,7 @@ class MPC(Controller):
             return [t + 1, next_state_ns, next_action_na, next_costs]
         n = tf.shape(state_ns)[0]
         loop_vars = [
-            tf.constant(0),
+            0,
             state_ns,
             self.input_action_ph_na,
             tf.zeros((n,))]

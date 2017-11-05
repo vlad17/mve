@@ -4,6 +4,7 @@ import shutil
 import json
 import time
 import os
+from gym.envs.mujoco import HalfCheetahEnv
 import numpy as np
 import tensorflow as tf
 from multiprocessing_env import MultiprocessingEnv
@@ -11,9 +12,8 @@ from dynamics import NNDynamicsModel
 from controllers import (
     RandomController, MPC, BootstrappedMPC, DaggerMPC,
     DeterministicLearner, StochasticLearner)
-import cost_functions
+from envs import WhiteBoxMuJoCo, CostCalculator
 import logz
-from cheetah_env import HalfCheetahEnvNew
 from utils import Path, Dataset, timeit
 
 
@@ -43,8 +43,8 @@ def sample(env,
 
 def _train(mk_vectorized_env,
            print_time,
-           cost_fn,
-           tf_cost_fn,
+           mk_env,
+           env_kwargs, # pylint: disable=unused-argument
            logdir=None,
            render=False,
            dyn_learning_rate=1e-3,
@@ -68,20 +68,14 @@ def _train(mk_vectorized_env,
            no_delta_norm=False,
            exp_name='', # pylint: disable=unused-argument
            explore_std=0,
-           hard_cost=False, # pylint: disable=unused-argument
            deterministic=False,
            no_extra_explore=False,
            delay=0,
           ):
 
     locals_ = locals()
-    not_picklable = [
-        'mk_vectorized_env',
-        'cost_fn',
-        'tf_cost_fn']
-    for x in not_picklable:
-        del locals_[x]
-    # requires additional effort to pickle
+    del locals_['mk_vectorized_env'] # function not jsonnable
+    del locals_['mk_env'] # function not jsonnable
     env = mk_vectorized_env(num_paths_random)
     logz.configure_output_dir(logdir)
     with open(os.path.join(logdir, 'params.json'), 'w') as f:
@@ -94,6 +88,8 @@ def _train(mk_vectorized_env,
     data = Dataset(env, env_horizon)
     data.add_paths(paths)
     env = mk_vectorized_env(num_paths_onpol)
+
+    original_env = mk_env()
 
     # Build dynamics model and MPC controllers.
     config = tf.ConfigProto()
@@ -114,7 +110,7 @@ def _train(mk_vectorized_env,
         controller = MPC(env=env,
                          dyn_model=dyn_model,
                          horizon=mpc_horizon,
-                         cost_fn=tf_cost_fn,
+                         cost_fn=original_env.tf_cost,
                          num_simulated_paths=num_simulated_paths,
                          sess=sess,
                          learner=None)
@@ -146,7 +142,7 @@ def _train(mk_vectorized_env,
                 env=env,
                 dyn_model=dyn_model,
                 horizon=mpc_horizon,
-                cost_fn=tf_cost_fn,
+                cost_fn=original_env.tf_cost,
                 num_simulated_paths=num_simulated_paths,
                 learner=learner,
                 sess=sess)
@@ -156,12 +152,14 @@ def _train(mk_vectorized_env,
                 dyn_model=dyn_model,
                 horizon=mpc_horizon,
                 delay=delay,
-                cost_fn=tf_cost_fn,
+                cost_fn=original_env.tf_cost,
                 num_simulated_paths=num_simulated_paths,
                 learner=learner,
                 sess=sess)
     else:
         raise ValueError('agent type {} unrecognized'.format(agent))
+
+    cost_calc = CostCalculator(env_horizon, original_env)
 
     sess.__enter__()
     tf.global_variables_initializer().run()
@@ -190,9 +188,9 @@ def _train(mk_vectorized_env,
             most_recent.add_paths(paths)
             returns = most_recent.rewards.sum(axis=0)
 
-            costs = cost_functions.trajectory_cost_fn(
-                cost_fn, most_recent.obs, most_recent.acs,
-                most_recent.next_obs)
+            with sess.as_default():
+                costs = cost_calc.trajectory_cost(
+                    most_recent.obs, most_recent.acs, most_recent.next_obs)
 
             mse = dyn_model.dataset_mse(most_recent)
             controller.log(horizon=env_horizon)
@@ -222,9 +220,8 @@ def _main():
 
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', type=str, default='HalfCheetah-v1')
+    parser.add_argument('--env_name', type=str, default='hc')
     parser.add_argument('--time', action='store_true', default=False)
-    parser.add_argument('--hard_cost', action='store_true', default=False)
     # Experiment meta-params
     parser.add_argument('--exp_name', type=str, default='mb_mpc')
     parser.add_argument('--seed', type=int, default=[3], nargs='+')
@@ -260,6 +257,11 @@ def _main():
     parser.add_argument('--no_aggregate', action='store_true', default=False)
     parser.add_argument('--agent', type=str, default='mpc')
     parser.add_argument('--no_delta_norm', action='store_true', default=False)
+    # cost fn / env
+    parser.add_argument('--easy_cost', action='store_true', default=False)
+    parser.add_argument('--com_pos', action='store_true', default=False)
+    parser.add_argument('--com_vel', action='store_true', default=False)
+    parser.add_argument('--action_regularization', type=float, default=0.1)
     args = parser.parse_args()
 
     # Make data directory if it does not already exist
@@ -281,17 +283,18 @@ def _main():
         print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
 
     # Make env
-    if args.env_name == "HalfCheetah-v1":
-        if args.hard_cost:
-            cost_fn = cost_functions.hard_cheetah_cost_fn
-            tf_cost_fn = cost_functions.hard_tf_cheetah_cost_fn
-        else:
-            cost_fn = cost_functions.cheetah_cost_fn
-            tf_cost_fn = cost_functions.tf_cheetah_cost_fn
+    assert args.env_name == 'hc', 'only hc env supported'
+    env_kwargs = {'com_pos': args.com_pos, 'com_vel': args.com_vel,
+                  'easy_cost': args.easy_cost,
+                  'action_regularization': args.action_regularization}
+
+    def mk_env():
+        """Generates an unvectorized env."""
+        return WhiteBoxMuJoCo(HalfCheetahEnv(), **env_kwargs)
 
     def mk_vectorized_env(n):
         """Generates vectorized multiprocessing env."""
-        envs = [HalfCheetahEnvNew() for _ in range(n)]
+        envs = [mk_env() for _ in range(n)]
         mp_env = MultiprocessingEnv(envs)
         seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]
         mp_env.seed(seeds)
@@ -306,8 +309,8 @@ def _main():
             tf.set_random_seed(seed)
             _train(mk_vectorized_env=mk_vectorized_env,
                    print_time=args.time,
-                   cost_fn=cost_fn,
-                   tf_cost_fn=tf_cost_fn,
+                   mk_env=mk_env,
+                   env_kwargs=env_kwargs,
                    logdir=logdir_seed,
                    render=args.render,
                    dyn_learning_rate=args.dyn_learning_rate,
@@ -331,7 +334,6 @@ def _main():
                    no_delta_norm=args.no_delta_norm,
                    exp_name=args.exp_name,
                    explore_std=args.explore_std,
-                   hard_cost=args.hard_cost,
                    deterministic=args.deterministic_learner,
                    no_extra_explore=args.no_extra_explore,
                    delay=args.delay,

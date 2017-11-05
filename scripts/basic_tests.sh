@@ -49,7 +49,16 @@ python main.py $small_flags $instance
 instance="--agent dagger --delay 5"
 python main.py $small_flags $instance
 
-instance="--agent bootstrap --hard_cost"
+instance="--agent random --easy_cost"
+python main.py $small_flags $instance
+
+instance="--agent random --com_pos"
+python main.py $small_flags $instance
+
+instance="--agent random --com_vel"
+python main.py $small_flags $instance
+
+instance="--agent random --action_regularization 0.5"
 python main.py $small_flags $instance
 
 instance="--agent bootstrap --deterministic_learner"
@@ -63,11 +72,11 @@ python main.py $flags $instance
 
 cmd="plot.py"
 
-instance="data/plotexp_HalfCheetah-v1:DynamicsMSE:x"
+instance="data/plotexp_hc:DynamicsMSE:x"
 python plot.py $instance --outfile x.pdf --yaxis x
 rm x.pdf
 
-instance="data/plotexp_HalfCheetah-v1:AverageReturn:x"
+instance="data/plotexp_hc:AverageReturn:x"
 python plot.py $instance --outfile y.pdf --yaxis y
 rm y.pdf
 
