@@ -132,25 +132,55 @@ All scripts are available in `scripts/`, and should be run from the repo root.
     # plotting for all figures in order
     python mpc_bootstrap/plot.py \
         "data/mpc-easy_HalfCheetah-v1:AverageReturn:MPC" \
-        "data/bootstrap-easy_HalfCheetah-v1:AverageReturn:uniform BMPC" \
-        "data/normboot-easy_HalfCheetah-v1:AverageReturn:normal BMPC" \
-        "data/stochastic-bmpc-easy_HalfCheetah-v1:AverageReturn:stochastic BMPC" \
-        "data/onlystoch-bmpc-easy_HalfCheetah-v1:AverageReturn:stoch,no-exp BMPC" \
+        'data/bootstrap-easy_HalfCheetah-v1:AverageReturn:$\delta$-BMPC' \
+        "data/stochastic-bmpc-easy_HalfCheetah-v1:AverageReturn:Gaussian BMPC" \
+        "data/onlystoch-bmpc-easy_HalfCheetah-v1:AverageReturn:No-explore BMPC" \
         --outfile report/easy-AverageReturn.pdf --yaxis "average rollout return"
     python mpc_bootstrap/plot.py \
+        "data/mpc-easy_HalfCheetah-v1:AverageReturn:MPC" \
+        'data/bootstrap-easy_HalfCheetah-v1:LearnerAverageReturn:$\delta$-BMPC' \
+        "data/stochastic-bmpc-easy_HalfCheetah-v1:LearnerAverageReturn:Gaussian BMPC" \
+        "data/onlystoch-bmpc-easy_HalfCheetah-v1:LearnerAverageReturn:No-explore BMPC" \
+        --outfile report/easy-LearnerAverageReturn.pdf --yaxis "average rollout return"
+    python mpc_bootstrap/plot.py \
+        "data/mpc-easy_HalfCheetah-v1:DynamicsMSE:MPC" \
+        "data/onlystoch-bmpc-easy_HalfCheetah-v1:DynamicsMSE:No-explore BMPC" \
+        --outfile report/easy-DynamicsMSE.pdf --yaxis "dynamics MSE"
+    python mpc_bootstrap/plot.py \
         "data/mpc-hard_HalfCheetah-v1:AverageReturn:MPC" \
-        "data/bootstrap-hard_HalfCheetah-v1:AverageReturn:uniform BMPC" \
-        "data/normboot-hard_HalfCheetah-v1:AverageReturn:normal BMPC" \
-        "data/stochastic-bmpc-hard_HalfCheetah-v1:AverageReturn:stochastic BMPC" \
-        "data/onlystoch-bmpc-hard_HalfCheetah-v1:AverageReturn:stoch,no-exp BMPC" \
+        'data/bootstrap-hard_HalfCheetah-v1:AverageReturn:$\delta$-BMPC' \
+        "data/stochastic-bmpc-hard_HalfCheetah-v1:AverageReturn:Gaussian BMPC" \
+        "data/onlystoch-bmpc-hard_HalfCheetah-v1:AverageReturn:No-explore BMPC" \
         --outfile report/hard-AverageReturn.pdf --yaxis "average rollout return"
     python mpc_bootstrap/plot.py \
+        'data/bootstrap-hard_HalfCheetah-v1:LearnerAverageReturn:$\delta$-BMPC' \
+        "data/stochastic-bmpc-hard_HalfCheetah-v1:LearnerAverageReturn:Gaussian BMPC" \
+        "data/onlystoch-bmpc-hard_HalfCheetah-v1:LearnerAverageReturn:No-explore BMPC" \
+        --outfile report/hard-LearnerAverageReturn.pdf --yaxis "average rollout return"
+    python mpc_bootstrap/plot.py \
+        'data/mpc-hard_HalfCheetah-v1:DynamicsMSE:MPC' \
+        'data/bootstrap-hard_HalfCheetah-v1:DynamicsMSE:$\delta$-BMPC' \
+        "data/stochastic-bmpc-hard_HalfCheetah-v1:DynamicsMSE:Gaussian BMPC" \
+        "data/onlystoch-bmpc-hard_HalfCheetah-v1:DynamicsMSE:No-explore BMPC" \
+        --outfile report/hard-DynamicsMSE.pdf --yaxis "dynamics MSE"
+    python mpc_bootstrap/plot.py \
         "data/mpc-hard2_HalfCheetah-v1:AverageReturn:MPC" \
-        "data/bootstrap-hard2_HalfCheetah-v1:AverageReturn:uniform BMPC" \
-        "data/normboot-hard2_HalfCheetah-v1:AverageReturn:normal BMPC" \
-        "data/stochastic-bmpc-hard2_HalfCheetah-v1:AverageReturn:stochastic BMPC" \
-        "data/onlystoch-bmpc-hard2_HalfCheetah-v1:AverageReturn:stoch,no-exp BMPC" \
+        "data/bootstrap-hard2_HalfCheetah-v1:AverageReturn:$\delta$-BMPC" \
+        "data/stochastic-bmpc-hard2_HalfCheetah-v1:AverageReturn:Gaussian BMPC" \
+        "data/onlystoch-bmpc-hard2_HalfCheetah-v1:AverageReturn:No-explore BMPC" \
         --outfile report/hard2-AverageReturn.pdf --yaxis "average rollout return"
+    python mpc_bootstrap/plot.py \
+        "data/stochastic-bmpc-hard2_HalfCheetah-v1:LearnerAverageReturn:Gaussian BMPC" \
+        "data/onlystoch-bmpc-hard2_HalfCheetah-v1:LearnerAverageReturn:No-explore BMPC" \
+        --outfile report/hard2-LearnerAverageReturn.pdf --yaxis "average rollout return"
+    python mpc_bootstrap/plot.py \
+        'data/mpc-hard2_HalfCheetah-v1:DynamicsMSE:MPC' \
+        'data/bootstrap-hard2_HalfCheetah-v1:DynamicsMSE:$\delta$-BMPC' \
+        "data/stochastic-bmpc-hard2_HalfCheetah-v1:DynamicsMSE:Gaussian BMPC" \
+        "data/onlystoch-bmpc-hard2_HalfCheetah-v1:DynamicsMSE:No-explore BMPC" \
+        --outfile report/hard2-DynamicsMSE.pdf --yaxis "dynamics MSE"
+        
+    # dagger
     python mpc_bootstrap/plot.py \
         "data/stochastic-bmpc-hard_HalfCheetah-v1:AverageReturn:stochastic BMPC" \
         "data/stochastic-dag-hard_HalfCheetah-v1:AverageReturn:dagger stochastic BMPC" \

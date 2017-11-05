@@ -92,7 +92,11 @@ def main():
     parser.add_argument('columns', nargs='+')
     parser.add_argument('--outfile', default='', type=str, required=True)
     parser.add_argument('--yaxis', default='', type=str, required=True)
+    parser.add_argument('--notex', default=False, action='store_true')
     args = parser.parse_args()
+
+    if not args.notex:
+        matplotlib.rcParams['text.usetex'] = True
 
     data = []
     for column in args.columns:

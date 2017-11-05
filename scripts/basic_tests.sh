@@ -64,11 +64,11 @@ python main.py $flags $instance
 cmd="plot.py"
 
 instance="data/plotexp_hc-hard:DynamicsMSE:x"
-python plot.py $instance --outfile x.pdf --yaxis x
+python plot.py $instance --outfile x.pdf --yaxis x --notex
 rm x.pdf
 
 instance="data/plotexp_hc-hard:AverageReturn:x"
-python plot.py $instance --outfile y.pdf --yaxis y
+python plot.py $instance --outfile y.pdf --yaxis y --notex
 rm y.pdf
 
 trap '' EXIT
