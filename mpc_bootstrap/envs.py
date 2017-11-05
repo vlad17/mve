@@ -3,8 +3,9 @@ White-box environment (wrappers) which reveal relevant physical info and
 their cost functions.
 """
 
+import gym
 from gym import ObservationWrapper, spaces
-from gym.envs.mujoco import HalfCheetahEnv
+from gym.envs.mujoco import HalfCheetahEnv, MujocoEnv
 import numpy as np
 import tensorflow as tf
 
@@ -66,6 +67,13 @@ class CostCalculator:
                 self._next_state_ph_tns: next_state})
 
 
+class HalfCheetahEnvFS(HalfCheetahEnv):
+    """HalfCheetah, with frameskip 1 (for consistency with HW4)"""
+
+    def __init__(self, frame_skip):  # pylint: disable=super-init-not-called
+        MujocoEnv.__init__(self, 'half_cheetah.xml', frame_skip)  # pylint: disable=non-parent-init-called
+        gym.utils.EzPickle.__init__(self)  # pylint: disable=non-parent-init-called
+
 @inherit_doc
 class WhiteBoxMuJoCo(WrapperWithCost):
     """
@@ -94,7 +102,7 @@ class WhiteBoxMuJoCo(WrapperWithCost):
         self._easy_cost = easy_cost
         self._action_regularization = action_regularization
         gym_env = self.unwrapped
-        assert isinstance(gym_env, HalfCheetahEnv), gym_env
+        assert isinstance(gym_env, HalfCheetahEnvFS), gym_env
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=self._observation(None).shape)
 

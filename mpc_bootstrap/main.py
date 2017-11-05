@@ -4,7 +4,6 @@ import shutil
 import json
 import time
 import os
-from gym.envs.mujoco import HalfCheetahEnv
 import numpy as np
 import tensorflow as tf
 from multiprocessing_env import MultiprocessingEnv
@@ -12,7 +11,7 @@ from dynamics import NNDynamicsModel
 from controllers import (
     RandomController, MPC, BootstrappedMPC, DaggerMPC,
     DeterministicLearner, StochasticLearner)
-from envs import WhiteBoxMuJoCo, CostCalculator
+from envs import WhiteBoxMuJoCo, CostCalculator, HalfCheetahEnvFS
 import logz
 from utils import Path, Dataset, timeit
 
@@ -258,6 +257,7 @@ def _main():
     parser.add_argument('--agent', type=str, default='mpc')
     parser.add_argument('--no_delta_norm', action='store_true', default=False)
     # cost fn / env
+    parser.add_argument('--frame_skip', type=int, default=1)
     parser.add_argument('--easy_cost', action='store_true', default=False)
     parser.add_argument('--com_pos', action='store_true', default=False)
     parser.add_argument('--com_vel', action='store_true', default=False)
@@ -290,7 +290,7 @@ def _main():
 
     def mk_env():
         """Generates an unvectorized env."""
-        return WhiteBoxMuJoCo(HalfCheetahEnv(), **env_kwargs)
+        return WhiteBoxMuJoCo(HalfCheetahEnvFS(args.frame_skip), **env_kwargs)
 
     def mk_vectorized_env(n):
         """Generates vectorized multiprocessing env."""
@@ -299,6 +299,9 @@ def _main():
         seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]
         mp_env.seed(seeds)
         return mp_env
+
+    ek2 = dict(env_kwargs)
+    ek2['frame_skip'] = args.frame_skip
 
     for seed in args.seed:
         g = tf.Graph()
@@ -310,7 +313,7 @@ def _main():
             _train(mk_vectorized_env=mk_vectorized_env,
                    print_time=args.time,
                    mk_env=mk_env,
-                   env_kwargs=env_kwargs,
+                   env_kwargs=ek2,
                    logdir=logdir_seed,
                    render=args.render,
                    dyn_learning_rate=args.dyn_learning_rate,
