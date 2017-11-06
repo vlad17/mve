@@ -82,7 +82,7 @@ In \figref{easy}, we see a couple interesting things going on already. Amazingly
 
 The poor learner performance does not kill the original hypothesis: perhaps even weak learners can improve reward estimates $R_{i_*}$. But this does suggest an new hypothesis for the improvement: perhaps the learners prevent catastrophic changes in the policy. Maybe simply reducing the variance of estimates $R_{i_*}$ yields the improvement. We note that, at least for this simple case, learners don't improve performance by making the dynamics more learnable: for both the original MPC and BMPC, the learned dynamics are about equally performant (\figref{easy-dynamics}.
 
-\autofig{easy-DynamicsMSE.pdf}{\label{fig:easy-dynamics}}{We evaluate dynamics for No-explore BMPC and the original MPC. This evaluation is measures how predictive the dynamics were of the actual transitions in validation rollouts (it is not the training MSE). We omit the other BMPC learners because they have worse MSE than the original MPC, which still suffices to discredit the hypothesis that learners help dynamics.}
+\autofig{easy-DynamicsMSE.pdf}{\label{fig:easy-dynamics}}{We evaluate dynamics in the setting of \figref{easy}. This evaluation is measures how predictive the dynamics were of the actual transitions in validation rollouts (it is not the training MSE). We omit the first couple of iterations because their scales are vastly different than the rest.}
 
 \section{Hard Cost}
 
@@ -92,23 +92,23 @@ In this case, it is unclear if bootstrapping still helps (\figref{hardcost}).
 
 \autofig{hard-AverageReturn.pdf}{\label{fig:hardcost}}{Average return over policy aggregation iterations for the learning-based sampling MPC agent, compared to the standard uniform sampling MPC agent, this time with a hard cost function.}
 
-The dynamics and learning returns for the runs in \figref{hardcost} paint a similar picture as for easy cost. In case hard cost required additional simulation, we changed $H,K$ from $15,1000$ to $50,200$, using slightly less data (but higher-quality perhaps). Performance was generally better but more chaotic, and still with no clear advantage to BMPC (\figref{hard2cost}).
+The dynamics and learning returns for the runs in \figref{hardcost} paint a similar picture as for easy cost. In case hard cost required additional simulation, we changed $H,K$ from $15,1000$ to $50,1000$. Performance was generally better but more chaotic, and still with no clear advantage to BMPC (\figref{hard2cost}).
 
 \autofig{hard2-AverageReturn.pdf}{\label{fig:hard2cost}}{The same setting as \figref{hard2cost} but with longer simulated horizons.}
 
-We end with a slightly more optimistic note of the second hard setting's learner performance, which is generally improving (\figref{hard2learn}).
-
-\autofig{hard2-LearnerAverageReturn.pdf}{\label{fig:hard2learn}}{Learner performance over time in the setting of \figref{hard2cost}.}
+Nonetheless, the trend in \figref{hardcost} deserves elaboration---perhaps at later iterations BMPC overtakes MPC.
 
 \section{Planned Work}
 
-The proposition being investigated (more accurate or lower-variance estimates of reward with $R_{i_*}$) can be directly sampled and tested to be the case! TODO expand on this.
+The proposition being investigated (more accurate or lower-variance estimates of reward with $R_{i_*}$) can be directly sampled and tested to be the case! After simulating several rollouts for any \textsc{MetaMPC} algorithm, we can sample initial state $s$ from the empirical distribution of visited states. For each such state, we \textit{re-simulate} $H$ real horizon steps with independent runs (the samples $A_t$ will differ, so the results will not be the same as the first run, even for a deterministic environment). These give us several observations of the true $H$-step reward $\tilde{R}_H$. For each such observation we compute the observed bias $\tilde{R}_H-R_{i_*}$ and squared error $\pa{\tilde{R}_H-R_{i_*}}^2$. Over several samples we can estimate variance $\var R_{i_*}$ as well. Then across the samples $s$ we can estimate average values across the entire distribution for these reward statistics.
 
-TODO measure action distribution shift.
+This sampling of $s$ is not iid but the resulting estimator is still unbiased, so we will have to use the bootstrap (haha) to calculate confidence intervals.
 
-TODO expand to harder Ant problem to prevent overfitting
+Measuring the explicit action distribution shift between iterations boils down to measuring distance between conditional action distributions resulting from the \textsc{MetaMPC} algorithm, which is only a black-box generative distribution. We have a plan for this but excerpt it to keep the report shorter. Graders can contact the authors for more details.
 
-Finally, the chaotic performance but improving learner in the second hard setting suggest that we should TODO explore various hyperparameter and template settings.
+In addition, we hope to expand to the harder \texttt{Ant} problem to prevent overfitting to \texttt{HalfCheetah}.
+
+Finally, the chaotic performance but improving learner in the second hard setting suggest that we should explore various hyperparameter and template settings; but we should save this for the end.
 
 \section{Further Exploration}
 

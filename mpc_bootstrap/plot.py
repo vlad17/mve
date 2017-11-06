@@ -93,6 +93,7 @@ def main():
     parser.add_argument('--outfile', default='', type=str, required=True)
     parser.add_argument('--yaxis', default='', type=str, required=True)
     parser.add_argument('--notex', default=False, action='store_true')
+    parser.add_argument('--drop_iterations', default=0, type=int)
     args = parser.parse_args()
 
     if not args.notex:
@@ -104,6 +105,7 @@ def main():
         data += _get_datasets(logdir, value, label, args.yaxis)
 
     data = pd.concat(data, ignore_index=True)
+    data = data[data['aggregation iteration'] >= args.drop_iterations]
     _plot_data(data, args.yaxis, args.outfile)
 
 
