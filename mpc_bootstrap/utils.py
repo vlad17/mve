@@ -38,11 +38,10 @@ def get_ob_dim(env):
     return ob_space.shape[0]
 
 
-class Path:
+class Path(object):
     """Store rewards and transitions from a single fixed-horizon rollout"""
 
     def __init__(self, env, initial_obs, horizon):
-        super().__init__()
         self._obs = np.empty((horizon, get_ob_dim(env)))
         self._next_obs = np.empty((horizon, get_ob_dim(env)))
         self._acs = np.empty((horizon, get_ac_dim(env)))
@@ -63,32 +62,35 @@ class Path:
             return False
         return True
 
+    def _check_all_data_has_been_collected(self):
+        assert self._idx == self._horizon, (self._idx, self._horizon)
+
     @property
     def obs(self):
         """All observed states so far."""
-        assert self._idx == self._horizon, (self._idx, self._horizon)
+        self._check_all_data_has_been_collected()
         return self._obs
 
     @property
     def acs(self):
         """All actions so far."""
-        assert self._idx == self._horizon, (self._idx, self._horizon)
+        self._check_all_data_has_been_collected()
         return self._acs
 
     @property
     def rewards(self):
         """All rewards so far."""
-        assert self._idx == self._horizon, (self._idx, self._horizon)
+        self._check_all_data_has_been_collected()
         return self._rewards
 
     @property
     def next_obs(self):
         """All states transitioned into so far."""
-        assert self._idx == self._horizon, (self._idx, self._horizon)
+        self._check_all_data_has_been_collected()
         return self._next_obs
 
 
-class Dataset:
+class Dataset(object):
     """
     Stores all data for transitions across several rollouts.
 
@@ -99,7 +101,6 @@ class Dataset:
     """
 
     def __init__(self, env, horizon):
-        super().__init__()
         # not time by batch by state/action dimension order
         self.ac_dim = get_ac_dim(env)
         self.ob_dim = get_ob_dim(env)

@@ -4,29 +4,29 @@ import shutil
 import json
 import time
 import os
+
 import numpy as np
 import tensorflow as tf
-from multiprocessing_env import MultiprocessingEnv
-from dynamics import NNDynamicsModel
+
 from controllers import (
     RandomController, MPC, BootstrappedMPC, DaggerMPC,
     DeterministicLearner, StochasticLearner)
+from dynamics import NNDynamicsModel
 from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
-import logz
+from log import debug
+import log
+from multiprocessing_env import MultiprocessingEnv
 from utils import Path, Dataset, timeit
-
+import flags
+import logz
 
 
 def sample(env,
            controller,
-           horizon=1000,
-           render=False):
+           horizon=1000):
     """
     Assumes env is vectorized to some number of states at once
     """
-    if render:
-        raise ValueError('rendering not supported')
-
     obs_n = env.reset()
     controller.reset(len(obs_n))
     paths = [Path(env, obs, horizon) for obs in obs_n]
@@ -40,48 +40,24 @@ def sample(env,
     return paths
 
 
-def _train(env_name='',
-           print_time=False,
-           frame_skip=1,
-           logdir=None,
-           render=False,
-           dyn_learning_rate=1e-3,
-           con_learning_rate=1e-4,
-           onpol_iters=10,
-           dyn_epochs=1,
-           con_epochs=1,
-           dyn_batch_size=1,
-           con_batch_size=1,
-           num_paths_random=10,
-           num_paths_onpol=10,
-           num_simulated_paths=10000,
-           env_horizon=1000,
-           mpc_horizon=15,
-           dyn_depth=0,
-           dyn_width=0,
-           con_depth=0,
-           con_width=0,
-           no_aggregate=False,
-           agent='mpc',
-           no_delta_norm=False,
-           exp_name='', # pylint: disable=unused-argument
-           explore_std=0,
-           deterministic=False,
-           no_extra_explore=False,
-           delay=0,
-          ):
-
-    locals_ = locals()
+def _train(all_flags, logdir):
+    # Save params to disk.
+    params = flags.flags_to_json(all_flags)
     logz.configure_output_dir(logdir)
     with open(os.path.join(logdir, 'params.json'), 'w') as f:
-        json.dump(locals_, f)
+        json.dump(params, f)
+
+    # Log arguments to sanity check that they are what they should be.
+    for x in params:
+        debug("{:20} = {}", x, params[x])
 
     def mk_env():
         """Generates an unvectorized env."""
+        env_name = all_flags.alg.env_name
         if env_name == 'hc-hard':
-            return WhiteBoxHalfCheetahHard(frame_skip)
+            return WhiteBoxHalfCheetahHard(all_flags.alg.frame_skip)
         elif env_name == 'hc-easy':
-            return WhiteBoxHalfCheetahEasy(frame_skip)
+            return WhiteBoxHalfCheetahEasy(all_flags.alg.frame_skip)
         else:
             raise ValueError('env {} unsupported'.format(env_name))
 
@@ -94,13 +70,12 @@ def _train(env_name='',
         return mp_env
 
     # Need random initial data to kickstart dynamics
-    venv = mk_vectorized_env(num_paths_random)
+    venv = mk_vectorized_env(all_flags.alg.random_paths)
     random_controller = RandomController(venv)
-    paths = sample(venv, random_controller,
-                   env_horizon, render)
-    data = Dataset(venv, env_horizon)
+    paths = sample(venv, random_controller, all_flags.alg.horizon)
+    data = Dataset(venv, all_flags.alg.horizon)
     data.add_paths(paths)
-    venv = mk_vectorized_env(num_paths_onpol)
+    venv = mk_vectorized_env(all_flags.alg.onpol_paths)
 
     original_env = mk_env()
 
@@ -111,95 +86,96 @@ def _train(env_name='',
     opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
     sess = tf.Session(config=config)
     dyn_model = NNDynamicsModel(env=venv,
+                                sess=sess,
                                 norm_data=data,
-                                no_delta_norm=no_delta_norm,
-                                batch_size=dyn_batch_size,
-                                epochs=dyn_epochs,
-                                learning_rate=dyn_learning_rate,
-                                depth=dyn_depth,
-                                width=dyn_width,
-                                sess=sess)
-    if agent == 'mpc':
+                                depth=all_flags.dyn.dyn_depth,
+                                width=all_flags.dyn.dyn_width,
+                                learning_rate=all_flags.dyn.dyn_learning_rate,
+                                epochs=all_flags.dyn.dyn_epochs,
+                                batch_size=all_flags.dyn.dyn_batch_size,
+                                no_delta_norm=all_flags.dyn.no_delta_norm)
+
+    if all_flags.alg.agent == 'mpc':
         controller = MPC(env=venv,
                          dyn_model=dyn_model,
-                         horizon=mpc_horizon,
+                         horizon=all_flags.mpc.mpc_horizon,
                          reward_fn=original_env.tf_reward,
-                         num_simulated_paths=num_simulated_paths,
+                         num_simulated_paths=all_flags.mpc.mpc_simulated_paths,
                          sess=sess,
                          learner=None)
-    elif agent == 'random':
+    elif all_flags.alg.agent == 'random':
         controller = random_controller
-    elif agent == 'bootstrap' or agent == 'dagger':
-        if deterministic:
+    elif all_flags.alg.agent == 'bootstrap' or all_flags.alg.agent == 'dagger':
+        if all_flags.con.deterministic_learner:
             learner = DeterministicLearner(
                 env=venv,
-                learning_rate=con_learning_rate,
-                depth=con_depth,
-                width=con_width,
-                batch_size=con_batch_size,
-                epochs=con_epochs,
-                explore_std=explore_std,
+                learning_rate=all_flags.con.con_learning_rate,
+                depth=all_flags.con.con_depth,
+                width=all_flags.con.con_width,
+                batch_size=all_flags.con.con_batch_size,
+                epochs=all_flags.con.con_epochs,
+                explore_std=all_flags.con.explore_std,
                 sess=sess)
         else:
             learner = StochasticLearner(
                 env=venv,
-                learning_rate=con_learning_rate,
-                depth=con_depth,
-                width=con_width,
-                batch_size=con_batch_size,
-                epochs=con_epochs,
-                no_extra_explore=no_extra_explore,
+                learning_rate=all_flags.con.con_learning_rate,
+                depth=all_flags.con.con_depth,
+                width=all_flags.con.con_width,
+                batch_size=all_flags.con.con_batch_size,
+                epochs=all_flags.con.con_epochs,
+                no_extra_explore=all_flags.con.no_extra_explore,
                 sess=sess)
-        if agent == 'bootstrap':
+        if all_flags.alg.agent == 'bootstrap':
             controller = BootstrappedMPC(
                 env=venv,
                 dyn_model=dyn_model,
-                horizon=mpc_horizon,
+                horizon=all_flags.mpc.mpc_horizon,
                 reward_fn=original_env.tf_reward,
-                num_simulated_paths=num_simulated_paths,
+                num_simulated_paths=all_flags.mpc.mpc_simulated_paths,
                 learner=learner,
                 sess=sess)
         else:  # dagger
             controller = DaggerMPC(
                 env=venv,
                 dyn_model=dyn_model,
-                horizon=mpc_horizon,
-                delay=delay,
+                horizon=all_flags.mpc.mpc_horizon,
+                delay=all_flags.mpc.delay,
                 reward_fn=original_env.tf_reward,
-                num_simulated_paths=num_simulated_paths,
+                num_simulated_paths=all_flags.mpc.mpc_simulated_paths,
                 learner=learner,
                 sess=sess)
     else:
+        agent = all_flags.alg.agent
         raise ValueError('agent type {} unrecognized'.format(agent))
 
     sess.__enter__()
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
-    for itr in range(onpol_iters):
-        with timeit('labelling actions', print_time):
+    for itr in range(all_flags.alg.onpol_iters):
+        with timeit('labelling actions', all_flags.exp.time):
             to_label = data.unlabelled_obs()
             labels = controller.label(to_label)
             data.label_obs(labels)
 
-        with timeit('dynamics fit', print_time):
+        with timeit('dynamics fit', all_flags.exp.time):
             dyn_model.fit(data)
 
-        with timeit('controller fit', print_time):
+        with timeit('controller fit', all_flags.exp.time):
             controller.fit(data)
 
-        with timeit('sample controller', print_time):
-            paths = sample(venv, controller, env_horizon, render)
+        with timeit('sample controller', all_flags.exp.time):
+            paths = sample(venv, controller, all_flags.alg.horizon)
 
-        if not no_aggregate:
-            data.add_paths(paths)
+        data.add_paths(paths)
 
-        with timeit('gathering statistics', print_time):
-            most_recent = Dataset(venv, env_horizon)
+        with timeit('gathering statistics', all_flags.exp.time):
+            most_recent = Dataset(venv, all_flags.alg.horizon)
             most_recent.add_paths(paths)
             returns = most_recent.rewards.sum(axis=0)
             mse = dyn_model.dataset_mse(most_recent)
-            controller.log(horizon=env_horizon)
+            controller.log(horizon=all_flags.alg.horizon)
 
         logz.log_tabular('Iteration', itr)
         logz.log_tabular('AverageReturn', np.mean(returns))
@@ -211,57 +187,18 @@ def _train(env_name='',
 
     sess.__exit__(None, None, None)
 
-
 def _main():
+    # Parse arguments.
+    all_flags = flags.get_all_flags()
 
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', type=str, default='hc-hard')
-    parser.add_argument('--time', action='store_true', default=False)
-    # Experiment meta-params
-    parser.add_argument('--exp_name', type=str, default='mb_mpc')
-    parser.add_argument('--seed', type=int, default=[3], nargs='+')
-    parser.add_argument('--render', action='store_true')
-    # Training args
-    parser.add_argument('--dyn_learning_rate', '-lr', type=float, default=1e-3)
-    parser.add_argument('--con_learning_rate', type=float, default=1e-4)
-    parser.add_argument('--onpol_iters', '-n', type=int, default=1)
-    parser.add_argument('--dyn_epochs', '-nd', type=int, default=60)
-    parser.add_argument('--con_epochs', type=int, default=60)
-    parser.add_argument('--dyn_batch_size', '-b', type=int, default=512)
-    parser.add_argument('--con_batch_size', type=int, default=512)
-    # Data collection
-    parser.add_argument('--random_paths', '-r', type=int, default=10)
-    parser.add_argument('--onpol_paths', '-d', type=int, default=10)
-    parser.add_argument('--simulated_paths', '-sp', type=int, default=1000)
-    parser.add_argument('--ep_len', '-ep', type=int, default=1000)
-    # Neural network architecture args
-    parser.add_argument('--dyn_depth', type=int, default=2)
-    parser.add_argument('--dyn_width', type=int, default=500)
-    parser.add_argument('--con_depth', type=int, default=1)
-    parser.add_argument('--con_width', type=int, default=32)
-    # MPC Controller
-    parser.add_argument('--mpc_horizon', '-m', type=int, default=15)
-    parser.add_argument('--explore_std', type=float, default=0.0)
-    parser.add_argument('--no_extra_explore', action='store_true',
-                        default=False)
-    parser.add_argument('--deterministic_learner', action='store_true',
-                        default=False)
-    # delay for dagger
-    parser.add_argument('--delay', type=int, default=0)
-    # For comparisons
-    parser.add_argument('--no_aggregate', action='store_true', default=False)
-    parser.add_argument('--agent', type=str, default='mpc')
-    parser.add_argument('--no_delta_norm', action='store_true', default=False)
-    # env
-    parser.add_argument('--frame_skip', type=int, default=1)
-    args = parser.parse_args()
+    # Initialize the logger.
+    log.init(all_flags.exp.verbose)
 
     # Make data directory if it does not already exist
     # TODO: this procedure should be in utils
     if not os.path.exists('data'):
         os.makedirs('data')
-    logdir_base = args.exp_name + '_' + args.env_name
+    logdir_base = all_flags.exp.exp_name + '_' + all_flags.alg.env_name
     logdir_base = os.path.join('data', logdir_base)
     ctr = 0
     logdir = logdir_base
@@ -276,43 +213,14 @@ def _main():
     with open(os.path.join(logdir, 'starttime.txt'), 'w') as f:
         print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
 
-    for seed in args.seed:
+    for seed in all_flags.exp.seed:
         g = tf.Graph()
         logdir_seed = os.path.join(logdir, str(seed))
         with g.as_default():
             # Set seed
             np.random.seed(seed)
             tf.set_random_seed(seed)
-            _train(env_name=args.env_name,
-                   print_time=args.time,
-                   frame_skip=args.frame_skip,
-                   logdir=logdir_seed,
-                   render=args.render,
-                   dyn_learning_rate=args.dyn_learning_rate,
-                   con_learning_rate=args.con_learning_rate,
-                   onpol_iters=args.onpol_iters,
-                   dyn_epochs=args.dyn_epochs,
-                   con_epochs=args.con_epochs,
-                   dyn_batch_size=args.dyn_batch_size,
-                   con_batch_size=args.con_batch_size,
-                   num_paths_random=args.random_paths,
-                   num_paths_onpol=args.onpol_paths,
-                   num_simulated_paths=args.simulated_paths,
-                   env_horizon=args.ep_len,
-                   mpc_horizon=args.mpc_horizon,
-                   dyn_depth=args.dyn_depth,
-                   dyn_width=args.dyn_width,
-                   con_depth=args.con_depth,
-                   con_width=args.con_width,
-                   no_aggregate=args.no_aggregate,
-                   agent=args.agent,
-                   no_delta_norm=args.no_delta_norm,
-                   exp_name=args.exp_name,
-                   explore_std=args.explore_std,
-                   deterministic=args.deterministic_learner,
-                   no_extra_explore=args.no_extra_explore,
-                   delay=args.delay,
-                  )
+            _train(all_flags=all_flags, logdir=logdir_seed)
 
 
 if __name__ == "__main__":

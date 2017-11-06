@@ -407,8 +407,7 @@ class BootstrappedMPC(Controller):
         # TODO: get rid of this circular dep once sample.py exists
         from main import sample
         horizon = kwargs['horizon']
-        render = False
-        paths = sample(self.env, self.learner, horizon, render)
+        paths = sample(self.env, self.learner, horizon)
         data = Dataset(self.env, horizon)
         data.add_paths(paths)
         returns = data.rewards.sum(axis=0)
@@ -481,8 +480,7 @@ class DaggerMPC(Controller):
             returns = [0]
         else:
             horizon = kwargs['horizon']
-            render = False
-            paths = sample(self.env, self.mpc, horizon, render)
+            paths = sample(self.env, self.mpc, horizon)
             data = Dataset(self.env, horizon)
             data.add_paths(paths)
             returns = data.rewards.sum(axis=0)
