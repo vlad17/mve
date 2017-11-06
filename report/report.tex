@@ -15,10 +15,10 @@
 
 \section{Introduction}
 
-We changed our research direction from the encoded states research to exploring model predictive control (MPC), namely a method we call bootstrapped MPC (BMPC). BMPC is a model-based algorithm that can be viewed as instantiation of the meta-MPC algorithm, which also explains the motivation for bootstrapped MPC (Algorithm~\ref{alg:metampc}). Note the (continuous) domains for actions and states are $\mcA, \mcS$ and our restriction to deterministic dynamics and rewards for simplicity (though extensions would not require much modification).
+We changed our research direction from the encoded states research to exploring model predictive control (MPC), namely a method we call bootstrapped MPC (\textsc{BMPC}). \textsc{BMPC} is a model-based algorithm that can be viewed as instantiation of the meta-MPC algorithm, which also explains the motivation for bootstrapped MPC (Algorithm~\ref{alg:metampc}). Note the (continuous) domains for actions and states are $\mcA, \mcS$ and our restriction to deterministic dynamics and rewards for simplicity (though extensions would not require much modification). Moreover, we will assume $\mcA,\mcS$ are some subsets of a possibly multi-dimensional real vector space.
 
 \begin{algorithm}
-\caption{The \textsc{MetaMPC} algorithm is a template for MPC-based algorithms. As template parameters, it accepts a number of simulations to perform $K$ and the simulation horizon $H$. The critical template parameter of interest is the time-dependent action-sampling distribution $A_t$. This is a stochastic policy, returning an action $a$ for a provided state $s$.}\label{alg:metampc}
+\caption{The \textsc{MetaMPC} algorithm is a template for MPC-based algorithms. As hyperparameters, it accepts a number of simulations to perform $K$ and the simulation horizon $H$. The critical hyperparameter of interest is the time-dependent action-sampling distribution $A_t$. This is a stochastic policy, returning an action $a$ for a provided state $s$.}\label{alg:metampc}
 \begin{algorithmic}[1]
 \Procedure{MetaMPC}{state $s$, dynamics $f:\mcS\times\mcA\rightarrow\mcS$, reward $r:\mcS\times\mcA\times \mcS\rightarrow\R$}
 \State $\ca{s_1^{(i)}\gets s}_{i=1}^K$.
@@ -35,41 +35,69 @@ We changed our research direction from the encoded states research to exploring 
 \end{algorithmic}
 \end{algorithm}
 
-We believe \textsc{MetaMPC} works when $R_i$ is a decent estimator for the true $H$-step reward of the agent under the \textsc{MetaMPC} policy, supposing the agent takes $a_1^{(i)}$ now and continues with \textsc{MetaMPC} later. Then, choosing the first action $a_1^{(i_*)}$ that results in the best $R_i$ would be the smartest move one could make. Regular MPC specifies $A_t(s)=\Uniform(\mcA)$ for a rectangle $\mcA$, independent of $t,s$. But a uniform distribution is a poor representation of future \textsc{MetaMPC} steps: it stands to reason that a more intelligent selection of $A_t$ might improve performance.
+We believe \textsc{MetaMPC} works well when $R_i$ is a decent estimator for the true $H$-step reward of the agent under the \textsc{MetaMPC} policy, supposing the agent takes $a_1^{(i)}$ now and continues with \textsc{MetaMPC} later. Then, choosing the first action $a_1^{(i_*)}$ that results in the best $R_i$ would be the smartest move one could make. Regular MPC specifies $A_t(s)=\Uniform \mcA$ for a rectangle $\mcA$, independent of $t,s$. But a uniform distribution is a poor representation of future \textsc{MetaMPC} steps: it stands to reason that a more intelligent selection of $A_t$ might improve performance.
 
-In particular, we consider learning a (mostly) stationary action distribution conditional on the state, $\pi_\theta(s)$, which is trained to mimic the result of the MPC algorithm. In particular, every iteration, we roll out \textsc{MetaMPC} with $A_t=\pi_\theta^{(t)}$ (with $\theta$ held fixed during both the real and simulated rollouts). After collecting some rollouts, resulting in a large dataset of state-action pairs $(s,a, s')\in\mcD$, we train $\pi_\theta^{(t)}$ to replicate \textsc{MetaMPC}'s behavior with the expectation that the reward estimates improve (let this be BMPC). We can view this as bootstrapping performance because as $\pi_\theta$ gets more accurate, the BMPC policy is able to take better actions, which are then learned by $\pi$, resulting in a virtuous cycle. The dynamics are learned in a similar manner with the dataset of transitions.
+In particular, we consider learning a (mostly) stationary action distribution conditional on the state, $\pi_\theta(s)$, which is trained to mimic the result of the MPC algorithm. In particular, every iteration, we roll out \textsc{MetaMPC} with $A_t=\pi_\theta^{(t)}$ (with $\theta$ held fixed during both the real and simulated rollouts). After collecting some rollouts, resulting in a large dataset of state-action pairs $(s,a, s')\in\mcD$, we train $\pi_\theta^{(t)}$ to replicate \textsc{MetaMPC}'s behavior with the expectation that the reward estimates improve (Algorithm~\ref{alg:bmpc}).
+
+\begin{algorithm}
+\caption{The \textsc{BMPC} algorithm, with the same hyperparameters as Algorithm~\ref{alg:metampc}. This assumes we have the testing environment on which we may perform real rollouts to learn from. We consider some fixed class of deterministic functions $F$ to model dynamics, and a parameterization $\pi_\theta$ of generative action distributions conditioned on states, coupled with an associated distribution loss $J$.} \label{alg:bmpc}
+\begin{algorithmic}[1]
+\Procedure{BMPC}{iterations $N$, starter transition dataset $\mcD$, reward $r:\mcS\times\mcA\times \mcS\rightarrow\R$}
+\For { $i\gets 1, \ldots, N$}
+\State $f\gets \argmin_F\E\ha{\norm{f(s,a)-s'}^2}$, where $(s,a,s')\sim\Uniform\mcD$
+\State $\theta \gets \argmin_\theta J(\theta, \mcD, \ell)$
+\State sample rollouts $\mcD'$ of $\textsc{MetaMPC}(\cdot, f, r)$ with $A_t$ specified by $\pi_\theta$
+\State $\mcD\gets\mcD'\cup\mcD$
+\EndFor
+\State \Return the agent $\textsc{MetaMPC}(\cdot, f, r)$ with $A_t$ specified by $\pi_\theta$.
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+In Algorithm~\ref{alg:bmpc}, the loss $J$ will usually be defined by some measure of distributional distance $\ell$ between the joint state-action distribution (Equation~\ref{eq:jointloss}).
+\begin{equation}\label{eq:jointloss}
+  \begin{gathered}
+  p_{\pi_\theta}^{(\mcD)}\pa{s, a}=p_{S}(s)\pi_\theta(a|s)\quad\quad\quad S\sim \Uniform\set{s}{(s,\catfst,\catsnd)\in\mcD}  \\
+  p_\mcD(s,a)=p(S,A)\quad\quad\quad S,A\sim \Uniform\set{(s,a)}{(s,a,\catfst)\in\mcD} \\
+  J\pa{\theta,\mcD,\ell}=\ell\pa{p_{\pi_\theta}^{(\mcD)}, p_\mcD}
+  \end{gathered}
+\end{equation}
+
+
+We can motivate the \textsc{BMPC} approach mainly with the claim that the learner policy $\pi$ used to take actions during \textsc{MetaMPC} simulations is closer to the true actions the \textsc{BMPC} agent would take at the simulated state. Then, \textsc{BMPC} might be bootstrapping performance because as $\pi_\theta$ gets more accurate in its representation of the corresponding \textsc{MetaMPC} policy. Then \textsc{BMPC} policy is able to take better actions, which are then learned by $\pi$, resulting in a virtuous cycle. The learner policy $\pi$ might be taking actions which are better modelled by the dynamics $f$, since $f$ is trained on \textsc{BMPC} transitions and is more accurate at representing actions by policies similar to \textsc{BMPC} agents.
+
 
 \section{Related Work}
 
-To some degree, this approach is similar to other continuous-action methods that seek to optimize the reward function directly, since in effect we are proposing a method for stochastic optimization of the rollout reward. One difference than, say, CMA-ES, would be that we explicitly model the reinforcement learning setting by modelling the BMPC agent as a stationary policy.
+To some degree, this approach is similar to other continuous-action methods that seek to optimize the reward function directly, since in effect we are proposing a method for stochastic optimization of the rollout reward. One difference than, say, CMA-ES, would be that we explicitly model the reinforcement learning setting by modelling the \textsc{BMPC} agent as a stationary policy.
 
-To some degree this approach is similar to Alpha-Go style sampling, where instead of replicating agent behavior the goal is to have intelligent MCTS pruning for a UCT. If UCT pruning is guided by a neural network, then one might view UCT as a tree-version of this BMPC approach (where the space for exploration, being discrete, is much more tractable to explore in the exhaustive tree manner).
+To some degree this approach is similar to Alpha-Go style sampling, where instead of replicating agent behavior the goal is to have intelligent MCTS pruning for a UCT. If UCT pruning is guided by a neural network, then one might view UCT as a tree-version of this \textsc{BMPC} approach (where the space for exploration, being discrete, is much more tractable to explore in the fairly exhaustive tree manner when using pruning). We might imagine this continuous case as a dual to pruning, where the learner $\pi_\theta$ proposes samples instead.
 
 \section{Easy Examples}
 
-We consider learning the dynamics for the \texttt{HalfCheetah-v1} environment and using those learned dynamics for BMPC planning. We note two important difference from the regular \texttt{gym} environment: the full observation is provided so the dynamics and rewards are true functions of the previous state (the usual observation excerpts the first coordinate of the agent).
+We consider learning the dynamics for the \texttt{HalfCheetah-v1} environment and using those learned dynamics for \textsc{BMPC} planning. We note two important difference from the regular \texttt{gym} environment: the full observation is provided so the dynamics and rewards are true functions of the previous state (the usual observation excerpts the first coordinate of the agent).
 
-Unless otherwise specified, all parameters are their defaults: 3 different seeds for each setup, 60 epochs of dynamics training on the full dataset per on-policy iteration, a dynamics batch size of 512, maximum episode length of 1000, 1000 simulated paths in the MPC controller (each of which has a simulated horizon of $H$ 15), and 10 paths sampled by the initial random agent and then by the MPC controller that are aggregated every policy iteration. The learning rate was the default $10^{-3}$. Each such policy iteration contains a round of training the learner policy $\pi_\theta$ in BMPC. All policies $\pi_\theta$ are neural networks with $\dim \mcA$ outputs and $\dim\mcS$ inputs, all depth 5, width 32, trained with 100 epochs after each policy iteration with 512-size minibatches and a $10^{-3}$ learning rate.
+Unless otherwise specified, all parameters are their defaults: 3 different seeds for each setup, 60 epochs of dynamics training on the full dataset per on-policy iteration, a dynamics batch size of 512, maximum episode length of 1000, 1000 simulated paths in the MPC controller (each of which has a simulated horizon of $H$ 15), and 10 paths sampled by the initial random agent and then by the MPC controller that are aggregated every policy iteration. The learning rate was the default $10^{-3}$. Each such policy iteration contains a round of training the learner policy $\pi_\theta$ in \textsc{BMPC}. All policies $\pi_\theta$ are contain neural networks $g_\theta$ with $\dim \mcA$ outputs and $\dim\mcS$ inputs, all depth 5, width 32, trained with 100 epochs after each policy iteration with 512-size minibatches and a $10^{-3}$ learning rate.
 
-We consider a couple variants of BMPC, which are all defined by the conditional action distribution $A_t$. While our conditional distributions are mostly stationary, we consider exploring at the first step $t=1$. Equation~\ref{eq:delta} describes the $\delta$-BMPC, with a point mass describing the deterministic action in the \textsc{MetaMPC} simulation taken by $A_t$ when $t>1$. $\delta$-BMPC is trained on minimizing the loss $\ell$, which is the MSE from the expert.
+We consider a couple variants of \textsc{BMPC}, which are all defined by the conditional action distribution $A_t$. While our conditional distributions are mostly stationary, we consider exploring at the first step $t=1$. Equation~\ref{eq:delta} describes the $\delta$-\textsc{BMPC}, with a point mass describing the deterministic action in the \textsc{MetaMPC} simulation taken by $A_t$ when $t>1$. $\delta$-\textsc{BMPC} is trained on minimizing the expected loss $\ell$, which is the MSE from the agent's previous actions. Recall the distributions of $S,A$ from Equation~\ref{eq:jointloss}.
 \begin{align} \label{eq:delta}
   A_t(s)=\begin{cases}
 \Uniform\pa{\mcA}    & t=1 \\
-\delta_{\pi_\theta(s)} & \text{otherwise}
-  \end{cases} && \ell(\theta)=\sum_{(s, a)\in\mcD}\norm{\pi_\theta(s)-a}_2^2
+\pi_\theta(s)\triangleq\delta_{g_\theta(s)} & \text{otherwise}
+  \end{cases} && \ell\pa{p_{\pi_\theta}^{(\mcD)},p_{\mcD}}=\E\ha{\norm{g_\theta(S)-A}^2}
 \end{align}
 
-Gaussian BMPC relaxes the determinism of $\delta$-BMPC, fitting a conditional diagonal Gaussian to the \textsc{MetaMPC} actions, as described in Equation~\ref{eq:stochastic}.
+Gaussian \textsc{BMPC} relaxes the determinism of $\delta$-\textsc{BMPC}, fitting a conditional diagonal Gaussian to the \textsc{MetaMPC} actions, as described in Equation~\ref{eq:stochastic}.
 \begin{align} \label{eq:stochastic}
   A_t(s)=\begin{cases}
 \Uniform\pa{\mcA}    & t=1 \\
-N\pa{\pi_\theta(s), \diag\vsigma^2} & \text{otherwise}
-  \end{cases} && \ell(\theta,\vsigma)=-\sum_{(s, a)\in\mcD}\log p_{\theta,\vsigma}(a|s)
+\pi_{\theta,\vsigma}(s) \triangleq N\pa{g_\theta(s), \diag\vsigma^2} & \text{otherwise}
+  \end{cases} && \ell\pa{p_{\pi_\theta}^{(\mcD)},p_{\mcD}}=\E\ha{\log \pi_{\theta,\vsigma}(A|S)}
 \end{align}
 
-No-explore BMPC reduces the exploration by keeping the policy purely conditional diagonal Gaussian and stationary, with no initial exploration, as described in Equation~\ref{eq:no-explore}.
+No-explore \textsc{BMPC} reduces the exploration by keeping the policy purely conditional diagonal Gaussian and stationary, with no initial exploration, as described in Equation~\ref{eq:no-explore}.
 \begin{align} \label{eq:no-explore}
-  A_t(s)= N\pa{\pi_\theta(s), \diag\vsigma^2} && \ell(\theta)=\sum_{(s, a)\in\mcD}\norm{\pi_\theta(s)-a}_2^2
+  A_t(s)= \pi_\theta(s)=N\pa{g_\theta(s), \diag\vsigma^2} && \ell\pa{p_{\pi_\theta}^{(\mcD)},p_{\mcD}}=\E\ha{\log \pi_{\theta,\vsigma}(A|S)}
 \end{align}
 
 We evaluate these examples with an easy, supervised reward for \texttt{HalfCheetah-v1} which was provided in HW4 (\figref{easy}). Note that this is different than the classical \texttt{gym} reward.
@@ -80,7 +108,7 @@ In \figref{easy}, we see a couple interesting things going on already. Amazingly
 
 \autofig{easy-LearnerAverageReturn.pdf}{\label{fig:easy-learners}}{Average return over policy aggregation iterations for an agent sampling from $A_2$ for each model, along with the original MPC as a baseline.}
 
-The poor learner performance does not kill the original hypothesis: perhaps even weak learners can improve reward estimates $R_{i_*}$. But this does suggest an new hypothesis for the improvement: perhaps the learners prevent catastrophic changes in the policy. Maybe simply reducing the variance of estimates $R_{i_*}$ yields the improvement. We note that, at least for this simple case, learners don't improve performance by making the dynamics more learnable: for both the original MPC and BMPC, the learned dynamics are about equally performant (\figref{easy-dynamics}.
+The poor learner performance does not kill the original hypothesis: perhaps even weak learners can improve reward estimates $R_{i_*}$. But this does suggest an new hypothesis for the improvement: perhaps the learners prevent catastrophic changes in the policy. Maybe simply reducing the variance of estimates $R_{i_*}$ yields the improvement. We note that, at least for this simple case, learners don't improve performance by making the dynamics more learnable: for both the original MPC and \textsc{BMPC}, the learned dynamics are about equally performant (\figref{easy-dynamics}.
 
 \autofig{easy-DynamicsMSE.pdf}{\label{fig:easy-dynamics}}{We evaluate dynamics in the setting of \figref{easy}. This evaluation is measures how predictive the dynamics were of the actual transitions in validation rollouts (it is not the training MSE). We omit the first couple of iterations because their scales are vastly different than the rest.}
 
@@ -92,26 +120,30 @@ In this case, it is unclear if bootstrapping still helps (\figref{hardcost}).
 
 \autofig{hard-AverageReturn.pdf}{\label{fig:hardcost}}{Average return over policy aggregation iterations for the learning-based sampling MPC agent, compared to the standard uniform sampling MPC agent, this time with a hard cost function.}
 
-The dynamics and learning returns for the runs in \figref{hardcost} paint a similar picture as for easy cost. In case hard cost required additional simulation, we changed $H,K$ from $15,1000$ to $50,1000$. Performance was generally better but more chaotic, and still with no clear advantage to BMPC (\figref{hard2cost}).
+The dynamics and learning returns for the runs in \figref{hardcost} paint a similar picture as for easy cost. In case hard cost required additional simulation, we changed $H,K$ from $15,1000$ to $50,1000$. Performance was generally better but more chaotic, and still with no clear advantage to \textsc{BMPC} (\figref{hard2cost}).
 
 \autofig{hard2-AverageReturn.pdf}{\label{fig:hard2cost}}{The same setting as \figref{hard2cost} but with longer simulated horizons.}
 
-Nonetheless, the trend in \figref{hardcost} deserves elaboration---perhaps at later iterations BMPC overtakes MPC.
+Nonetheless, the trend in \figref{hardcost} deserves elaboration---perhaps at later iterations \textsc{BMPC}x overtakes MPC.
 
 \section{Planned Work}
 
-The proposition being investigated (more accurate or lower-variance estimates of reward with $R_{i_*}$) can be directly sampled and tested to be the case! After simulating several rollouts for any \textsc{MetaMPC} algorithm, we can sample initial state $s$ from the empirical distribution of visited states. For each such state, we \textit{re-simulate} $H$ real horizon steps with independent runs (the samples $A_t$ will differ, so the results will not be the same as the first run, even for a deterministic environment). These give us several observations of the true $H$-step reward $\tilde{R}_H$. For each such observation we compute the observed bias $\tilde{R}_H-R_{i_*}$ and squared error $\pa{\tilde{R}_H-R_{i_*}}^2$. Over several samples we can estimate variance $\var R_{i_*}$ as well. Then across the samples $s$ we can estimate average values across the entire distribution for these reward statistics.
+The proposition being investigated (more accurate or lower-variance estimates of reward with $R_{i_*}$) can be directly sampled and tested to be the case! After simulating several rollouts for any \textsc{MetaMPC} algorithm, we can sample initial state $s$ from the empirical distribution of visited states. For each such state, we \textit{re-simulate} $H$ real horizon steps with independent runs (the samples $A_t$ will differ, so the results will not be the same as the first run, even for a deterministic environment). These give us several observations of the true $H$-step reward $\tilde{R}_H$. For each such observation we compute the observed bias $\tilde{R}_H-R_{i_*}$ and squared error $\pa{\tilde{R}_H-R_{i_*}}^2$. Over several samples we can estimate variance $\var R_{i_*}$ as well. Then across the samples $s$ we can estimate average values across the entire distribution for these reward statistics. This sampling of $s$ is not iid but the resulting estimator is still unbiased, so we will have to use the bootstrap (haha) to calculate confidence intervals.
 
-This sampling of $s$ is not iid but the resulting estimator is still unbiased, so we will have to use the bootstrap (haha) to calculate confidence intervals.
+Moreover, if the goal is to have accurate reward predictions during simulations, then we should also consider learner $\pi_\theta$ objectives $J$ \textit{that directly optimize} $\pa{\tilde{R}_H-R_{i_*}}^2$ by back-propagating through the model $f$. 
+
+Next, we note that above we use tractable, analytically representable policies $\pi_\theta$. There is no need for this. We should measure how well $\pi_\theta$ optimizes the objective $J$, and, if necessary, expand the class of distributions being optimized over to better capture \textsc{MetaMPC} actions (starting with mixtures of Gaussians and going up to GANs, since we only need generative access to $\pi_\theta$).
+
+Finally, the loss $\ell$ need not be replication of the expert directly: we can perhaps optimize for learner policies $\pi_\theta$ which re-create the observed reward directly.
 
 Measuring the explicit action distribution shift between iterations boils down to measuring distance between conditional action distributions resulting from the \textsc{MetaMPC} algorithm, which is only a black-box generative distribution. We have a plan for this but excerpt it to keep the report shorter. Graders can contact the authors for more details.
 
 In addition, we hope to expand to the harder \texttt{Ant} problem to prevent overfitting to \texttt{HalfCheetah}.
 
-Finally, the chaotic performance but improving learner in the second hard setting suggest that we should explore various hyperparameter and template settings; but we should save this for the end.
+Finally, the chaotic performance but improved performance in the second hard setting suggest that we should explore various hyperparameter and template settings; but we should save this for the end.
 
 \section{Further Exploration}
 
-We also explored changing the initial exploration policy $A_1$ from $\Uniform(\mcA)$ to $N(\pi_\theta, \lambda I)$. This resulted in some improvements, but we leave these out of the report for simplicity (graders may contact the authors directly for these results). Further, to improve how quickly $\pi_\theta$ learns expert actions, we consider DAgger iteration with $\pi_\theta$ as the learner and \textsc{MetaMPC} as the expert, but managing the learned dynamics for both the learner and expert will require additional work.
+We also explored changing the initial exploration policy $A_1$ from $\Uniform(\mcA)$ to $N(g_\theta, \lambda I)$. This resulted in some improvements, but we leave these out of the report for simplicity (graders may contact the authors directly for these results). Further, to improve how quickly $\pi_\theta$ learns expert actions, we consider DAgger iteration with $\pi_\theta$ as the learner and \textsc{MetaMPC} as the expert, but managing the learned dynamics for both the learner and expert will require additional work.
 
 \end{document}
