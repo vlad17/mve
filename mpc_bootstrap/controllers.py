@@ -435,7 +435,7 @@ class BootstrappedMPC(Controller):
         logz.log_tabular('LearnerStdReturn', np.std(returns))
         logz.log_tabular('LearnerMinimumReturn', np.min(returns))
         logz.log_tabular('LearnerMaximumReturn', np.max(returns))
-        self.learner.log()
+        self.learner.log(**kwargs)
 
 
 class DaggerMPC(Controller):
@@ -508,4 +508,4 @@ class DaggerMPC(Controller):
         logz.log_tabular('ExpertStdReturn', np.std(returns))
         logz.log_tabular('ExpertMinimumReturn', np.min(returns))
         logz.log_tabular('ExpertMaximumReturn', np.max(returns))
-        self.learner.log()
+        self.learner.log(**kwargs)

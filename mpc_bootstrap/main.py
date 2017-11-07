@@ -75,7 +75,10 @@ def _train(all_flags, logdir):
     random_controller = RandomController(venv)
     paths = sample(venv, random_controller, all_flags.algorithm.horizon)
     data = Dataset(venv, all_flags.algorithm.horizon)
+    con_data = StaleDataset(venv, all_flags.algorithm.horizon,
+                            all_flags.controller.con_stale_data)
     data.add_paths(paths)
+    con_data.add_paths(paths) # TODO no training on random?
     venv = mk_vectorized_env(all_flags.algorithm.onpol_paths)
 
     original_env = mk_env()
@@ -155,8 +158,6 @@ def _train(all_flags, logdir):
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
-    most_recent = None
-
     for itr in range(all_flags.algorithm.onpol_iters):
         with timeit('labelling actions'):
             to_label = data.unlabelled_obs()
@@ -167,15 +168,13 @@ def _train(all_flags, logdir):
             dyn_model.fit(data)
 
         with timeit('controller fit'):
-            if all_flags.algorithm.con_agg_data:
-                controller.fit(data)
-            elif most_recent is not None:
-                controller.fit(most_recent)
+            controller.fit(con_data)
 
         with timeit('sample controller'):
             paths = sample(venv, controller, all_flags.algorithm.horizon)
 
         data.add_paths(paths)
+        con_data.add_paths(paths)
 
         with timeit('gathering statistics'):
             most_recent = Dataset(venv, all_flags.algorithm.horizon)

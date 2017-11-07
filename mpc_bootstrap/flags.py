@@ -115,11 +115,6 @@ class AlgorithmFlags(Flags):
             type=int,
             default=1,
         )
-        algorithm.add_argument(
-            '--con_agg_data',
-            default=False,
-            action='store_true',
-        )
 
     def __init__(self, args):
         self.agent = args.agent
@@ -129,7 +124,6 @@ class AlgorithmFlags(Flags):
         self.random_paths = args.random_paths
         self.horizon = args.horizon
         self.frame_skip = args.frame_skip
-        self.con_agg_data = args.con_agg_data
 
 
 class DynamicsFlags(Flags):
@@ -228,6 +222,13 @@ class ControllerFlags(Flags):
             default=512,
             help='learned controller batch size',
         )
+        learner_nn.add_argument(
+            '--con_stale_data',
+            type=int,
+            default=0,
+            action='how stale data for training the controller network can be '
+            '(0 means infinitely stale)'
+        )
         return learner_nn
 
     def __init__(self, args):
@@ -236,6 +237,7 @@ class ControllerFlags(Flags):
         self.con_learning_rate = args.con_learning_rate
         self.con_epochs = args.con_epochs
         self.con_batch_size = args.con_batch_size
+        self.con_stale_data = args.con_stale_data
 
     def name(self):
         return 'controller'
