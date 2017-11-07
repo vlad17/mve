@@ -53,11 +53,11 @@ def _train(all_flags, logdir):
 
     def mk_env():
         """Generates an unvectorized env."""
-        env_name = all_flags.alg.env_name
+        env_name = all_flags.algorithm.env_name
         if env_name == 'hc-hard':
-            return WhiteBoxHalfCheetahHard(all_flags.alg.frame_skip)
+            return WhiteBoxHalfCheetahHard(all_flags.algorithm.frame_skip)
         elif env_name == 'hc-easy':
-            return WhiteBoxHalfCheetahEasy(all_flags.alg.frame_skip)
+            return WhiteBoxHalfCheetahEasy(all_flags.algorithm.frame_skip)
         else:
             raise ValueError('env {} unsupported'.format(env_name))
 
@@ -70,12 +70,12 @@ def _train(all_flags, logdir):
         return mp_env
 
     # Need random initial data to kickstart dynamics
-    venv = mk_vectorized_env(all_flags.alg.random_paths)
+    venv = mk_vectorized_env(all_flags.algorithm.random_paths)
     random_controller = RandomController(venv)
-    paths = sample(venv, random_controller, all_flags.alg.horizon)
-    data = Dataset(venv, all_flags.alg.horizon)
+    paths = sample(venv, random_controller, all_flags.algorithm.horizon)
+    data = Dataset(venv, all_flags.algorithm.horizon)
     data.add_paths(paths)
-    venv = mk_vectorized_env(all_flags.alg.onpol_paths)
+    venv = mk_vectorized_env(all_flags.algorithm.onpol_paths)
 
     original_env = mk_env()
 
@@ -85,17 +85,18 @@ def _train(all_flags, logdir):
     opt_opts = config.graph_options.optimizer_options
     opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
     sess = tf.Session(config=config)
-    dyn_model = NNDynamicsModel(env=venv,
-                                sess=sess,
-                                norm_data=data,
-                                depth=all_flags.dyn.dyn_depth,
-                                width=all_flags.dyn.dyn_width,
-                                learning_rate=all_flags.dyn.dyn_learning_rate,
-                                epochs=all_flags.dyn.dyn_epochs,
-                                batch_size=all_flags.dyn.dyn_batch_size,
-                                no_delta_norm=all_flags.dyn.no_delta_norm)
+    dyn_model = NNDynamicsModel(
+        env=venv,
+        sess=sess,
+        norm_data=data,
+        depth=all_flags.dynamics.dyn_depth,
+        width=all_flags.dynamics.dyn_width,
+        learning_rate=all_flags.dynamics.dyn_learning_rate,
+        epochs=all_flags.dynamics.dyn_epochs,
+        batch_size=all_flags.dynamics.dyn_batch_size,
+        no_delta_norm=all_flags.dynamics.no_delta_norm)
 
-    if all_flags.alg.agent == 'mpc':
+    if all_flags.algorithm.agent == 'mpc':
         controller = MPC(env=venv,
                          dyn_model=dyn_model,
                          horizon=all_flags.mpc.mpc_horizon,
@@ -103,30 +104,30 @@ def _train(all_flags, logdir):
                          num_simulated_paths=all_flags.mpc.mpc_simulated_paths,
                          sess=sess,
                          learner=None)
-    elif all_flags.alg.agent == 'random':
+    elif all_flags.algorithm.agent == 'random':
         controller = random_controller
-    elif all_flags.alg.agent == 'bootstrap' or all_flags.alg.agent == 'dagger':
-        if all_flags.con.deterministic_learner:
+    elif all_flags.algorithm.agent.split('_')[1] in ['bootstrap', 'dagger']:
+        if all_flags.algorithm.agent.split('_')[0] == 'delta':
             learner = DeterministicLearner(
                 env=venv,
-                learning_rate=all_flags.con.con_learning_rate,
-                depth=all_flags.con.con_depth,
-                width=all_flags.con.con_width,
-                batch_size=all_flags.con.con_batch_size,
-                epochs=all_flags.con.con_epochs,
-                explore_std=all_flags.con.explore_std,
+                learning_rate=all_flags.controller.con_learning_rate,
+                depth=all_flags.controller.con_depth,
+                width=all_flags.controller.con_width,
+                batch_size=all_flags.controller.con_batch_size,
+                epochs=all_flags.controller.con_epochs,
+                explore_std=all_flags.controller.explore_std,
                 sess=sess)
         else:
             learner = StochasticLearner(
                 env=venv,
-                learning_rate=all_flags.con.con_learning_rate,
-                depth=all_flags.con.con_depth,
-                width=all_flags.con.con_width,
-                batch_size=all_flags.con.con_batch_size,
-                epochs=all_flags.con.con_epochs,
-                no_extra_explore=all_flags.con.no_extra_explore,
+                learning_rate=all_flags.controller.con_learning_rate,
+                depth=all_flags.controller.con_depth,
+                width=all_flags.controller.con_width,
+                batch_size=all_flags.controller.con_batch_size,
+                epochs=all_flags.controller.con_epochs,
+                no_extra_explore=all_flags.controller.no_extra_explore,
                 sess=sess)
-        if all_flags.alg.agent == 'bootstrap':
+        if all_flags.algorithm.agent.split('_')[1] == 'bootstrap':
             controller = BootstrappedMPC(
                 env=venv,
                 dyn_model=dyn_model,
@@ -146,36 +147,36 @@ def _train(all_flags, logdir):
                 learner=learner,
                 sess=sess)
     else:
-        agent = all_flags.alg.agent
+        agent = all_flags.algorithm.agent
         raise ValueError('agent type {} unrecognized'.format(agent))
 
     sess.__enter__()
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
-    for itr in range(all_flags.alg.onpol_iters):
-        with timeit('labelling actions', all_flags.exp.time):
+    for itr in range(all_flags.algorithm.onpol_iters):
+        with timeit('labelling actions'):
             to_label = data.unlabelled_obs()
             labels = controller.label(to_label)
             data.label_obs(labels)
 
-        with timeit('dynamics fit', all_flags.exp.time):
+        with timeit('dynamics fit'):
             dyn_model.fit(data)
 
-        with timeit('controller fit', all_flags.exp.time):
+        with timeit('controller fit'):
             controller.fit(data)
 
-        with timeit('sample controller', all_flags.exp.time):
-            paths = sample(venv, controller, all_flags.alg.horizon)
+        with timeit('sample controller'):
+            paths = sample(venv, controller, all_flags.algorithm.horizon)
 
         data.add_paths(paths)
 
-        with timeit('gathering statistics', all_flags.exp.time):
-            most_recent = Dataset(venv, all_flags.alg.horizon)
+        with timeit('gathering statistics'):
+            most_recent = Dataset(venv, all_flags.algorithm.horizon)
             most_recent.add_paths(paths)
             returns = most_recent.rewards.sum(axis=0)
             mse = dyn_model.dataset_mse(most_recent)
-            controller.log(horizon=all_flags.alg.horizon)
+            controller.log(horizon=all_flags.algorithm.horizon)
 
         logz.log_tabular('Iteration', itr)
         logz.log_tabular('AverageReturn', np.mean(returns))
@@ -187,18 +188,20 @@ def _train(all_flags, logdir):
 
     sess.__exit__(None, None, None)
 
+
 def _main():
     # Parse arguments.
     all_flags = flags.get_all_flags()
 
     # Initialize the logger.
-    log.init(all_flags.exp.verbose)
+    log.init(all_flags.experiment.verbose)
 
     # Make data directory if it does not already exist
     # TODO: this procedure should be in utils
     if not os.path.exists('data'):
         os.makedirs('data')
-    logdir_base = all_flags.exp.exp_name + '_' + all_flags.alg.env_name
+    logdir_base = all_flags.experiment.exp_name + '_' + \
+        all_flags.algorithm.env_name
     logdir_base = os.path.join('data', logdir_base)
     ctr = 0
     logdir = logdir_base
@@ -213,7 +216,7 @@ def _main():
     with open(os.path.join(logdir, 'starttime.txt'), 'w') as f:
         print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
 
-    for seed in all_flags.exp.seed:
+    for seed in all_flags.experiment.seed:
         g = tf.Graph()
         logdir_seed = os.path.join(logdir, str(seed))
         with g.as_default():

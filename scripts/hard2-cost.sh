@@ -3,12 +3,12 @@
 # Should be run from the repo root
 # Saves runs in ./data and the following images in ./report:
 #
-# ./scripts/easy-cost
+# ./scripts/hard2-cost.sh
 
-python mpc_bootstrap/main.py --onpol_iters 20 --agent mpc --exp_name mpc-hard2  --seed 1 5 10 --time --env_name hc-hard --mpc_horizon 50
-python mpc_bootstrap/main.py --onpol_iters 20 --agent bootstrap --exp_name deterministic-hard2 --seed 1 5 10 --time --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 --con_batch_size 512 --explore_std 0 --deterministic_learner --env_name hc-hard --mpc_horizon 50
-python mpc_bootstrap/main.py --onpol_iters 20 --agent bootstrap --exp_name stochastic-hard2 --seed 1 5 10 --time --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 --con_batch_size 512 --env_name hc-hard --mpc_horizon 50
-python mpc_bootstrap/main.py --onpol_iters 20 --agent bootstrap --exp_name pure-hard2 --seed 1 5 10 --time --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 --con_batch_size 512 --no_extra_explore --env_name hc-hard --mpc_horizon 50
+python mpc_bootstrap/main.py mpc --onpol_iters 20 --exp_name mpc-hard2  --seed 1 5 10 --time --env_name hc-hard --mpc_horizon 50
+python mpc_bootstrap/main.py delta_bootstrap --onpol_iters 20 --exp_name deterministic-hard2 --seed 1 5 10 --time --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 --con_batch_size 512 --explore_std 0 --env_name hc-hard --mpc_horizon 50
+python mpc_bootstrap/main.py gaussian_bootstrap --onpol_iters 20 --exp_name stochastic-hard2 --seed 1 5 10 --time --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 --con_batch_size 512 --env_name hc-hard --mpc_horizon 50
+python mpc_bootstrap/main.py gaussian_bootstrap --onpol_iters 20 --exp_name pure-hard2 --seed 1 5 10 --time --con_depth 5 --con_width 32 --con_epochs 100 --con_learning_rate 1e-3 --con_batch_size 512 --no_extra_explore --env_name hc-hard --mpc_horizon 50
 
 python mpc_bootstrap/plot.py \
     "data/mpc-hard2_hc-hard:AverageReturn:MPC" \

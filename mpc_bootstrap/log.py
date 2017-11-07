@@ -27,6 +27,7 @@ import logging
 
 logger = logging.getLogger("mpc_bootstrap")
 
+
 def init(verbose):
     """Initialize the logger."""
     format_ = "[%(asctime)-15s %(pathname)s:%(lineno)-3s] %(message)s"
@@ -36,6 +37,7 @@ def init(verbose):
     logger.addHandler(handler)
     if verbose:
         logger.setLevel(logging.DEBUG)
+
 
 def debug(s, *args):
     """debug(s, x1, ..., xn) logs s.format(x1, ..., xn)."""

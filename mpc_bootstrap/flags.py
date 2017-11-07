@@ -11,9 +11,10 @@ line. This file helps do that without going crazy:
 import argparse
 import collections
 
+_SUBFLAGS = [
+    'experiment', 'algorithm', 'dynamics', 'mpc', 'controller', 'learner']
 
-AllFlags = collections.namedtuple(
-    "AllFlags", ["exp", "alg", "dyn", "mpc", "con"])
+AllFlags = collections.namedtuple('AllFlags', _SUBFLAGS)
 
 
 def flags_to_json(all_flags):
@@ -35,6 +36,10 @@ class Flags(object):
     def __repr__(self):
         return str(self)
 
+    def name(self):
+        """Flag group name"""
+        return self.__class__.__name__.replace('Flags', '').lower()
+
 
 class ExperimentFlags(Flags):
     """Generic experiment flags."""
@@ -42,82 +47,68 @@ class ExperimentFlags(Flags):
     @staticmethod
     def add_flags(parser):
         """Adds flags to an argparse parser."""
-        experiment = parser.add_argument_group('Experiment')
+        experiment = parser.add_argument_group('experiment')
         experiment.add_argument(
             '--exp_name',
             type=str,
-            default='mb_mpc',
-            help='The name of the experiment',
-        )
-        experiment.add_argument(
-            '--time',
-            action='store_true',
-            default=False,
-            help="Print profiling information",
+            default='unnamed_experiment',
+            help='the name of the experiment',
         )
         experiment.add_argument(
             '--seed',
             type=int,
             default=[3],
             nargs='+',
-            help='Seeds for random number generators'
+            help='seeds for each trial'
         )
         experiment.add_argument(
             '--verbose',
             action='store_true',
-            help='Print debugging statements'
+            help='print debugging statements'
         )
 
     def __init__(self, args):
         self.exp_name = args.exp_name
-        self.time = args.time
         self.seed = args.seed
         self.verbose = args.verbose
 
 
-# pylint: disable=too-many-instance-attributes
 class AlgorithmFlags(Flags):
     """Generic algorithm flags."""
 
     @staticmethod
     def add_flags(parser):
         """Adds flags to an argparse parser."""
-        algorithm = parser.add_argument_group('Algorithm')
+        algorithm = parser.add_argument_group('algorithm')
         algorithm.add_argument(
             '--env_name',
             type=str,
             default='hc-hard',
-            help="Environment to use",
+            help='environment to use',
         )
         algorithm.add_argument(
             '--onpol_iters',
             type=int,
             default=1,
-            help='Number of outermost on policy iterations',
+            help='number of outermost on policy aggregation iterations',
         )
         algorithm.add_argument(
             '--onpol_paths',
             type=int,
             default=10,
-            help='Number of rollouts per on policy iteration',
+            help='number of rollouts per on policy iteration',
         )
         algorithm.add_argument(
             '--random_paths',
             type=int,
             default=10,
-            help='Number of purely random paths',
+            help='number of purely random paths (to warm up dynamics)',
         )
         algorithm.add_argument(
             '--horizon',
             type=int,
             default=1000,
-            help='Rollout horizon',
-        )
-        algorithm.add_argument(
-            '--hard_cost',
-            action='store_true',
-            default=False,
-            help='Use harder, less cherry-picked cost function',
+            help='real rollout horizon',
         )
         algorithm.add_argument(
             '--frame_skip',
@@ -132,7 +123,6 @@ class AlgorithmFlags(Flags):
         self.onpol_paths = args.onpol_paths
         self.random_paths = args.random_paths
         self.horizon = args.horizon
-        self.hard_cost = args.hard_cost
         self.frame_skip = args.frame_skip
 
 
@@ -145,36 +135,36 @@ class DynamicsFlags(Flags):
     @staticmethod
     def add_flags(parser):
         """Adds flags to an argparse parser."""
-        dynamics_nn = parser.add_argument_group('Dynamics NN')
+        dynamics_nn = parser.add_argument_group('dynamics')
         dynamics_nn.add_argument(
             '--dyn_depth',
             type=int,
             default=2,
-            help='Dynamics NN depth',
+            help='dynamics NN depth',
         )
         dynamics_nn.add_argument(
             '--dyn_width',
             type=int,
             default=500,
-            help='Dynamics NN SGD width',
+            help='dynamics NN width',
         )
         dynamics_nn.add_argument(
             '--dyn_learning_rate',
             type=float,
             default=1e-3,
-            help='Dynamics NN learning rate',
+            help='dynamics NN learning rate',
         )
         dynamics_nn.add_argument(
             '--dyn_epochs',
             type=int,
             default=60,
-            help='Dynamics NN SGD epochs',
+            help='dynamics NN epochs',
         )
         dynamics_nn.add_argument(
             '--dyn_batch_size',
             type=int,
             default=512,
-            help='Dynamics NN SGD batch size',
+            help='dynamics NN batch size',
         )
         dynamics_nn.add_argument(
             '--no_delta_norm',
@@ -191,8 +181,7 @@ class DynamicsFlags(Flags):
         self.no_delta_norm = args.no_delta_norm
 
 
-# pylint: disable=too-many-instance-attributes
-class LearnedControllerFlags(Flags):
+class ControllerFlags(Flags):
     """
     Bootstrapped MPC uses a neural network to model an MPC controller. These
     arguments define the architecture and learning policy of that neural
@@ -202,53 +191,38 @@ class LearnedControllerFlags(Flags):
     @staticmethod
     def add_flags(parser):
         """Adds flags to an argparse parser."""
-        learner_nn = parser.add_argument_group('Learned Controller NN')
+        learner_nn = parser.add_argument_group('learned controller')
         learner_nn.add_argument(
             '--con_depth',
             type=int,
-            default=1,
-            help='Learned controller NN depth',
+            default=5,
+            help='learned controller NN depth',
         )
         learner_nn.add_argument(
             '--con_width',
             type=int,
             default=32,
-            help='Learned controller NN width',
+            help='learned controller NN width',
         )
         learner_nn.add_argument(
             '--con_learning_rate',
             type=float,
-            default=1e-4,
-            help='Learned controller NN learning rate',
+            default=1e-3,
+            help='learned controller NN learning rate',
         )
         learner_nn.add_argument(
             '--con_epochs',
             type=int,
-            default=60,
-            help='Learned controller SGD epochs',
+            default=100,
+            help='learned controller epochs',
         )
         learner_nn.add_argument(
             '--con_batch_size',
             type=int,
             default=512,
-            help='Learned controller SGD batch size',
+            help='learned controller batch size',
         )
-        learner_nn.add_argument(
-            '--explore_std',
-            type=float,
-            default=0.0,
-            help='TODO(vladf): Document.',
-        )
-        learner_nn.add_argument(
-            '--no_extra_explore',
-            action='store_true',
-            help='TODO(vlad17)',
-        )
-        learner_nn.add_argument(
-            '--deterministic_learner',
-            action='store_true',
-            help='TODO(vlad17)',
-        )
+        return learner_nn
 
     def __init__(self, args):
         self.con_depth = args.con_depth
@@ -256,9 +230,52 @@ class LearnedControllerFlags(Flags):
         self.con_learning_rate = args.con_learning_rate
         self.con_epochs = args.con_epochs
         self.con_batch_size = args.con_batch_size
+
+    def name(self):
+        return 'controller'
+
+
+class DeltaLearner(ControllerFlags):
+    """
+    A learner with a dirac delta (deterministic) policy.
+    """
+
+    @staticmethod
+    def add_flags(parser):
+        """Adds flags to an argparse parser."""
+        learner_nn = ControllerFlags.add_flags(parser)
+        learner_nn.add_argument(
+            '--explore_std',
+            type=float,
+            default=0.0,
+            help='if exactly 0, explore with a uniform policy on the first '
+            'simulated step; else use a Gaussian with the specified std',
+        )
+
+    def __init__(self, args):
+        super().__init__(args)
         self.explore_std = args.explore_std
+
+
+class GaussianLearner(ControllerFlags):
+    """
+    A learner with a Gaussian policy, with optional exploration.
+    """
+
+    @staticmethod
+    def add_flags(parser):
+        """Adds flags to an argparse parser."""
+        learner_nn = ControllerFlags.add_flags(parser)
+        learner_nn.add_argument(
+            '--no_extra_explore',
+            action='store_true',
+            help='don\'t add extra noise to the first action proposed'
+            ' by stochastic learners',
+        )
+
+    def __init__(self, args):
+        super().__init__(args)
         self.no_extra_explore = args.no_extra_explore
-        self.deterministic_learner = args.deterministic_learner
 
 
 class MpcFlags(Flags):
@@ -272,19 +289,19 @@ class MpcFlags(Flags):
             '--mpc_simulated_paths',
             type=int,
             default=1000,
-            help="Number of simulated MPC rollouts"
+            help='number of simulated MPC rollouts'
         )
         mpc.add_argument(
             '--mpc_horizon',
             type=int,
             default=15,
-            help='Horizon of simulated MPC rollouts',
+            help='horizon of simulated MPC rollouts',
         )
         mpc.add_argument(
             '--delay',
             type=int,
             default=0,
-            help='Delay for dagger',
+            help='delay for dagger',
         )
 
     def __init__(self, args):
@@ -293,53 +310,54 @@ class MpcFlags(Flags):
         self.delay = args.delay
 
 
+_ALL_SUBPARSERS = {
+    'random': [ExperimentFlags, AlgorithmFlags, DynamicsFlags],
+    'mpc': [ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags],
+    'gaussian_bootstrap': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
+        GaussianLearner],
+    'delta_bootstrap': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
+        DeltaLearner],
+    'gaussian_dagger': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
+        GaussianLearner],
+    'delta_dagger': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
+        DeltaLearner],
+}
+
+
 def _get_parser():
     """Gets a parser for all flags."""
     formatter_class = argparse.ArgumentDefaultsHelpFormatter
     parser = argparse.ArgumentParser(formatter_class=formatter_class)
     subparsers = parser.add_subparsers(dest='agent')
 
-    mpc_parser = subparsers.add_parser('mpc')
-    ExperimentFlags.add_flags(mpc_parser)
-    AlgorithmFlags.add_flags(mpc_parser)
-    DynamicsFlags.add_flags(mpc_parser)
-    MpcFlags.add_flags(mpc_parser)
-
-    random_parser = subparsers.add_parser('random')
-    ExperimentFlags.add_flags(random_parser)
-    AlgorithmFlags.add_flags(random_parser)
-    DynamicsFlags.add_flags(random_parser)
-
-    bootstrap_parser = subparsers.add_parser('bootstrap')
-    ExperimentFlags.add_flags(bootstrap_parser)
-    AlgorithmFlags.add_flags(bootstrap_parser)
-    DynamicsFlags.add_flags(bootstrap_parser)
-    MpcFlags.add_flags(bootstrap_parser)
-    LearnedControllerFlags.add_flags(bootstrap_parser)
-
-    dagger_parser = subparsers.add_parser('dagger')
-    ExperimentFlags.add_flags(dagger_parser)
-    AlgorithmFlags.add_flags(dagger_parser)
-    DynamicsFlags.add_flags(dagger_parser)
-    MpcFlags.add_flags(dagger_parser)
-    LearnedControllerFlags.add_flags(dagger_parser)
+    for name, subparser_flags in _ALL_SUBPARSERS.items():
+        subparser = subparsers.add_parser(name)
+        for flag in subparser_flags:
+            flag.add_flags(subparser)
 
     return parser
+
+
+def _parse_args(args):
+    """Reads args from argparse flags into classes"""
+
+    allflags_args = {subflag: None for subflag in _SUBFLAGS}
+    for flag in _ALL_SUBPARSERS[args.agent]:
+        flag = flag(args)
+        allflags_args[flag.name()] = flag
+    allflags_args = [allflags_args[subflag] for subflag in _SUBFLAGS]
+
+    return AllFlags(*allflags_args)
 
 
 def get_all_flags():
     """Get all flags."""
     parser = _get_parser()
     args = parser.parse_args()
-    exp_flags = ExperimentFlags(args)
-    alg_flags = AlgorithmFlags(args)
-    dyn_flags = DynamicsFlags(args)
-    mpc_flags = None
-    con_flags = None
+    parsed_args = _parse_args(args)
 
-    if args.agent in ['mpc', 'bootstrap', 'dagger']:
-        mpc_flags = MpcFlags(args)
-    if args.agent in ['bootstrap', 'dagger']:
-        con_flags = LearnedControllerFlags(args)
-
-    return AllFlags(exp_flags, alg_flags, dyn_flags, mpc_flags, con_flags)
+    return parsed_args

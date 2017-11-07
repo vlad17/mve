@@ -11,15 +11,16 @@ import tensorflow as tf
 import gym
 import numpy as np
 
+import log
+
 
 @contextmanager
-def timeit(name, print_time):
-    """Enclose a with-block with this to print out block runtime"""
+def timeit(name):
+    """Enclose a with-block with to debug-print out block runtime"""
     t = time.time()
     yield
     t = time.time() - t
-    if print_time:
-        print('{} took {:0.1f} seconds'.format(name, t))
+    log.debug('{} took {:0.1f} seconds', name, t)
 
 
 def get_ac_dim(env):
