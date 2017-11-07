@@ -115,6 +115,11 @@ class AlgorithmFlags(Flags):
             type=int,
             default=1,
         )
+        algorithm.add_argument(
+            '--con_agg_data',
+            default=False,
+            action='store_true',
+        )
 
     def __init__(self, args):
         self.agent = args.agent

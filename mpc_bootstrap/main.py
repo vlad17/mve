@@ -155,6 +155,8 @@ def _train(all_flags, logdir):
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
+    most_recent = None
+
     for itr in range(all_flags.algorithm.onpol_iters):
         with timeit('labelling actions'):
             to_label = data.unlabelled_obs()
@@ -165,7 +167,10 @@ def _train(all_flags, logdir):
             dyn_model.fit(data)
 
         with timeit('controller fit'):
-            controller.fit(data)
+            if all_flags.algorithm.con_agg_data:
+                controller.fit(data)
+            elif most_recent is not None:
+                controller.fit(most_recent)
 
         with timeit('sample controller'):
             paths = sample(venv, controller, all_flags.algorithm.horizon)
@@ -182,8 +187,8 @@ def _train(all_flags, logdir):
                hasattr(all_flags.mpc, 'mpc_horizon'):
                 mpc_horizon = all_flags.mpc.mpc_horizon
             bias = most_recent.reward_bias(mpc_horizon)
-            ave_bias = bias.mean() # auto-ravel
-            ave_sqerr = np.square(bias).mean() # auto-ravel
+            ave_bias = bias.mean()  # auto-ravel
+            ave_sqerr = np.square(bias).mean()  # auto-ravel
             # TODO: bootstrap ave_bias ci, ave_sqerr ci
             controller.log(horizon=all_flags.algorithm.horizon)
 
