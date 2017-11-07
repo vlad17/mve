@@ -12,8 +12,13 @@ class Policy:
 
     def act(self, states_ns):
         """
-        Return the action for every state in states_ns, where the batch size
-        is n and the state shape is s.
+        This method returns a tuple of two items.
+
+        The first is the action for every state in states_ns, where the batch
+        size is n and the state shape is s.
+
+        The second is a predicted reward or zeros, depending on whether the
+        policy is based on MPC.
         """
         raise NotImplementedError
 
@@ -75,7 +80,7 @@ class RandomController(Controller):
 
     def act(self, states_ns):
         nstates = len(states_ns)
-        return self._sample_n(nstates)
+        return self._sample_n(nstates), np.zeros(nstates)
 
     def _sample_n(self, n):
         return np.random.uniform(
@@ -168,8 +173,10 @@ class MPC(Controller):
         action_samples_ipa = np.swapaxes(action_na.reshape(
             self.num_simulated_paths, nstates, self._ac_dim), 0, 1)
         best_ac_ia = action_samples_ipa[np.arange(nstates), best_ac_ix_i, :]
+        best_rewards_ia = per_state_simulation_rewards_ip[
+            np.arange(nstates), best_ac_ix_i]
 
-        return best_ac_ia
+        return best_ac_ia, best_rewards_ia
 
     def act(self, states_ns):
         # This batch size is specific to HalfCheetah and my setup.
@@ -181,10 +188,13 @@ class MPC(Controller):
             return self._act(states_ns)
 
         acs = np.empty((len(states_ns), self._ac_dim))
+        rws = np.empty((len(states_ns),))
         for i in range(0, len(states_ns) - batch_size + 1, batch_size):
             loc = slice(i, i + batch_size)
-            acs[loc] = self._act(states_ns[loc])
-        return acs
+            ac, rw = self._act(states_ns[loc])
+            acs[loc] = ac
+            rws[loc] = rw
+        return acs, rws
 
 
 # TODO: reduce the number of instance attributes here
@@ -268,8 +278,10 @@ class DeterministicLearner(Learner):  # pylint: disable=too-many-instance-attrib
                 self.expert_action_ph_na: label_actions_sample})
 
     def act(self, states_ns):
-        return self.sess.run(self.policy_action_na, feed_dict={
+        acs = self.sess.run(self.policy_action_na, feed_dict={
             self.input_state_ph_ns: states_ns})
+        rws = np.zeros(len(states_ns))
+        return acs, rws
 
 
 class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attributes
@@ -364,8 +376,10 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
                 self.expert_action_ph_na: label_actions_sample})
 
     def act(self, states_ns):
-        return self.sess.run(self.policy_action_na, feed_dict={
+        acs = self.sess.run(self.policy_action_na, feed_dict={
             self.input_state_ph_ns: states_ns})
+        rws = np.zeros(len(states_ns))
+        return acs, rws
 
     def log(self, **kwargs):
         with tf.variable_scope('learner_policy', reuse=True):
@@ -461,7 +475,7 @@ class DaggerMPC(Controller):
     def label(self, states_ns):
         if self.delay > 0 and not self.first_round:
             return None
-        return self.mpc.act(states_ns)
+        return self.mpc.act(states_ns)[0]
 
     def fit(self, data):
         if self.delay > 0 and not self.first_round:

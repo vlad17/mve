@@ -31,10 +31,11 @@ def sample(env,
     controller.reset(len(obs_n))
     paths = [Path(env, obs, horizon) for obs in obs_n]
     for t in range(horizon):
-        acs_n = controller.act(obs_n)
+        acs_n, predicted_rewards_n = controller.act(obs_n)
         obs_n, reward_n, done_n, _ = env.step(acs_n)
         for p, path in enumerate(paths):
-            done_n[p] |= path.next(obs_n[p], reward_n[p], acs_n[p])
+            done_n[p] |= path.next(obs_n[p], reward_n[p], acs_n[p],
+                                   predicted_rewards_n[p])
             if done_n[p]:
                 assert t + 1 == horizon, (t + 1, horizon)
     return paths
@@ -176,6 +177,14 @@ def _train(all_flags, logdir):
             most_recent.add_paths(paths)
             returns = most_recent.rewards.sum(axis=0)
             mse = dyn_model.dataset_mse(most_recent)
+            mpc_horizon = 1
+            if hasattr(all_flags, 'mpc') and \
+               hasattr(all_flags.mpc, 'mpc_horizon'):
+                mpc_horizon = all_flags.mpc.mpc_horizon
+            bias = most_recent.reward_bias(mpc_horizon)
+            ave_bias = bias.mean() # auto-ravel
+            ave_sqerr = np.square(bias).mean() # auto-ravel
+            # TODO: bootstrap ave_bias ci, ave_sqerr ci
             controller.log(horizon=all_flags.algorithm.horizon)
 
         logz.log_tabular('Iteration', itr)
@@ -184,6 +193,8 @@ def _train(all_flags, logdir):
         logz.log_tabular('MinimumReturn', np.min(returns))
         logz.log_tabular('MaximumReturn', np.max(returns))
         logz.log_tabular('DynamicsMSE', mse)
+        logz.log_tabular('AverageRewardBias', ave_bias)
+        logz.log_tabular('RewardMSE', ave_sqerr)
         logz.dump_tabular()
 
     sess.__exit__(None, None, None)

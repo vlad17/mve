@@ -47,16 +47,18 @@ class Path(object):
         self._next_obs = np.empty((horizon, get_ob_dim(env)))
         self._acs = np.empty((horizon, get_ac_dim(env)))
         self._rewards = np.empty(horizon)
+        self._predicted_rewards = np.empty(horizon)
         self._idx = 0
         self._horizon = horizon
         self._obs[0] = initial_obs
 
-    def next(self, next_obs, reward, ac):
+    def next(self, next_obs, reward, ac, pred_reward):
         """Append a new transition to currently-stored ones"""
         assert self._idx < self._horizon, (self._idx, self._horizon)
         self._next_obs[self._idx] = next_obs
         self._rewards[self._idx] = reward
         self._acs[self._idx] = ac
+        self._predicted_rewards[self._idx] = pred_reward
         self._idx += 1
         if self._idx < self._horizon:
             self._obs[self._idx] = next_obs
@@ -90,7 +92,13 @@ class Path(object):
         self._check_all_data_has_been_collected()
         return self._next_obs
 
+    @property
+    def predicted_rewards(self):
+        """All predicted rewards so far."""
+        assert self._idx == self._horizon, (self._idx, self._horizon)
+        return self._predicted_rewards
 
+# pylint: disable=too-many-instance-attributes
 class Dataset(object):
     """
     Stores all data for transitions across several rollouts.
@@ -109,6 +117,7 @@ class Dataset(object):
         self.next_obs = np.empty((horizon, 0, self.ob_dim))
         self.acs = np.empty((horizon, 0, self.ac_dim))
         self.rewards = np.empty((horizon, 0))
+        self.predicted_rewards = np.empty((horizon, 0))
         self.labelled_acs = np.empty((horizon, 0, self.ac_dim))
 
     def add_paths(self, paths):
@@ -121,9 +130,13 @@ class Dataset(object):
         rewards.append(self.rewards)
         next_obs = [path.next_obs[:, np.newaxis, :] for path in paths]
         next_obs.append(self.next_obs)
+        predicted_rewards = [path.predicted_rewards[:, np.newaxis]
+                             for path in paths]
+        predicted_rewards.append(self.predicted_rewards)
         self.obs = np.concatenate(obs, axis=1)
         self.acs = np.concatenate(acs, axis=1)
         self.rewards = np.concatenate(rewards, axis=1)
+        self.predicted_rewards = np.concatenate(predicted_rewards, axis=1)
         self.next_obs = np.concatenate(next_obs, axis=1)
 
     def unlabelled_obs(self):
@@ -164,6 +177,14 @@ class Dataset(object):
     def stationary_acs(self):
         """Return all taken actions across all rollouts"""
         return self.acs.reshape(-1, self.ac_dim)
+
+    def reward_bias(self, prediction_horizon):
+        """Report observed prediction_horizon-step reward bias"""
+        agg_rewards = np.cumsum(self.rewards.T, axis=1)
+        h_step_rew = agg_rewards[:, prediction_horizon:]
+        h_step_rew[:, 1:] -= agg_rewards[:, :-prediction_horizon - 1]
+        pred_rew = self.predicted_rewards.T[:, :-prediction_horizon]
+        return h_step_rew - pred_rew
 
 
 def build_mlp(input_placeholder,
