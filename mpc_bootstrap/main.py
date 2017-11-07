@@ -190,7 +190,8 @@ def _train(all_flags, logdir):
             ave_bias = bias.mean()  # auto-ravel
             ave_sqerr = np.square(bias).mean()  # auto-ravel
             # TODO: bootstrap ave_bias ci, ave_sqerr ci
-            controller.log(horizon=all_flags.algorithm.horizon)
+            controller.log(horizon=all_flags.algorithm.horizon,
+                           most_recent=most_recent)
 
         logz.log_tabular('Iteration', itr)
         logz.log_tabular('AverageReturn', np.mean(returns))
