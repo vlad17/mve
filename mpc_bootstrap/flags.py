@@ -129,6 +129,7 @@ class AlgorithmFlags(Flags):
         self.random_paths = args.random_paths
         self.horizon = args.horizon
         self.frame_skip = args.frame_skip
+        self.con_agg_data = args.con_agg_data
 
 
 class DynamicsFlags(Flags):
