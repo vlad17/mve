@@ -265,8 +265,8 @@ class DeterministicLearner(Learner):  # pylint: disable=too-many-instance-attrib
         return self._exploit_policy(states_ns, reuse=True)
 
     def fit(self, data, **kwargs):
-        data = data.stationary_obs()
-        if kwargs['use_labelled']:
+        obs = data.stationary_obs()
+        if 'use_labelled' in kwargs and kwargs['use_labelled']:
             acs = data.labelled_acs()
         else:
             acs = data.stationary_acs()
@@ -370,9 +370,9 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
         return self._exploit_policy(states_ns, reuse=True)
 
     def fit(self, data, **kwargs):
-        data = data.stationary_obs()
-        if kwargs['use_labelled']:
-            acs = data.labelled_acs()
+        obs = data.stationary_obs()
+        if 'use_labelled' in kwargs and kwargs['use_labelled']:
+            acs = data.stationary_labelled_acs()
         else:
             acs = data.stationary_acs()
         nexamples = len(obs)
@@ -430,7 +430,7 @@ class BootstrappedMPC(Controller):
         return self.mpc.act(states_ns)
 
     def fit(self, data):
-        self.learner.fit(data, {'use_labelled': False})
+        self.learner.fit(data, use_labelled=False)
 
     def log(self, **kwargs):
         # TODO: get rid of this circular dep once sample.py exists
@@ -500,7 +500,7 @@ class DaggerMPC(Controller):
             self.first_round = False
             use_labelled = True
 
-        self.learner.fit(data, {'use_labelled': use_labelled})
+        self.learner.fit(data, use_labelled=use_labelled)
 
     def log(self, **kwargs):
         # TODO: get rid of this circular dep once sample.py exists
@@ -518,3 +518,18 @@ class DaggerMPC(Controller):
         logz.log_tabular('ExpertMinimumReturn', np.min(returns))
         logz.log_tabular('ExpertMaximumReturn', np.max(returns))
         self.learner.log(**kwargs)
+
+
+class LearnerOnly(Controller):
+    """
+    Only use the learner follow actions.
+    """
+
+    def __init__(self, learner):
+        self.learner = learner
+
+    def act(self, states_ns):
+        return self.learner.act(states_ns)
+
+    def fit(self, data):
+        self.learner.fit(data)
