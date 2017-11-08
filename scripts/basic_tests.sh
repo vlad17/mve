@@ -43,8 +43,6 @@ main() {
     flags+=("random $common_flags --env_name hc-easy")
     flags+=("delta_bootstrap $common_flags $mpc_flags $con_flags")
     flags+=("gaussian_bootstrap $common_flags $mpc_flags $con_flags --no_extra_explore")
-    flags+=("gaussian_dagger $common_flags $mpc_flags $con_flags")
-    flags+=("gaussian_dagger $common_flags $mpc_flags $con_flags")    
     flags+=("random $common_flags --onpol_iters 3 --exp_name plotexp")
 
     for flag in "${flags[@]}"; do
