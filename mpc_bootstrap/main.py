@@ -16,7 +16,7 @@ from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
 from log import debug
 import log
 from multiprocessing_env import MultiprocessingEnv
-from utils import Path, Dataset, timeit
+from utils import Path, Dataset, StaleDataset, timeit
 import flags
 import logz
 
