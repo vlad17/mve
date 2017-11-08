@@ -76,7 +76,9 @@ def _train(all_flags, logdir):  # pylint: disable=too-many-branches
     paths = sample(venv, random_controller, all_flags.algorithm.horizon)
     data = Dataset(venv, all_flags.algorithm.horizon)
     con_data = StaleDataset(venv, all_flags.algorithm.horizon,
-                            all_flags.controller.con_stale_data if hasattr(all_flags.controller, 'con_stale_data') else 0)
+                            all_flags.controller.con_stale_data
+                            if hasattr(all_flags.controller, 'con_stale_data')
+                            else 0)
     data.add_paths(paths)
     con_data.add_paths(paths)  # TODO no training on random?
     venv = mk_vectorized_env(all_flags.algorithm.onpol_paths)
@@ -160,9 +162,9 @@ def _train(all_flags, logdir):  # pylint: disable=too-many-branches
 
     for itr in range(all_flags.algorithm.onpol_iters):
         with timeit('labelling actions'):
-            to_label = data.unlabelled_obs()
+            to_label = con_data.unlabelled_obs()
             labels = controller.label(to_label)
-            data.label_obs(labels)
+            con_data.label_obs(labels)
 
         with timeit('dynamics fit'):
             dyn_model.fit(data)

@@ -197,7 +197,7 @@ class StaleDataset(Dataset):
         super().__init__(env, horizon)
         self._npaths = []
         self._max_stale = max_stale
-    
+
     def add_paths(self, paths):
         super().add_paths(paths)
         if self._max_stale == 0:
@@ -214,7 +214,7 @@ class StaleDataset(Dataset):
                 # need to truncate
                 new_shape = arr.shape[:1]
                 new_shape += (arr.shape[1] - to_rm,)
-                new_shape += arr.shape[1:]
+                new_shape += arr.shape[2:]
                 arr.resize(new_shape, refcheck=False)
             self._npaths = self._npaths[1:]
 
