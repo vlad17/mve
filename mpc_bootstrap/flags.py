@@ -226,7 +226,7 @@ class ControllerFlags(Flags):
             '--con_stale_data',
             type=int,
             default=0,
-            action='how stale data for training the controller network can be '
+            help='how stale data for training the controller network can be '
             '(0 means infinitely stale)'
         )
         return learner_nn
