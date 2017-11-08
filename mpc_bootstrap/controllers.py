@@ -323,6 +323,7 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
             tf.GraphKeys.GLOBAL_VARIABLES, scope='learner_policy')
         self.update_op = tf.train.AdamOptimizer(learning_rate).minimize(
             nll, var_list=policy_vars)
+        self._nll = nll
 
     def _pdf(self, states_ns, expert_acs_na):
         ac_na = build_mlp(
@@ -387,6 +388,11 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
         std_a = np.exp(self.sess.run(logstd_a))
         logz.log_tabular('LearnerPolicyStdAverage', np.mean(std_a))
         logz.log_tabular('LearnerPolicyStdStd', np.std(std_a))
+        most_recent = kwargs['most_recent']
+        nll = self.sess.run(self._nll, feed_dict={
+            self.input_state_ph_ns: most_recent.stationary_obs(),
+            self.expert_action_ph_na: most_recent.stationary_acs()})
+        logz.log_tabular('AverageNLL', nll)
 
 
 class BootstrappedMPC(Controller):
@@ -429,7 +435,7 @@ class BootstrappedMPC(Controller):
         logz.log_tabular('LearnerStdReturn', np.std(returns))
         logz.log_tabular('LearnerMinimumReturn', np.min(returns))
         logz.log_tabular('LearnerMaximumReturn', np.max(returns))
-        self.learner.log()
+        self.learner.log(**kwargs)
 
 
 class DaggerMPC(Controller):
@@ -502,4 +508,4 @@ class DaggerMPC(Controller):
         logz.log_tabular('ExpertStdReturn', np.std(returns))
         logz.log_tabular('ExpertMinimumReturn', np.min(returns))
         logz.log_tabular('ExpertMaximumReturn', np.max(returns))
-        self.learner.log()
+        self.learner.log(**kwargs)

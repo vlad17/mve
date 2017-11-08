@@ -1,5 +1,5 @@
 #! /usr/bin/env bash
-# Run the basic configurations for easy half-cheetah
+# Run the basic configurations for hard (config 2) half-cheetah
 # Should be run from the repo root
 # Saves runs in ./data and the following images in ./report:
 #

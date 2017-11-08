@@ -41,7 +41,7 @@ def sample(env,
     return paths
 
 
-def _train(all_flags, logdir):
+def _train(all_flags, logdir):  # pylint: disable=too-many-branches
     # Save params to disk.
     params = flags.flags_to_json(all_flags)
     logz.configure_output_dir(logdir)
@@ -182,10 +182,11 @@ def _train(all_flags, logdir):
                hasattr(all_flags.mpc, 'mpc_horizon'):
                 mpc_horizon = all_flags.mpc.mpc_horizon
             bias = most_recent.reward_bias(mpc_horizon)
-            ave_bias = bias.mean() # auto-ravel
-            ave_sqerr = np.square(bias).mean() # auto-ravel
+            ave_bias = bias.mean()  # auto-ravel
+            ave_sqerr = np.square(bias).mean()  # auto-ravel
             # TODO: bootstrap ave_bias ci, ave_sqerr ci
-            controller.log(horizon=all_flags.algorithm.horizon)
+            controller.log(horizon=all_flags.algorithm.horizon,
+                           most_recent=most_recent)
 
         logz.log_tabular('Iteration', itr)
         logz.log_tabular('AverageReturn', np.mean(returns))
