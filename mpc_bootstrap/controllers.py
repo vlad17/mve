@@ -52,7 +52,7 @@ class Learner(Policy):  # pylint: disable=abstract-method
         """
         raise NotImplementedError
 
-    def fit(self, obs, acs):
+    def fit(self, data, **kwargs):
         """Fit the learner to the specified labels."""
         raise NotImplementedError
 
@@ -264,7 +264,13 @@ class DeterministicLearner(Learner):  # pylint: disable=too-many-instance-attrib
             return self._explore_policy(states_ns)
         return self._exploit_policy(states_ns, reuse=True)
 
-    def fit(self, obs, acs):
+    def fit(self, data, **kwargs):
+        data = data.stationary_obs()
+        if kwargs['use_labelled']:
+            acs = data.labelled_acs()
+        else:
+            acs = data.stationary_acs()
+
         nexamples = len(obs)
         assert nexamples == len(acs), (nexamples, len(acs))
         per_epoch = max(nexamples // self.batch_size, 1)
@@ -363,7 +369,12 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
             return self._explore_policy(states_ns)
         return self._exploit_policy(states_ns, reuse=True)
 
-    def fit(self, obs, acs):
+    def fit(self, data, **kwargs):
+        data = data.stationary_obs()
+        if kwargs['use_labelled']:
+            acs = data.labelled_acs()
+        else:
+            acs = data.stationary_acs()
         nexamples = len(obs)
         assert nexamples == len(acs), (nexamples, len(acs))
         per_epoch = max(nexamples // self.batch_size, 1)
@@ -419,9 +430,7 @@ class BootstrappedMPC(Controller):
         return self.mpc.act(states_ns)
 
     def fit(self, data):
-        obs = data.stationary_obs()
-        acs = data.stationary_acs()
-        self.learner.fit(obs, acs)
+        self.learner.fit(data, {'use_labelled': False})
 
     def log(self, **kwargs):
         # TODO: get rid of this circular dep once sample.py exists
@@ -486,12 +495,12 @@ class DaggerMPC(Controller):
     def fit(self, data):
         if self.delay > 0 and not self.first_round:
             self.delay -= 1
-            acs = data.stationary_acs()
+            use_labelled = False
         else:
             self.first_round = False
-            acs = data.stationary_labelled_acs()
-        obs = data.stationary_obs()
-        self.learner.fit(obs, acs)
+            use_labelled = True
+
+        self.learner.fit(data, {'use_labelled': use_labelled})
 
     def log(self, **kwargs):
         # TODO: get rid of this circular dep once sample.py exists
