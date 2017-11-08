@@ -41,7 +41,7 @@ def sample(env,
     return paths
 
 
-def _train(all_flags, logdir): # pylint: disable=too-many-branches
+def _train(all_flags, logdir):  # pylint: disable=too-many-branches
     # Save params to disk.
     params = flags.flags_to_json(all_flags)
     logz.configure_output_dir(logdir)
@@ -76,9 +76,9 @@ def _train(all_flags, logdir): # pylint: disable=too-many-branches
     paths = sample(venv, random_controller, all_flags.algorithm.horizon)
     data = Dataset(venv, all_flags.algorithm.horizon)
     con_data = StaleDataset(venv, all_flags.algorithm.horizon,
-                            all_flags.controller.con_stale_data)
+                            all_flags.controller.con_stale_data if hasattr(all_flags.controller, 'con_stale_data') else 0)
     data.add_paths(paths)
-    con_data.add_paths(paths) # TODO no training on random?
+    con_data.add_paths(paths)  # TODO no training on random?
     venv = mk_vectorized_env(all_flags.algorithm.onpol_paths)
 
     original_env = mk_env()
