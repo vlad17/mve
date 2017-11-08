@@ -325,6 +325,12 @@ _ALL_SUBPARSERS = {
     'delta_dagger': [
         ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
         DeltaLearner],
+    'gaussian_learneronly': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
+        GaussianLearner],
+    'delta_learneronly': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
+        DeltaLearner],
 }
 
 

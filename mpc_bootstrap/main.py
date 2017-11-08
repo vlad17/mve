@@ -10,7 +10,7 @@ import tensorflow as tf
 
 from controllers import (
     RandomController, MPC, BootstrappedMPC, DaggerMPC,
-    DeterministicLearner, StochasticLearner)
+    DeterministicLearner, StochasticLearner, LearnerOnly)
 from dynamics import NNDynamicsModel
 from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
 from log import debug
@@ -41,7 +41,34 @@ def sample(env,
     return paths
 
 
-def _train(all_flags, logdir):  # pylint: disable=too-many-branches
+def _mklearner(venv, all_flags, sess):
+    learner_name = all_flags.algorithm.agent.split('_')[0]
+    if learner_name == 'delta':
+        learner = DeterministicLearner(
+            env=venv,
+            learning_rate=all_flags.controller.con_learning_rate,
+            depth=all_flags.controller.con_depth,
+            width=all_flags.controller.con_width,
+            batch_size=all_flags.controller.con_batch_size,
+            epochs=all_flags.controller.con_epochs,
+            explore_std=all_flags.controller.explore_std,
+            sess=sess)
+    elif learner_name == 'gaussian':
+        learner = StochasticLearner(
+            env=venv,
+            learning_rate=all_flags.controller.con_learning_rate,
+            depth=all_flags.controller.con_depth,
+            width=all_flags.controller.con_width,
+            batch_size=all_flags.controller.con_batch_size,
+            epochs=all_flags.controller.con_epochs,
+            no_extra_explore=all_flags.controller.no_extra_explore,
+            sess=sess)
+    else:
+        raise ValueError('learner type {} unsupported'.format(learner_name))
+    return learner
+
+
+def _train(all_flags, logdir):
     # Save params to disk.
     params = flags.flags_to_json(all_flags)
     logz.configure_output_dir(logdir)
@@ -107,27 +134,11 @@ def _train(all_flags, logdir):  # pylint: disable=too-many-branches
                          learner=None)
     elif all_flags.algorithm.agent == 'random':
         controller = random_controller
+    elif all_flags.algorithm.agent.split('_')[1] == 'learneronly':
+        learner = _mklearner(venv, all_flags, sess)
+        controller = LearnerOnly(learner)
     elif all_flags.algorithm.agent.split('_')[1] in ['bootstrap', 'dagger']:
-        if all_flags.algorithm.agent.split('_')[0] == 'delta':
-            learner = DeterministicLearner(
-                env=venv,
-                learning_rate=all_flags.controller.con_learning_rate,
-                depth=all_flags.controller.con_depth,
-                width=all_flags.controller.con_width,
-                batch_size=all_flags.controller.con_batch_size,
-                epochs=all_flags.controller.con_epochs,
-                explore_std=all_flags.controller.explore_std,
-                sess=sess)
-        else:
-            learner = StochasticLearner(
-                env=venv,
-                learning_rate=all_flags.controller.con_learning_rate,
-                depth=all_flags.controller.con_depth,
-                width=all_flags.controller.con_width,
-                batch_size=all_flags.controller.con_batch_size,
-                epochs=all_flags.controller.con_epochs,
-                no_extra_explore=all_flags.controller.no_extra_explore,
-                sess=sess)
+        learner = _mklearner(venv, all_flags, sess)
         if all_flags.algorithm.agent.split('_')[1] == 'bootstrap':
             controller = BootstrappedMPC(
                 env=venv,
