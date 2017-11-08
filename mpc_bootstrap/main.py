@@ -41,7 +41,7 @@ def sample(env,
     return paths
 
 
-def _train(all_flags, logdir):
+def _train(all_flags, logdir): # pylint: disable=too-many-branches
     # Save params to disk.
     params = flags.flags_to_json(all_flags)
     logz.configure_output_dir(logdir)
