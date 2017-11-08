@@ -16,7 +16,7 @@ from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
 from log import debug
 import log
 from multiprocessing_env import MultiprocessingEnv
-from utils import Path, Dataset, StaleDataset, timeit
+from utils import Path, Dataset, timeit
 import flags
 import logz
 
@@ -75,12 +75,7 @@ def _train(all_flags, logdir):  # pylint: disable=too-many-branches
     random_controller = RandomController(venv)
     paths = sample(venv, random_controller, all_flags.algorithm.horizon)
     data = Dataset(venv, all_flags.algorithm.horizon)
-    con_data = StaleDataset(venv, all_flags.algorithm.horizon,
-                            all_flags.controller.con_stale_data
-                            if hasattr(all_flags.controller, 'con_stale_data')
-                            else 0)
     data.add_paths(paths)
-    con_data.add_paths(paths)  # TODO no training on random?
     venv = mk_vectorized_env(all_flags.algorithm.onpol_paths)
 
     original_env = mk_env()
@@ -162,21 +157,20 @@ def _train(all_flags, logdir):  # pylint: disable=too-many-branches
 
     for itr in range(all_flags.algorithm.onpol_iters):
         with timeit('labelling actions'):
-            to_label = con_data.unlabelled_obs()
+            to_label = data.unlabelled_obs()
             labels = controller.label(to_label)
-            con_data.label_obs(labels)
+            data.label_obs(labels)
 
         with timeit('dynamics fit'):
             dyn_model.fit(data)
 
         with timeit('controller fit'):
-            controller.fit(con_data)
+            controller.fit(data)
 
         with timeit('sample controller'):
             paths = sample(venv, controller, all_flags.algorithm.horizon)
 
         data.add_paths(paths)
-        con_data.add_paths(paths)
 
         with timeit('gathering statistics'):
             most_recent = Dataset(venv, all_flags.algorithm.horizon)

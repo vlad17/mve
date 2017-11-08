@@ -222,13 +222,6 @@ class ControllerFlags(Flags):
             default=512,
             help='learned controller batch size',
         )
-        learner_nn.add_argument(
-            '--con_stale_data',
-            type=int,
-            default=0,
-            help='how stale data for training the controller network can be '
-            '(0 means infinitely stale)'
-        )
         return learner_nn
 
     def __init__(self, args):
@@ -237,7 +230,6 @@ class ControllerFlags(Flags):
         self.con_learning_rate = args.con_learning_rate
         self.con_epochs = args.con_epochs
         self.con_batch_size = args.con_batch_size
-        self.con_stale_data = args.con_stale_data
 
     def name(self):
         return 'controller'

@@ -99,6 +99,8 @@ class Path(object):
         return self._predicted_rewards
 
 # pylint: disable=too-many-instance-attributes
+
+
 class Dataset(object):
     """
     Stores all data for transitions across several rollouts.
@@ -185,38 +187,6 @@ class Dataset(object):
         h_step_rew[:, 1:] -= agg_rewards[:, :-prediction_horizon - 1]
         pred_rew = self.predicted_rewards.T[:, :-prediction_horizon]
         return h_step_rew - pred_rew
-
-class StaleDataset(Dataset):
-    """
-    A Dataset which records how old added data was, and drops stale data.
-
-    Does not support labelling data. If max_stale == 0 this behaves
-    like a regular dataset.
-    """
-    def __init__(self, env, horizon, max_stale):
-        super().__init__(env, horizon)
-        self._npaths = []
-        self._max_stale = max_stale
-
-    def add_paths(self, paths):
-        super().add_paths(paths)
-        if self._max_stale == 0:
-            return
-        self._npaths.append(len(paths))
-        if len(self._npaths) > self._max_stale:
-            assert len(self._npaths) == self._max_stale + 1
-            to_rm = self._npaths[0]
-            arrs = [
-                self.obs, self.acs, self.rewards, self.predicted_rewards,
-                self.next_obs]
-            for arr in arrs:
-                # super().add_paths prepends new items, so to drop them we
-                # need to truncate
-                new_shape = arr.shape[:1]
-                new_shape += (arr.shape[1] - to_rm,)
-                new_shape += arr.shape[2:]
-                arr.resize(new_shape, refcheck=False)
-            self._npaths = self._npaths[1:]
 
 
 def build_mlp(input_placeholder,
