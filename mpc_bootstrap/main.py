@@ -1,9 +1,8 @@
 """Bootstrap MPC entry point."""
 
-import shutil
 import json
-import time
 import os
+import random
 
 import numpy as np
 import tensorflow as tf
@@ -16,7 +15,7 @@ from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
 from log import debug
 import log
 from multiprocessing_env import MultiprocessingEnv
-from utils import Path, Dataset, timeit
+from utils import Path, Dataset, timeit, make_data_directory
 import flags
 import logz
 
@@ -219,31 +218,17 @@ def _main():
     # Initialize the logger.
     log.init(all_flags.experiment.verbose)
 
-    # Make data directory if it does not already exist
-    # TODO: this procedure should be in utils
-    if not os.path.exists('data'):
-        os.makedirs('data')
-    logdir_base = all_flags.experiment.exp_name + '_' + \
-        all_flags.algorithm.env_name
-    logdir_base = os.path.join('data', logdir_base)
-    ctr = 0
-    logdir = logdir_base
-    while os.path.exists(logdir):
-        logdir = logdir_base + '-{}'.format(ctr)
-        ctr += 1
-    if ctr > 0:
-        print('experiment already exists, moved old one to', logdir)
-        shutil.move(logdir_base, logdir)
-        logdir = logdir_base
-    os.makedirs(logdir)
-    with open(os.path.join(logdir, 'starttime.txt'), 'w') as f:
-        print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
+    # Make data directory if it does not already exist.
+    datadir = "{}_{}".format(all_flags.experiment.exp_name,
+                             all_flags.algorithm.env_name)
+    logdir = make_data_directory(datadir)
 
+    # Run the experiments!
     for seed in all_flags.experiment.seed:
         g = tf.Graph()
         logdir_seed = os.path.join(logdir, str(seed))
         with g.as_default():
-            # Set seed
+            random.seed(seed)
             np.random.seed(seed)
             tf.set_random_seed(seed)
             _train(all_flags=all_flags, logdir=logdir_seed)
