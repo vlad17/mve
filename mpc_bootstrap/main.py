@@ -72,7 +72,7 @@ def _train(all_flags, logdir):
     params = flags.flags_to_json(all_flags)
     logz.configure_output_dir(logdir)
     with open(os.path.join(logdir, 'params.json'), 'w') as f:
-        json.dump(params, f)
+        json.dump(params, f, sort_keys=True, indent=4)
 
     # Log arguments to sanity check that they are what they should be.
     for x in params:
