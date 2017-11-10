@@ -36,6 +36,8 @@ main() {
     flags=()
     flags+=("mpc $common_flags $mpc_flags")
     flags+=("random $common_flags")
+    flags+=("zero_learneronly $common_flags $mpc_flags")
+    flags+=("zero_bootstrap $common_flags $mpc_flags")
     flags+=("gaussian_bootstrap $common_flags $mpc_flags $con_flags")
     flags+=("delta_bootstrap $common_flags $mpc_flags $con_flags --explore_std 1")
     flags+=("gaussian_dagger $common_flags $mpc_flags $con_flags")

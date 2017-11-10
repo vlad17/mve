@@ -333,6 +333,8 @@ _ALL_SUBPARSERS = {
     'gaussian_bootstrap': [
         ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
         GaussianLearner],
+    'zero_bootstrap': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags],
     'delta_bootstrap': [
         ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
         DeltaLearner],
@@ -348,6 +350,8 @@ _ALL_SUBPARSERS = {
     'delta_learneronly': [
         ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
         DeltaLearner],
+    'zero_learneronly': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags],
 }
 
 

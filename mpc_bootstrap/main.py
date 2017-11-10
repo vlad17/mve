@@ -9,7 +9,8 @@ import tensorflow as tf
 
 from controllers import (
     RandomController, MPC, BootstrappedMPC, DaggerMPC,
-    DeterministicLearner, StochasticLearner, LearnerOnly)
+    DeterministicLearner, StochasticLearner, LearnerOnly,
+    ZeroLearner)
 from dynamics import NNDynamicsModel
 from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
 from log import debug
@@ -42,7 +43,9 @@ def sample(env,
 
 def _mklearner(venv, all_flags, sess):
     learner_name = all_flags.algorithm.agent.split('_')[0]
-    if learner_name == 'delta':
+    if learner_name == 'zero':
+        learner = ZeroLearner(venv)
+    elif learner_name == 'delta':
         learner = DeterministicLearner(
             env=venv,
             learning_rate=all_flags.controller.con_learning_rate,
