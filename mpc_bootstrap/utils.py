@@ -183,12 +183,18 @@ class Dataset(object):
         return self.acs.reshape(-1, self.ac_dim)
 
     def reward_bias(self, prediction_horizon):
-        """Report observed prediction_horizon-step reward bias"""
+        """
+        Report observed prediction_horizon-step reward bias
+        and the h-step reward
+        """
         agg_rewards = np.cumsum(self.rewards.T, axis=1)
-        h_step_rew = agg_rewards[:, prediction_horizon:]
-        h_step_rew[:, 1:] -= agg_rewards[:, :-prediction_horizon - 1]
-        pred_rew = self.predicted_rewards.T[:, :-prediction_horizon]
-        return h_step_rew - pred_rew
+        h_step_rew = agg_rewards[:, prediction_horizon - 1:]
+        h_step_rew[:, 1:] -= agg_rewards[:, :-prediction_horizon]
+        if prediction_horizon > 1:
+            pred_rew = self.predicted_rewards.T[:, :-(prediction_horizon - 1)]
+        else:
+            pred_rew = self.predicted_rewards.T
+        return h_step_rew - pred_rew, h_step_rew
 
 
 def build_mlp(input_placeholder,

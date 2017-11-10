@@ -191,9 +191,9 @@ def _train(all_flags, logdir):
             if hasattr(all_flags, 'mpc') and \
                hasattr(all_flags.mpc, 'mpc_horizon'):
                 mpc_horizon = all_flags.mpc.mpc_horizon
-            bias = most_recent.reward_bias(mpc_horizon)
-            ave_bias = bias.mean()  # auto-ravel
-            ave_sqerr = np.square(bias).mean()  # auto-ravel
+            bias, zero_bias = most_recent.reward_bias(mpc_horizon)
+            ave_bias = bias.mean() / np.fabs(zero_bias.mean())
+            ave_sqerr = np.square(bias).mean() / np.square(zero_bias).mean()
             # TODO: bootstrap ave_bias ci, ave_sqerr ci
             controller.log(horizon=all_flags.algorithm.horizon,
                            most_recent=most_recent)
@@ -204,8 +204,8 @@ def _train(all_flags, logdir):
         logz.log_tabular('MinimumReturn', np.min(returns))
         logz.log_tabular('MaximumReturn', np.max(returns))
         logz.log_tabular('DynamicsMSE', mse)
-        logz.log_tabular('AverageRewardBias', ave_bias)
-        logz.log_tabular('RewardMSE', ave_sqerr)
+        logz.log_tabular('StandardizedRewardBias', ave_bias)
+        logz.log_tabular('StandardizedRewardMSE', ave_sqerr)
         logz.dump_tabular()
 
     sess.__exit__(None, None, None)
