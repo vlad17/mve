@@ -10,6 +10,7 @@ line. This file helps do that without going crazy:
 
 import argparse
 import collections
+import subprocess
 
 _SUBFLAGS = [
     'experiment', 'algorithm', 'dynamics', 'mpc', 'controller', 'learner']
@@ -47,12 +48,27 @@ class ExperimentFlags(Flags):
     @staticmethod
     def add_flags(parser):
         """Adds flags to an argparse parser."""
+        try:
+            git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD'])
+            # git_hash is a byte string; we want a string.
+            git_hash = git_hash.decode('utf-8')
+            # git_hash also comes with an extra \n at the end, which we remove.
+            git_hash = git_hash.strip()
+        except subprocess.CalledProcessError:
+            git_hash = ""
+
         experiment = parser.add_argument_group('experiment')
         experiment.add_argument(
             '--exp_name',
             type=str,
             default='unnamed_experiment',
             help='the name of the experiment',
+        )
+        experiment.add_argument(
+            '--git_hash',
+            type=str,
+            default=git_hash,
+            help='the git hash of the code being used',
         )
         experiment.add_argument(
             '--seed',
@@ -69,6 +85,7 @@ class ExperimentFlags(Flags):
 
     def __init__(self, args):
         self.exp_name = args.exp_name
+        self.git_hash = args.git_hash
         self.seed = args.seed
         self.verbose = args.verbose
 
