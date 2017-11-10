@@ -170,6 +170,10 @@ class Dataset(object):
         """Return all labelled actions across all rollouts"""
         return self.labelled_acs.reshape(-1, self.ac_dim)
 
+    def stationary_rewards(self):
+        """Return all rewards all rollouts"""
+        return self.rewards.reshape(-1)
+
     def stationary_obs(self):
         """Return all observations across all rollouts"""
         return self.obs.reshape(-1, self.ob_dim)

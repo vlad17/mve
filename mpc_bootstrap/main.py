@@ -4,13 +4,15 @@ import json
 import os
 import random
 
+# import mujoco for weird dlopen reasons
+import mujoco_py # pylint: disable=unused-import
 import numpy as np
 import tensorflow as tf
 
 from controllers import (
     RandomController, MPC, BootstrappedMPC, DaggerMPC,
     DeterministicLearner, StochasticLearner, LearnerOnly,
-    ZeroLearner)
+    DDPGLearner, ZeroLearner)
 from dynamics import NNDynamicsModel
 from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
 from log import debug
@@ -41,7 +43,7 @@ def sample(env,
     return paths
 
 
-def _mklearner(venv, all_flags, sess):
+def _mklearner(venv, all_flags, sess, data):
     learner_name = all_flags.algorithm.agent.split('_')[0]
     if learner_name == 'zero':
         learner = ZeroLearner(venv)
@@ -65,12 +67,14 @@ def _mklearner(venv, all_flags, sess):
             epochs=all_flags.controller.con_epochs,
             no_extra_explore=all_flags.controller.no_extra_explore,
             sess=sess)
+    elif learner_name == 'ddpg':
+        learner = DDPGLearner(venv, data, sess, all_flags.controller)
     else:
         raise ValueError('learner type {} unsupported'.format(learner_name))
     return learner
 
 
-def _train(all_flags, logdir):
+def _train(all_flags, logdir): # pylint: disable=too-many-branches
     # Save params to disk.
     params = flags.flags_to_json(all_flags)
     logz.configure_output_dir(logdir)
@@ -100,14 +104,15 @@ def _train(all_flags, logdir):
         return mp_env
 
     # Need random initial data to kickstart dynamics
-    venv = mk_vectorized_env(all_flags.algorithm.random_paths)
-    random_controller = RandomController(venv)
-    paths = sample(venv, random_controller, all_flags.algorithm.horizon)
-    data = Dataset(venv, all_flags.algorithm.horizon)
-    data.add_paths(paths)
-    venv = mk_vectorized_env(all_flags.algorithm.onpol_paths)
-
     original_env = mk_env()
+    data = Dataset(original_env, all_flags.algorithm.horizon)
+    random_controller = RandomController(original_env)
+    if all_flags.algorithm.random_paths > 0:
+        venv = mk_vectorized_env(all_flags.algorithm.random_paths)
+        paths = sample(venv, random_controller, all_flags.algorithm.horizon)
+        data.add_paths(paths)
+
+    venv = mk_vectorized_env(all_flags.algorithm.onpol_paths)
 
     # Build dynamics model and MPC controllers.
     config = tf.ConfigProto()
@@ -137,10 +142,10 @@ def _train(all_flags, logdir):
     elif all_flags.algorithm.agent == 'random':
         controller = random_controller
     elif all_flags.algorithm.agent.split('_')[1] == 'learneronly':
-        learner = _mklearner(venv, all_flags, sess)
+        learner = _mklearner(venv, all_flags, sess, data)
         controller = LearnerOnly(learner)
     elif all_flags.algorithm.agent.split('_')[1] in ['bootstrap', 'dagger']:
-        learner = _mklearner(venv, all_flags, sess)
+        learner = _mklearner(venv, all_flags, sess, data)
         if all_flags.algorithm.agent.split('_')[1] == 'bootstrap':
             controller = BootstrappedMPC(
                 env=venv,
@@ -174,22 +179,27 @@ def _train(all_flags, logdir):
             labels = controller.label(to_label)
             data.label_obs(labels)
 
-        with timeit('dynamics fit'):
-            dyn_model.fit(data)
+        if not all_flags.algorithm.disable_dynamics:
+            with timeit('dynamics fit'):
+                dyn_model.fit(data)
 
         with timeit('controller fit'):
-            controller.fit(data)
+            if data.stationary_obs().size:
+                controller.fit(data)
 
         with timeit('sample controller'):
             paths = sample(venv, controller, all_flags.algorithm.horizon)
 
-        data.add_paths(paths)
+        with timeit('adding paths to dataset'):
+            data.add_paths(paths)
 
         with timeit('gathering statistics'):
             most_recent = Dataset(venv, all_flags.algorithm.horizon)
             most_recent.add_paths(paths)
             returns = most_recent.rewards.sum(axis=0)
-            mse = dyn_model.dataset_mse(most_recent)
+            mse = 0
+            if not all_flags.algorithm.disable_dynamics:
+                mse = dyn_model.dataset_mse(most_recent)
             mpc_horizon = 1
             if hasattr(all_flags, 'mpc') and \
                hasattr(all_flags.mpc, 'mpc_horizon'):

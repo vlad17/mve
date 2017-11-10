@@ -13,7 +13,7 @@ import collections
 import subprocess
 
 _SUBFLAGS = [
-    'experiment', 'algorithm', 'dynamics', 'mpc', 'controller', 'learner']
+    'experiment', 'algorithm', 'dynamics', 'mpc', 'controller']
 
 AllFlags = collections.namedtuple('AllFlags', _SUBFLAGS)
 
@@ -90,7 +90,7 @@ class ExperimentFlags(Flags):
         self.verbose = args.verbose
 
 
-class AlgorithmFlags(Flags):
+class AlgorithmFlags(Flags):  # pylint: disable=too-many-instance-attributes
     """Generic algorithm flags."""
 
     @staticmethod
@@ -132,6 +132,11 @@ class AlgorithmFlags(Flags):
             type=int,
             default=1,
         )
+        algorithm.add_argument(
+            '--disable_dynamics',
+            action='store_true',
+            default=False
+        )
 
     def __init__(self, args):
         self.agent = args.agent
@@ -141,6 +146,7 @@ class AlgorithmFlags(Flags):
         self.random_paths = args.random_paths
         self.horizon = args.horizon
         self.frame_skip = args.frame_skip
+        self.disable_dynamics = args.disable_dynamics
 
 
 class DynamicsFlags(Flags):
@@ -295,6 +301,54 @@ class GaussianLearner(ControllerFlags):
         self.no_extra_explore = args.no_extra_explore
 
 
+class DDPGFlags(ControllerFlags):
+    """
+    A learner with a DDPG policy.
+    """
+
+    @staticmethod
+    def add_flags(parser):
+        """Adds flags to an argparse parser."""
+        learner_nn = ControllerFlags.add_flags(parser)
+        learner_nn.add_argument(
+            '--action_stddev',
+            type=float,
+            default=0.2,
+            help='desired stddev for injected noise in DDPG actions')
+        learner_nn.add_argument(
+            '--critic_l2_reg',
+            type=float,
+            default=1e-2,
+            help='DDPG critic regularization constant'
+        )
+        learner_nn.add_argument(
+            '--critic_lr',
+            type=float,
+            default=1e-3,
+            help='DDPG critic learning rate'
+        )
+        learner_nn.add_argument(
+            '--param_noise_exploration',
+            default=False,
+            action='store_true',
+            help='use DDPG actor noise for MPC exploration'
+        )
+        learner_nn.add_argument(
+            '--param_noise_exploitation',
+            default=False,
+            action='store_true',
+            help='use DDPG actor noise when the learner acts'
+        )
+
+    def __init__(self, args):
+        super().__init__(args)
+        self.action_stddev = args.action_stddev
+        self.critic_l2_reg = args.critic_l2_reg
+        self.critic_lr = args.critic_lr
+        self.param_noise_exploration = args.param_noise_exploration
+        self.param_noise_exploitation = args.param_noise_exploitation
+
+
 class MpcFlags(Flags):
     """MPC flags."""
 
@@ -338,6 +392,9 @@ _ALL_SUBPARSERS = {
     'delta_bootstrap': [
         ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
         DeltaLearner],
+    'ddpg_bootstrap': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
+        DDPGFlags],
     'gaussian_dagger': [
         ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
         GaussianLearner],
@@ -352,6 +409,9 @@ _ALL_SUBPARSERS = {
         DeltaLearner],
     'zero_learneronly': [
         ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags],
+    'ddpg_learneronly': [
+        ExperimentFlags, AlgorithmFlags, MpcFlags, DynamicsFlags,
+        DDPGFlags],
 }
 
 

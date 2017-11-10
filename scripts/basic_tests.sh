@@ -36,6 +36,7 @@ main() {
     flags=()
     flags+=("mpc $common_flags $mpc_flags")
     flags+=("random $common_flags")
+    flags+=("random $common_flags --disable_dynamics")
     flags+=("zero_learneronly $common_flags $mpc_flags")
     flags+=("zero_bootstrap $common_flags $mpc_flags")
     flags+=("gaussian_bootstrap $common_flags $mpc_flags $con_flags")
@@ -47,6 +48,13 @@ main() {
     flags+=("gaussian_bootstrap $common_flags $mpc_flags $con_flags --no_extra_explore")
     flags+=("gaussian_learneronly $common_flags $mpc_flags $con_flags")
     flags+=("delta_learneronly $common_flags $mpc_flags $con_flags")
+    flags+=("ddpg_learneronly $common_flags $mpc_flags $con_flags")
+    flags+=("ddpg_learneronly $common_flags $mpc_flags $con_flags --action_stddev 0.1")
+    flags+=("ddpg_learneronly $common_flags $mpc_flags $con_flags --critic_lr 0.1")
+    flags+=("ddpg_learneronly $common_flags $mpc_flags $con_flags --critic_l2_reg 0.1")
+    flags+=("ddpg_bootstrap $common_flags $mpc_flags $con_flags")
+    flags+=("ddpg_bootstrap $common_flags $mpc_flags $con_flags --param_noise_exploitation")
+    flags+=("ddpg_bootstrap $common_flags $mpc_flags $con_flags --param_noise_exploration")
     flags+=("random $common_flags --onpol_iters 3 --exp_name plotexp")
 
     for flag in "${flags[@]}"; do
