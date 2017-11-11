@@ -17,31 +17,11 @@ from dynamics import NNDynamicsModel
 from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
 from log import debug
 import log
+from sample import sample_venv
 from multiprocessing_env import MultiprocessingEnv
-from utils import Path, Dataset, timeit, make_data_directory
+from utils import Dataset, timeit, make_data_directory
 import flags
 import logz
-
-
-def sample(env,
-           controller,
-           horizon=1000):
-    """
-    Assumes env is vectorized to some number of states at once
-    """
-    obs_n = env.reset()
-    controller.reset(len(obs_n))
-    paths = [Path(env, obs, horizon) for obs in obs_n]
-    for t in range(horizon):
-        acs_n, predicted_rewards_n = controller.act(obs_n)
-        obs_n, reward_n, done_n, _ = env.step(acs_n)
-        for p, path in enumerate(paths):
-            done_n[p] |= path.next(obs_n[p], reward_n[p], acs_n[p],
-                                   predicted_rewards_n[p])
-            if done_n[p]:
-                assert t + 1 == horizon, (t + 1, horizon)
-    return paths
-
 
 def _mklearner(venv, all_flags, sess, data):
     learner_name = all_flags.algorithm.agent.split('_')[0]
@@ -109,7 +89,8 @@ def _train(all_flags, logdir): # pylint: disable=too-many-branches
     random_controller = RandomController(original_env)
     if all_flags.algorithm.random_paths > 0:
         venv = mk_vectorized_env(all_flags.algorithm.random_paths)
-        paths = sample(venv, random_controller, all_flags.algorithm.horizon)
+        horizon = all_flags.algorithm.horizon
+        paths = sample_venv(venv, random_controller, horizon)
         data.add_paths(paths)
 
     venv = mk_vectorized_env(all_flags.algorithm.onpol_paths)
@@ -188,7 +169,7 @@ def _train(all_flags, logdir): # pylint: disable=too-many-branches
                 controller.fit(data)
 
         with timeit('sample controller'):
-            paths = sample(venv, controller, all_flags.algorithm.horizon)
+            paths = sample_venv(venv, controller, all_flags.algorithm.horizon)
 
         with timeit('adding paths to dataset'):
             data.add_paths(paths)

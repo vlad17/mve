@@ -6,6 +6,7 @@ import tensorflow as tf
 import logz
 from utils import get_ac_dim, get_ob_dim, build_mlp, Dataset
 from ddpg.main import mkagent, train
+from sample import sample_venv
 
 
 class Policy:
@@ -466,10 +467,8 @@ class BootstrappedMPC(Controller):
         self.learner.fit(data, use_labelled=False)
 
     def log(self, **kwargs):
-        # TODO: get rid of this circular dep once sample.py exists
-        from main import sample
         horizon = kwargs['horizon']
-        paths = sample(self.env, self.learner, horizon)
+        paths = sample_venv(self.env, self.learner, horizon)
         data = Dataset(self.env, horizon)
         data.add_paths(paths)
         returns = data.rewards.sum(axis=0)
@@ -536,13 +535,11 @@ class DaggerMPC(Controller):
         self.learner.fit(data, use_labelled=use_labelled)
 
     def log(self, **kwargs):
-        # TODO: get rid of this circular dep once sample.py exists
-        from main import sample
         if self.delay > 0:
             returns = [0]
         else:
             horizon = kwargs['horizon']
-            paths = sample(self.env, self.mpc, horizon)
+            paths = sample_venv(self.env, self.mpc, horizon)
             data = Dataset(self.env, horizon)
             data.add_paths(paths)
             returns = data.rewards.sum(axis=0)
