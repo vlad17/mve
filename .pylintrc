@@ -1,5 +1,9 @@
 [MESSAGES CONTROL]
 disable=logging-format-interpolation,too-many-arguments,invalid-name,no-member,too-many-locals,too-many-statements,too-few-public-methods,not-context-manager,redefined-variable-type
 max-line-length=79
+
 [BASIC]
 good-names=i,j,k,x,y,xs,ys,t,ac,ob,acs,obs,p
+
+[SIMILARITIES]
+min-similarity-lines=50

@@ -13,7 +13,7 @@ def sample_venv(venv, policy, horizon=1000):
     Parameters
     ----------
     venv: multiprocessing_env.MultiprocessingEnv
-    policy: controllers.Policy
+    policy: policy.Policy
     horizon: int
     """
     obs_n = venv.reset()

@@ -9,10 +9,15 @@ import mujoco_py # pylint: disable=unused-import
 import numpy as np
 import tensorflow as tf
 
-from controllers import (
-    RandomController, MPC, BootstrappedMPC, DaggerMPC,
-    DeterministicLearner, StochasticLearner, LearnerOnly,
-    DDPGLearner, ZeroLearner)
+from random_policy import RandomPolicy
+from mpc import MPC
+from bootstrapped_mpc import BootstrappedMPC
+from dagger_mpc import DaggerMPC
+from deterministic_learner import DeterministicLearner
+from stochastic_learner import StochasticLearner
+from learner_controller import LearnerController
+from ddpg_learner import DDPGLearner
+from zero_learner import ZeroLearner
 from dynamics import NNDynamicsModel
 from envs import WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard
 from log import debug
@@ -86,7 +91,7 @@ def _train(all_flags, logdir): # pylint: disable=too-many-branches
     # Need random initial data to kickstart dynamics
     original_env = mk_env()
     data = Dataset(original_env, all_flags.algorithm.horizon)
-    random_controller = RandomController(original_env)
+    random_controller = RandomPolicy(original_env)
     if all_flags.algorithm.random_paths > 0:
         venv = mk_vectorized_env(all_flags.algorithm.random_paths)
         horizon = all_flags.algorithm.horizon
@@ -124,7 +129,7 @@ def _train(all_flags, logdir): # pylint: disable=too-many-branches
         controller = random_controller
     elif all_flags.algorithm.agent.split('_')[1] == 'learneronly':
         learner = _mklearner(venv, all_flags, sess, data)
-        controller = LearnerOnly(learner)
+        controller = LearnerController(learner)
     elif all_flags.algorithm.agent.split('_')[1] in ['bootstrap', 'dagger']:
         learner = _mklearner(venv, all_flags, sess, data)
         if all_flags.algorithm.agent.split('_')[1] == 'bootstrap':

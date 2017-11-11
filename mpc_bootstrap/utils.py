@@ -15,7 +15,6 @@ import numpy as np
 
 import log
 
-
 @contextmanager
 def timeit(name):
     """Enclose a with-block with to debug-print out block runtime"""
@@ -40,6 +39,21 @@ def get_ob_dim(env):
     assert len(ob_space.shape) == 1, ob_space.shape
     return ob_space.shape[0]
 
+def create_random_tf_policy(ac_space):
+    """
+    Given an environment `env` with states of length s and actions of length a,
+    `create_random_tf_policy(env.action_space)` will return a function `f` that
+    takes in an n x s tensor and returns an n x a tensor drawn uniformly at
+    random from `env.action_space`.
+    """
+    def _policy(state_ns, **_):
+        n = tf.shape(state_ns)[0]
+        ac_dim = ac_space.low.shape
+        ac_na = tf.random_uniform((n,) + ac_dim)
+        ac_na *= (ac_space.high - ac_space.low)
+        ac_na += ac_space.low
+        return ac_na
+    return _policy
 
 class Path(object):
     """Store rewards and transitions from a single fixed-horizon rollout"""
