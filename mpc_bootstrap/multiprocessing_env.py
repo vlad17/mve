@@ -9,6 +9,7 @@ import multiprocessing
 import traceback
 
 import gym
+import numpy as np
 
 _logger = logging.getLogger(__name__)
 _logger.setLevel(logging.INFO)
@@ -305,3 +306,12 @@ class MultiprocessingEnv(gym.Env):
 
     def _close(self):
         _close_n(self.worker_n)
+
+
+def mk_venv(mk_env, n):
+    """Generates vectorized multiprocessing env."""
+    envs = [mk_env() for _ in range(n)]
+    venv = MultiprocessingEnv(envs)
+    seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]
+    venv.seed(seeds)
+    return venv

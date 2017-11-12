@@ -5,6 +5,7 @@ Python patterns
 
 from contextlib import contextmanager
 import os
+import random
 import shutil
 import time
 import types
@@ -14,6 +15,12 @@ import gym
 import numpy as np
 
 import log
+
+def seed_everything(seed):
+    """Seed random, numpy, and tensorflow."""
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.set_random_seed(seed)
 
 @contextmanager
 def timeit(name):

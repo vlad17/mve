@@ -1,9 +1,9 @@
 """A policy which acts uniformly at random."""
 
-
 import numpy as np
 
 from controller import Controller
+
 
 # TODO(mwhittaker): Make a Policy instead of a Controller.
 class RandomPolicy(Controller):

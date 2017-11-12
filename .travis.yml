@@ -13,6 +13,7 @@ install:
 script:
   - ./scripts/lint.sh
   - ./scripts/basic_tests.sh mjkey.txt mjpro131
+  - ./scripts/tests.sh mjkey.txt mjpro131
 env:
   global:
     secure: zd5PCRk+iHoPFSPX2Kr2XJFcxomlOj8BdasMMqoGven8TE60aAhFIepDK094OJk25bSj1iHXx63ZnUbCytzYWfNDDpC7pVqvqVqXpC+6ezv+CzL5kEf0tuHrwaXuLc/TeSnYipy6FyZq09u6NQfNZWZ50znLiSeumnW7im63Eq6MmEIr6l1TkOXycUUbc5xgt7sQDKlXPY2tECd5iQcwDW0YTuKecaaPf/7Zw7/5J19SWgr29jE26GovV8tJeJjYoEIyA+O5dj0OAW369k3VVM0on4ZMRlQH8JK9aelWrIm3HE7FthE+ohjW53na4it1qHEwzwL+qtzoXM1eyJJVyGCGz1/mOt7LKRbRS5ObvUbIZHFAfb/8g0Qa7W0yd2cmhaXeRjX4xcmTte8f/HURlqdOarwTilq9Q77otKf3z7jAFEkjEYAJmiVGCAGN5RXc0akIB1zBPJ5nih/cISV6PN60hNMuVt1KJzdxYu/nVuIbOplfLSPTZpu0onVE9PoRnzYW2gZ6LimSnnqWK5QOz7FO4l4M3WWE97yAk3lN3Fj5sJUwJR7oW7bwJOhFl8qCXrlqNmH+XCrIEbtewoXFaLEL8iRL4W/lh7VV7K6OcNzbxFc56ANHDVzTe2WW0pe203C5mwYfbB0OqEAr2k8Rd3rdcmaBh+tABY9be7oSYi8=

@@ -1,6 +1,5 @@
 """Base learner class."""
 
-
 from policy import Policy
 
 
