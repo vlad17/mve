@@ -14,6 +14,7 @@ from flags import (convert_flags_to_json, parse_args)
 from utils import (make_data_directory, seed_everything)
 import log
 import logz
+import ray
 from main_mpc import _train as train_mpc
 
 def _main(args):
@@ -24,6 +25,8 @@ def _main(args):
     datadir = "{}_{}".format(exp_name, env_name)
     logdir = make_data_directory(datadir)
 
+    ray.init()
+
     for seed in args.experiment.seed:
         # Save params to disk.
         logdir_seed = os.path.join(logdir, str(seed))
@@ -31,11 +34,17 @@ def _main(args):
         with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
             json.dump(convert_flags_to_json(args), f, sort_keys=True, indent=4)
 
+        @ray.remote
+        def _train_mpc_inst(i):
+            logdir_seed_proc = os.path.join(logdir_seed, str(i))
+            logz.configure_output_dir(logdir_seed_proc)
+            train_mpc(args)
+
         # Run experiment.
         g = tf.Graph()
         with g.as_default():
             seed_everything(seed)
-            train_mpc(args)
+            results = ray.get([_train_mpc_inst.remote(i) for i in range(1)])
 
 
 if __name__ == "__main__":
