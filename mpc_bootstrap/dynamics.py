@@ -3,32 +3,60 @@
 import tensorflow as tf
 import numpy as np
 
+from flags import Flags
 from utils import get_ac_dim, get_ob_dim, build_mlp
 
+class DynamicsFlags(Flags):
+    """
+    We use a neural network to model an environment's dynamics. These flags
+    define the architecture and learning policy of neural network.
+    """
 
-class _NodeltaNormalizer:
-    def __init__(self, data, eps=1e-6):
-        self.mean_ob = np.mean(data.stationary_obs(), axis=0)
-        self.std_ob = np.std(data.stationary_obs(), axis=0)
-        self.mean_ac = np.mean(data.stationary_acs(), axis=0)
-        self.std_ac = np.std(data.stationary_acs(), axis=0)
-        self.eps = eps
+    @staticmethod
+    def add_flags(parser):
+        """Adds flags to an argparse parser."""
+        dynamics_nn = parser.add_argument_group('dynamics')
+        dynamics_nn.add_argument(
+            '--dyn_depth',
+            type=int,
+            default=2,
+            help='dynamics NN depth',
+        )
+        dynamics_nn.add_argument(
+            '--dyn_width',
+            type=int,
+            default=500,
+            help='dynamics NN width',
+        )
+        dynamics_nn.add_argument(
+            '--dyn_learning_rate',
+            type=float,
+            default=1e-3,
+            help='dynamics NN learning rate',
+        )
+        dynamics_nn.add_argument(
+            '--dyn_epochs',
+            type=int,
+            default=60,
+            help='dynamics NN epochs',
+        )
+        dynamics_nn.add_argument(
+            '--dyn_batch_size',
+            type=int,
+            default=512,
+            help='dynamics NN batch size',
+        )
 
-    def norm_obs(self, obs):
-        """normalize observations"""
-        return (obs - self.mean_ob) / (self.std_ob + self.eps)
+    @staticmethod
+    def name():
+        return 'dynamics'
 
-    def norm_acs(self, acs):
-        """normalize actions"""
-        return (acs - self.mean_ac) / (self.std_ac + self.eps)
-
-    def denorm_delta(self, deltas):
-        """denormalize deltas"""
-        return deltas * self.std_ob
-
-    def norm_delta(self, deltas):
-        """normalize deltas"""
-        return deltas / (self.std_ob + self.eps)
+    def __init__(self, args):
+        self.dyn_depth = args.dyn_depth
+        self.dyn_width = args.dyn_width
+        self.dyn_learning_rate = args.dyn_learning_rate
+        self.dyn_epochs = args.dyn_epochs
+        self.dyn_batch_size = args.dyn_batch_size
 
 
 class _DeltaNormalizer:
@@ -62,18 +90,9 @@ class _DeltaNormalizer:
 class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
     """Stationary neural-network-based dynamics model."""
 
-    def __init__(self,
-                 env,
-                 norm_data,
-                 no_delta_norm,
-                 batch_size,
-                 epochs,
-                 learning_rate,
-                 depth,
-                 width,
-                 sess):
-        self.epochs = epochs
-        self.batch_size = batch_size
+    def __init__(self, env, sess, norm_data, dyn_flags):
+        self.epochs = dyn_flags.dyn_epochs
+        self.batch_size = dyn_flags.dyn_batch_size
 
         self.input_state_ph_ns = tf.placeholder(
             tf.float32, [None, get_ob_dim(env)], "dynamics_input_state")
@@ -82,17 +101,14 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
         self.next_state_ph_ns = tf.placeholder(
             tf.float32, [None, get_ob_dim(env)], "true_next_state_diff")
 
-        if no_delta_norm:
-            self.norm = _NodeltaNormalizer(norm_data)
-        else:
-            self.norm = _DeltaNormalizer(norm_data)
+        self.norm = _DeltaNormalizer(norm_data)
 
         self.mlp_kwargs = {
             'output_size': get_ob_dim(env),
             'scope': 'dynamics',
             'reuse': None,
-            'n_layers': depth,
-            'size': width,
+            'n_layers': dyn_flags.dyn_depth,
+            'size': dyn_flags.dyn_width,
             'activation': tf.nn.relu,
             'output_activation': None}
 
@@ -106,8 +122,8 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
             self.next_state_ph_ns - self.input_state_ph_ns)
         train_mse = tf.losses.mean_squared_error(
             true_deltas_ns, deltas_ns)
-        self.update_op = tf.train.AdamOptimizer(learning_rate).minimize(
-            train_mse)
+        self.update_op = tf.train.AdamOptimizer(
+            dyn_flags.dyn_learning_rate).minimize(train_mse)
 
     def fit(self, data):
         """Fit the dynamics to the given dataset of transitions"""
