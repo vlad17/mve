@@ -36,8 +36,8 @@ def _main(args):
             json.dump(convert_flags_to_json(args), f, sort_keys=True, indent=4)
 
         @ray.remote
-        def _train_mpc_inst(i):
-            logdir_seed_proc = os.path.join(logdir_seed, str(i))
+        def _train_mpc_inst(logdir_root, i):
+            logdir_seed_proc = os.path.join(logdir_root, str(i))
             logz.configure_output_dir(logdir_seed_proc)
 
             args_inst = copy.deepcopy(args)
@@ -49,7 +49,7 @@ def _main(args):
         g = tf.Graph()
         with g.as_default():
             seed_everything(seed)
-            results = ray.get([_train_mpc_inst.remote(i) for i in range(3)])
+            ray.get([_train_mpc_inst.remote(logdir_seed, i) for i in range(3)])
 
 
 if __name__ == "__main__":
