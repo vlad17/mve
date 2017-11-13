@@ -16,11 +16,23 @@ import numpy as np
 
 import log
 
+
+def create_tf_session():
+    """Create a TF session that doesn't eat all GPU memory."""
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    opt_opts = config.graph_options.optimizer_options
+    opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
+    sess = tf.Session(config=config)
+    return sess
+
+
 def seed_everything(seed):
     """Seed random, numpy, and tensorflow."""
     random.seed(seed)
     np.random.seed(seed)
     tf.set_random_seed(seed)
+
 
 @contextmanager
 def timeit(name):
@@ -46,6 +58,7 @@ def get_ob_dim(env):
     assert len(ob_space.shape) == 1, ob_space.shape
     return ob_space.shape[0]
 
+
 def create_random_tf_policy(ac_space):
     """
     Given an environment `env` with states of length s and actions of length a,
@@ -61,6 +74,7 @@ def create_random_tf_policy(ac_space):
         ac_na += ac_space.low
         return ac_na
     return _policy
+
 
 class Path(object):
     """Store rewards and transitions from a single fixed-horizon rollout"""
@@ -144,6 +158,11 @@ class Dataset(object):
         self.rewards = np.empty((horizon, 0))
         self.predicted_rewards = np.empty((horizon, 0))
         self.labelled_acs = np.empty((horizon, 0, self.ac_dim))
+
+    @property
+    def horizon(self):
+        """Environment horizon"""
+        return self.obs.shape[0]
 
     def add_paths(self, paths):
         """Aggregate data from a list of paths"""
