@@ -22,7 +22,3 @@ class Policy(object):
         beginning of each rollout to reset the state.
         """
         pass
-
-    def log(self, **kwargs):
-        """A policy might log additional stats here."""
-        pass

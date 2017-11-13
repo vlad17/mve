@@ -20,6 +20,13 @@ class Learner(Policy):  # pylint: disable=abstract-method
         """
         raise NotImplementedError
 
-    def fit(self, data, **kwargs):
-        """Fit the learner to the specified labels."""
+    def fit(self, data):
+        """Fit the learner using the given dataset of transitions"""
         raise NotImplementedError
+
+    def log(self, most_recent_rollouts):
+        """
+        A learner might log statistics about the most recent
+        rollouts here.
+        """
+        pass

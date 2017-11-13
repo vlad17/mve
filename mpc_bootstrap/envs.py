@@ -12,8 +12,6 @@ from gym.utils import EzPickle
 import numpy as np
 import tensorflow as tf
 
-from utils import inherit_doc
-
 
 class WithReward:
     """
@@ -29,7 +27,6 @@ class WithReward:
         """
         raise NotImplementedError
 
-@inherit_doc
 class WhiteBoxHalfCheetahEasy(MujocoEnv, EzPickle, WithReward):
     """White box HalfCheetah, with frameskip 1 and easy reward"""
     # mostly copied from openai gym
@@ -84,7 +81,6 @@ class WhiteBoxHalfCheetahEasy(MujocoEnv, EzPickle, WithReward):
         self.set_state(qpos, qvel)
         return self._get_obs()
 
-@inherit_doc
 class WhiteBoxHalfCheetahHard(MujocoEnv, EzPickle, WithReward):
     """White box HalfCheetah, with frameskip 1 and hard reward"""
     # mostly copied from openai gym

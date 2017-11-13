@@ -19,8 +19,8 @@ class ZeroLearner(Learner):
             return random_policy(states_ns)
         return tf.zeros([tf.shape(states_ns)[0], self.ac_dim])
 
-    def fit(self, data, **kwargs):
-        return
+    def fit(self, data):
+        pass
 
     def act(self, states_ns):
         acs = np.zeros((len(states_ns), self.ac_dim))

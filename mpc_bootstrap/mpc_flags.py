@@ -1,7 +1,6 @@
 """MPC flags."""
 
 from flags import Flags
-from mpc import MPC
 
 
 class MpcFlags(Flags):  # pylint: disable=too-many-instance-attributes
@@ -53,13 +52,3 @@ class MpcFlags(Flags):  # pylint: disable=too-many-instance-attributes
         self.horizon = args.horizon
         self.mpc_simulated_paths = args.mpc_simulated_paths
         self.mpc_horizon = args.mpc_horizon
-
-    def make_controller(self, env, venv, sess, dyn_model):
-        """Make an MPC controller."""
-        return MPC(env=venv,
-                   dyn_model=dyn_model,
-                   horizon=self.mpc_horizon,
-                   reward_fn=env.tf_reward,
-                   num_simulated_paths=self.mpc_simulated_paths,
-                   sess=sess,
-                   learner=None)

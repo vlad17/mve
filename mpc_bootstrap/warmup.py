@@ -68,8 +68,8 @@ def _mpc_loop(iterations, data, dynamics, controller, venv):
         most_recent.add_paths(paths)
         ave_return = most_recent.rewards.sum(axis=0).mean()
         mse = dynamics.dataset_mse(most_recent)
-        debug('completed {: 4d} MPC warmup iterations (returns {:5.1f} '
-              'dynamics mse {:6.2f})', i, ave_return, mse)
+        debug('completed {: 4d} MPC warmup iterations (returns {:5.0f} '
+              'dynamics mse {:8.2f})', i + 1, ave_return, mse)
 
 
 def _sample_mpc(tf_reward, venv, warmup_flags, mpc_flags, dyn_flags, data):
@@ -81,18 +81,21 @@ def _sample_mpc(tf_reward, venv, warmup_flags, mpc_flags, dyn_flags, data):
             seed_everything(seed)
             dynamics = dyn_flags.make_dynamics(venv, sess, data)
             controller = MPC(
-                venv, dynamics, data.horizon, tf_reward,
+                venv, dynamics, mpc_flags.mpc_horizon, tf_reward,
                 mpc_flags.mpc_simulated_paths, sess, learner=None)
             sess.run(tf.global_variables_initializer())
+            g.finalize()
 
             _mpc_loop(
                 warmup_flags.warmup_iterations_mpc,
                 data, dynamics, controller, venv)
 
 
-def add_warmup_data(flags, mpc_flags, data):
+def add_warmup_data(flags, data):
     """
     Creates warmup data, adding it to the parameter dataset.
+
+    Flags should contain warmup, mpc, dynamics, experiment flags.
     """
 
     if flags.warmup.warmup_paths_random > 0:
@@ -101,7 +104,7 @@ def add_warmup_data(flags, mpc_flags, data):
         _sample_random(venv, data)
 
     if flags.warmup.warmup_iterations_mpc > 0:
-        venv = mk_venv(flags.experiment.mk_env, mpc_flags.onpol_paths)
+        venv = mk_venv(flags.experiment.mk_env, flags.mpc.onpol_paths)
         tf_reward = flags.experiment.mk_env().tf_reward
         _sample_mpc(
-            tf_reward, venv, flags.warmup, mpc_flags, flags.dynamics, data)
+            tf_reward, venv, flags.warmup, flags.mpc, flags.dynamics, data)

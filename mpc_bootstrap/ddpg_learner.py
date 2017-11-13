@@ -5,6 +5,7 @@ policy-gradients.
 
 
 import numpy as np
+import tensorflow as tf
 
 from learner import Learner
 from utils import create_random_tf_policy, get_ac_dim
@@ -24,6 +25,7 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
         self._epochs = ddpg_flags.con_epochs
         self._batch_size = ddpg_flags.con_batch_size
         self._param_noise = ddpg_flags.param_noise_exploration
+        self._action_noise = ddpg_flags.action_noise_exploration
         self._param_noise_act = ddpg_flags.param_noise_exploitation
 
     def _init(self):
@@ -32,13 +34,19 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
             self._initted = True
 
     def tf_action(self, states_ns, is_initial=False):
+        acs = self._agent.actor(states_ns, reuse=True)
+        acs *= self._env.action_space.high
         if is_initial:
+            if self._action_noise > 0:
+                perturb = tf.random_normal(tf.shape(acs)) * self._action_noise
+                acs += perturb
+                acs = tf.minimum(acs, self._env.action_space.high)
+                acs = tf.maximum(acs, self._env.action_space.low)
+                return acs
             if self._param_noise:
                 return self._agent.tf_n_perturbed(states_ns)
             random_policy = create_random_tf_policy(self._env.action_space)
             return random_policy(states_ns)
-        acs = self._agent.actor(states_ns, reuse=True)
-        acs *= self._env.action_space.high
         return acs
 
     def act(self, states_ns):
@@ -56,9 +64,8 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
         acs *= self._env.action_space.high
         return acs, rws
 
-    def fit(self, data, **kwargs):
+    def fit(self, data):
         """Fit the learner to the specified labels."""
-        assert 'use_labelled' not in kwargs or not kwargs['use_labelled']
         self._init()
         # TODO: consider training for 0.5 epochs or even a fixed amount each
         # iter

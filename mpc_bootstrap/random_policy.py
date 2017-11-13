@@ -2,11 +2,9 @@
 
 import numpy as np
 
-from controller import Controller
+from policy import Policy
 
-
-# TODO(mwhittaker): Make a Policy instead of a Controller.
-class RandomPolicy(Controller):
+class RandomPolicy(Policy):
     """A policy that acts uniformly randomly in the action space."""
 
     def __init__(self, env):

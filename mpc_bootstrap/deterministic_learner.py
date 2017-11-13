@@ -86,12 +86,9 @@ class DeterministicLearner(Learner):  # pylint: disable=too-many-instance-attrib
             return self._explore_policy(states_ns)
         return self._exploit_policy(states_ns, reuse=True)
 
-    def fit(self, data, **kwargs):
+    def fit(self, data):
         obs = data.stationary_obs()
-        if 'use_labelled' in kwargs and kwargs['use_labelled']:
-            acs = data.labelled_acs()
-        else:
-            acs = data.stationary_acs()
+        acs = data.stationary_acs()
 
         nexamples = len(obs)
         assert nexamples == len(acs), (nexamples, len(acs))

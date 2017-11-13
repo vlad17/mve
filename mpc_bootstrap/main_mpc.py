@@ -9,6 +9,7 @@ import tensorflow as tf
 import numpy as np
 
 from dynamics_flags import DynamicsFlags
+from mpc import MPC
 from mpc_flags import MpcFlags
 from experiment_flags import ExperimentFlags
 from flags import (convert_flags_to_json, parse_args)
@@ -25,12 +26,14 @@ def _train(args):
     env = args.experiment.mk_env()
     data = Dataset(env, args.mpc.horizon)
     with timeit('gathering warmup data'):
-        add_warmup_data(args, args.mpc, data)
+        add_warmup_data(args, data)
     venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
     sess = create_tf_session()
 
     dyn_model = args.dynamics.make_dynamics(venv, sess, data)
-    controller = args.mpc.make_controller(env, venv, sess, dyn_model)
+    controller = MPC(
+        venv, dyn_model, args.mpc.mpc_horizon,
+        env.tf_reward, args.mpc.mpc_simulated_paths, sess, learner=None)
 
     sess.__enter__()
     tf.global_variables_initializer().run()
