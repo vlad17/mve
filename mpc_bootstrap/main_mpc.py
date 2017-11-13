@@ -9,6 +9,7 @@ import tensorflow as tf
 import numpy as np
 
 from dynamics_flags import DynamicsFlags
+from mpc import MPC
 from mpc_flags import MpcFlags
 from experiment_flags import ExperimentFlags
 from flags import (convert_flags_to_json, parse_args)
@@ -30,7 +31,9 @@ def _train(args):
     sess = create_tf_session()
 
     dyn_model = args.dynamics.make_dynamics(venv, sess, data)
-    controller = args.mpc.make_controller(env, venv, sess, dyn_model)
+    controller = MPC(
+        venv, dyn_model, args.mpc.mpc_horizon,
+        env.tf_reward, args.mpc.mpc_simulated_paths, sess, learner=None)
 
     sess.__enter__()
     tf.global_variables_initializer().run()

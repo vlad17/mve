@@ -47,7 +47,7 @@ def _train(args, learner_flags):
     for itr in range(args.mpc.onpol_iters):
         with timeit('learner fit'):
             if data.stationary_obs().size:
-                learner.fit(data, use_labelled=False)
+                learner.fit(data)
 
         with timeit('sample controller'):
             paths = sample_venv(venv, controller, args.mpc.horizon)
@@ -64,7 +64,21 @@ def _train(args, learner_flags):
             ave_bias = bias.mean() / np.fabs(zero_bias.mean())
             ave_sqerr = np.square(bias).mean() / np.square(zero_bias).mean()
             # TODO: bootstrap ave_bias ci, ave_sqerr ci
-            controller.log(horizon=args.mpc.horizon, most_recent=most_recent)
+
+            learner.log(most_recent)
+
+            # out-of-band learner evaluation
+            # TODO: move this (get paths, make empty dataset, fill it with
+            # paths) sequence into a utility method and dedup
+            learner_paths = sample_venv(venv, learner, data.horizon)
+            learner_data = Dataset(venv, data.horizon)
+            learner_data.add_paths(learner_paths)
+            learner_returns = learner_data.rewards.sum(axis=0)
+            # TODO: make logging an Average,Std,Min,Max a utility method
+            logz.log_tabular('LearnerAverageReturn', np.mean(learner_returns))
+            logz.log_tabular('LearnerStdReturn', np.std(learner_returns))
+            logz.log_tabular('LearnerMinimumReturn', np.min(learner_returns))
+            logz.log_tabular('LearnerMaximumReturn', np.max(learner_returns))
 
         logz.log_tabular('Iteration', itr)
         logz.log_tabular('AverageReturn', np.mean(returns))

@@ -92,12 +92,9 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
             return self._explore_policy(states_ns)
         return self._exploit_policy(states_ns, reuse=True)
 
-    def fit(self, data, **kwargs):
+    def fit(self, data):
         obs = data.stationary_obs()
-        if 'use_labelled' in kwargs and kwargs['use_labelled']:
-            acs = data.stationary_labelled_acs()
-        else:
-            acs = data.stationary_acs()
+        acs = data.stationary_acs()
         nexamples = len(obs)
         assert nexamples == len(acs), (nexamples, len(acs))
         per_epoch = max(nexamples // self.batch_size, 1)
@@ -116,13 +113,13 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
         rws = np.zeros(len(states_ns))
         return acs, rws
 
-    def log(self, **kwargs):
+    def log(self, most_recent_rollouts):
         with tf.variable_scope('learner_policy', reuse=True):
             logstd_a = tf.get_variable('logstd')
         std_a = np.exp(self.sess.run(logstd_a))
         logz.log_tabular('LearnerPolicyStdAverage', np.mean(std_a))
         logz.log_tabular('LearnerPolicyStdStd', np.std(std_a))
-        most_recent = kwargs['most_recent']
+        most_recent = most_recent_rollouts
         nll = self.sess.run(self._nll, feed_dict={
             self.input_state_ph_ns: most_recent.stationary_obs(),
             self.expert_action_ph_na: most_recent.stationary_acs()})

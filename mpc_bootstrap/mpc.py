@@ -3,11 +3,11 @@
 import numpy as np
 import tensorflow as tf
 
-from controller import Controller
 from ddpg_learner import DDPGLearner
+from policy import Policy
 from utils import (create_random_tf_policy, get_ac_dim, get_ob_dim)
 
-class MPC(Controller):  # pylint: disable=too-many-instance-attributes
+class MPC(Policy):  # pylint: disable=too-many-instance-attributes
     """
     Random MPC if learner is None. Otherwise, MPC which takes the action
     specified by learner during simulated rollouts. Otherwise, the learner

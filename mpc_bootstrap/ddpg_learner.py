@@ -56,9 +56,8 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
         acs *= self._env.action_space.high
         return acs, rws
 
-    def fit(self, data, **kwargs):
+    def fit(self, data):
         """Fit the learner to the specified labels."""
-        assert 'use_labelled' not in kwargs or not kwargs['use_labelled']
         self._init()
         # TODO: consider training for 0.5 epochs or even a fixed amount each
         # iter
