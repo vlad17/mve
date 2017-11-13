@@ -2,6 +2,7 @@
 
 import os
 import json
+import copy
 
 # import mujoco for weird dlopen reasons
 import mujoco_py # pylint: disable=unused-import
@@ -25,7 +26,7 @@ def _main(args):
     datadir = "{}_{}".format(exp_name, env_name)
     logdir = make_data_directory(datadir)
 
-    ray.init()
+    ray.init() # TODO: supply num_gpus as cmd line arg
 
     for seed in args.experiment.seed:
         # Save params to disk.
@@ -38,13 +39,17 @@ def _main(args):
         def _train_mpc_inst(i):
             logdir_seed_proc = os.path.join(logdir_seed, str(i))
             logz.configure_output_dir(logdir_seed_proc)
-            train_mpc(args)
+
+            args_inst = copy.deepcopy(args)
+            args_inst.mpc.onpol_paths = 5 + (5 * i)
+            print('testing: --onpol_paths', args_inst.mpc.onpol_paths)
+            train_mpc(args_inst)
 
         # Run experiment.
         g = tf.Graph()
         with g.as_default():
             seed_everything(seed)
-            results = ray.get([_train_mpc_inst.remote(i) for i in range(1)])
+            results = ray.get([_train_mpc_inst.remote(i) for i in range(3)])
 
 
 if __name__ == "__main__":
