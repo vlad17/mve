@@ -8,7 +8,7 @@ import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 import numpy as np
 
-from dynamics_flags import DynamicsFlags
+from dynamics import DynamicsFlags, NNDynamicsModel
 from mpc import MPC
 from mpc_flags import MpcFlags
 from experiment_flags import ExperimentFlags
@@ -30,7 +30,7 @@ def _train(args):
     venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
     sess = create_tf_session()
 
-    dyn_model = args.dynamics.make_dynamics(venv, sess, data)
+    dyn_model = NNDynamicsModel(venv, sess, data, args.dynamics)
     controller = MPC(
         venv, dyn_model, args.mpc.mpc_horizon,
         env.tf_reward, args.mpc.mpc_simulated_paths, sess, learner=None)

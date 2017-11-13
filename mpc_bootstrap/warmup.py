@@ -14,6 +14,7 @@ when all relevant (MPC, Dyanmics, experiment env) parameters are the same.
 
 import tensorflow as tf
 
+from dynamics import NNDynamicsModel
 from flags import Flags
 from log import debug
 from mpc import MPC
@@ -79,7 +80,7 @@ def _sample_mpc(tf_reward, venv, warmup_flags, mpc_flags, dyn_flags, data):
     with g.as_default():
         with create_tf_session() as sess:
             seed_everything(seed)
-            dynamics = dyn_flags.make_dynamics(venv, sess, data)
+            dynamics = NNDynamicsModel(venv, sess, data, dyn_flags)
             controller = MPC(
                 venv, dynamics, mpc_flags.mpc_horizon, tf_reward,
                 mpc_flags.mpc_simulated_paths, sess, learner=None)

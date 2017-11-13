@@ -11,7 +11,7 @@ import numpy as np
 from bootstrapped_mpc import BootstrappedMPC
 from ddpg_learner_flags import DDPGLearnerFlags
 from deterministic_learner_flags import DeterministicLearnerFlags
-from dynamics_flags import DynamicsFlags
+from dynamics import DynamicsFlags, NNDynamicsModel
 from experiment_flags import ExperimentFlags
 from flags import (convert_flags_to_json, parse_args_with_subcmds)
 from mpc_flags import MpcFlags
@@ -34,7 +34,7 @@ def _train(args, learner_flags):
     venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
     sess = create_tf_session()
 
-    dyn_model = args.dynamics.make_dynamics(venv, sess, data)
+    dyn_model = NNDynamicsModel(venv, sess, data, args.dynamics)
     learner = learner_flags.make_learner(venv, sess, data)
     controller = BootstrappedMPC(
         venv, dyn_model, args.mpc.mpc_horizon,
