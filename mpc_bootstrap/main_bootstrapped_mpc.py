@@ -8,12 +8,13 @@ import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 import numpy as np
 
-from bootstrapped_mpc_flags import BootstrappedMpcFlags
+from bootstrapped_mpc import BootstrappedMPC
 from ddpg_learner_flags import DDPGLearnerFlags
 from deterministic_learner_flags import DeterministicLearnerFlags
 from dynamics_flags import DynamicsFlags
 from experiment_flags import ExperimentFlags
 from flags import (convert_flags_to_json, parse_args_with_subcmds)
+from mpc_flags import MpcFlags
 from multiprocessing_env import mk_venv
 from sample import sample_venv
 from stochastic_learner_flags import StochasticLearnerFlags
@@ -27,41 +28,43 @@ import logz
 
 def _train(args, learner_flags):
     env = args.experiment.mk_env()
-    data = Dataset(env, args.bmpc.horizon)
+    data = Dataset(env, args.mpc.horizon)
     with timeit('gathering warmup data'):
-        add_warmup_data(args, args.bmpc, data)
-    venv = mk_venv(args.experiment.mk_env, args.bmpc.onpol_paths)
+        add_warmup_data(args, data)
+    venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
     sess = create_tf_session()
 
     dyn_model = args.dynamics.make_dynamics(venv, sess, data)
     learner = learner_flags.make_learner(venv, sess, data)
-    controller = args.bmpc.make_controller(env, venv, sess, dyn_model, learner)
+    controller = BootstrappedMPC(
+        venv, dyn_model, args.mpc.mpc_horizon,
+        env.tf_reward, args.mpc.mpc_simulated_paths, learner, sess)
 
     sess.__enter__()
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
-    for itr in range(args.bmpc.onpol_iters):
+    for itr in range(args.mpc.onpol_iters):
         with timeit('learner fit'):
             if data.stationary_obs().size:
                 learner.fit(data, use_labelled=False)
 
         with timeit('sample controller'):
-            paths = sample_venv(venv, controller, args.bmpc.horizon)
+            paths = sample_venv(venv, controller, args.mpc.horizon)
 
         with timeit('adding paths to dataset'):
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
-            most_recent = Dataset(venv, args.bmpc.horizon)
+            most_recent = Dataset(venv, args.mpc.horizon)
             most_recent.add_paths(paths)
             returns = most_recent.rewards.sum(axis=0)
             mse = dyn_model.dataset_mse(most_recent)
-            bias, zero_bias = most_recent.reward_bias(args.bmpc.mpc_horizon)
+            bias, zero_bias = most_recent.reward_bias(args.mpc.mpc_horizon)
             ave_bias = bias.mean() / np.fabs(zero_bias.mean())
             ave_sqerr = np.square(bias).mean() / np.square(zero_bias).mean()
             # TODO: bootstrap ave_bias ci, ave_sqerr ci
-            controller.log(horizon=args.bmpc.horizon, most_recent=most_recent)
+            controller.log(horizon=args.mpc.horizon, most_recent=most_recent)
 
         logz.log_tabular('Iteration', itr)
         logz.log_tabular('AverageReturn', np.mean(returns))
@@ -99,7 +102,7 @@ def _main(args, learner_flags):
 
 
 if __name__ == "__main__":
-    flags = [ExperimentFlags, BootstrappedMpcFlags, DynamicsFlags, WarmupFlags]
+    flags = [ExperimentFlags, MpcFlags, DynamicsFlags, WarmupFlags]
     subflags = [DeterministicLearnerFlags, StochasticLearnerFlags,
                 DDPGLearnerFlags, ZeroLearnerFlags]
     _args, _learner_flags = parse_args_with_subcmds(flags, subflags)

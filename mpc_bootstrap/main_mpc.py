@@ -25,7 +25,7 @@ def _train(args):
     env = args.experiment.mk_env()
     data = Dataset(env, args.mpc.horizon)
     with timeit('gathering warmup data'):
-        add_warmup_data(args, args.mpc, data)
+        add_warmup_data(args, data)
     venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
     sess = create_tf_session()
 

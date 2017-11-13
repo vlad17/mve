@@ -90,9 +90,11 @@ def _sample_mpc(tf_reward, venv, warmup_flags, mpc_flags, dyn_flags, data):
                 data, dynamics, controller, venv)
 
 
-def add_warmup_data(flags, mpc_flags, data):
+def add_warmup_data(flags, data):
     """
     Creates warmup data, adding it to the parameter dataset.
+
+    Flags should contain warmup, mpc, dynamics, experiment flags.
     """
 
     if flags.warmup.warmup_paths_random > 0:
@@ -101,7 +103,7 @@ def add_warmup_data(flags, mpc_flags, data):
         _sample_random(venv, data)
 
     if flags.warmup.warmup_iterations_mpc > 0:
-        venv = mk_venv(flags.experiment.mk_env, mpc_flags.onpol_paths)
+        venv = mk_venv(flags.experiment.mk_env, flags.mpc.onpol_paths)
         tf_reward = flags.experiment.mk_env().tf_reward
         _sample_mpc(
-            tf_reward, venv, flags.warmup, mpc_flags, flags.dynamics, data)
+            tf_reward, venv, flags.warmup, flags.mpc, flags.dynamics, data)

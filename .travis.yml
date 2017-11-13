@@ -12,7 +12,6 @@ install:
   - ./scripts/ubuntu-install.sh
 script:
   - ./scripts/lint.sh
-  - ./scripts/basic_tests.sh mjkey.txt mjpro131
   - ./scripts/tests.sh mjkey.txt mjpro131
 env:
   global:

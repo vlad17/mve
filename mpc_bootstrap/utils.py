@@ -8,7 +8,6 @@ import os
 import random
 import shutil
 import time
-import types
 
 import tensorflow as tf
 import gym
@@ -260,37 +259,6 @@ def build_mlp(input_placeholder,
             out = tf.layers.dense(out, size, activation=activation)
         out = tf.layers.dense(out, output_size, activation=output_activation)
     return out
-
-
-def inherit_doc(cls):
-    """
-    From SO: https://stackoverflow.com/questions/8100166
-
-    This will copy all the missing documentation for methods from the parent
-    classes.
-
-    :param type cls: class to fix up.
-    :return type: the fixed class.
-    """
-    for name, func in vars(cls).items():
-        if isinstance(func, types.FunctionType) and not func.__doc__:
-            for parent in cls.__bases__:
-                parfunc = getattr(parent, name, None)
-                if parfunc and getattr(parfunc, '__doc__', None):
-                    func.__doc__ = parfunc.__doc__
-                    break
-        elif isinstance(func, property) and not func.fget.__doc__:
-            for parent in cls.__bases__:
-                parprop = getattr(parent, name, None)
-                if parprop and getattr(parprop.fget, '__doc__', None):
-                    newprop = property(fget=func.fget,
-                                       fset=func.fset,
-                                       fdel=func.fdel,
-                                       doc=parprop.fget.__doc__)
-                    setattr(cls, name, newprop)
-                    break
-
-    return cls
 
 
 def make_data_directory(name):
