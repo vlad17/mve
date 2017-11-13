@@ -4,7 +4,7 @@ import json
 import os
 
 # import mujoco for weird dlopen reasons
-import mujoco_py # pylint: disable=unused-import
+import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 import numpy as np
 
@@ -15,34 +15,23 @@ from dynamics_flags import DynamicsFlags
 from experiment_flags import ExperimentFlags
 from flags import (convert_flags_to_json, parse_args_with_subcmds)
 from multiprocessing_env import mk_venv
-from random_policy import RandomPolicy
 from sample import sample_venv
 from stochastic_learner_flags import StochasticLearnerFlags
-from utils import (Dataset, make_data_directory, seed_everything, timeit)
+from utils import (Dataset, make_data_directory, seed_everything, timeit,
+                   create_tf_session)
+from warmup import add_warmup_data, WarmupFlags
 from zero_learner_flags import ZeroLearnerFlags
 import log
 import logz
 
 
 def _train(args, learner_flags):
-    # Generate random rollouts.
     env = args.experiment.mk_env()
     data = Dataset(env, args.bmpc.horizon)
-    if args.bmpc.random_paths > 0:
-        with timeit('generating random rollouts'):
-            venv = mk_venv(args.experiment.mk_env, args.bmpc.random_paths)
-            random_policy = RandomPolicy(venv)
-            paths = sample_venv(venv, random_policy, args.bmpc.horizon)
-            data.add_paths(paths)
-
+    with timeit('gathering warmup data'):
+        add_warmup_data(args, args.bmpc, data)
     venv = mk_venv(args.experiment.mk_env, args.bmpc.onpol_paths)
-
-    # Initialize tensorflow session.
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    opt_opts = config.graph_options.optimizer_options
-    opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
-    sess = tf.Session(config=config)
+    sess = create_tf_session()
 
     dyn_model = args.dynamics.make_dynamics(venv, sess, data)
     learner = learner_flags.make_learner(venv, sess, data)
@@ -110,7 +99,7 @@ def _main(args, learner_flags):
 
 
 if __name__ == "__main__":
-    flags = [ExperimentFlags, BootstrappedMpcFlags, DynamicsFlags]
+    flags = [ExperimentFlags, BootstrappedMpcFlags, DynamicsFlags, WarmupFlags]
     subflags = [DeterministicLearnerFlags, StochasticLearnerFlags,
                 DDPGLearnerFlags, ZeroLearnerFlags]
     _args, _learner_flags = parse_args_with_subcmds(flags, subflags)

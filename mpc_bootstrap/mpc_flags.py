@@ -3,6 +3,7 @@
 from flags import Flags
 from mpc import MPC
 
+
 class MpcFlags(Flags):  # pylint: disable=too-many-instance-attributes
     """MPC flags."""
 
@@ -11,12 +12,6 @@ class MpcFlags(Flags):  # pylint: disable=too-many-instance-attributes
         """Adds flags to an argparse parser."""
         if argument_group is None:
             argument_group = parser.add_argument_group('mpc')
-        argument_group.add_argument(
-            '--random_paths',
-            type=int,
-            default=10,
-            help='number of purely random paths (to warm up dynamics)',
-        )
         argument_group.add_argument(
             '--onpol_iters',
             type=int,
@@ -53,7 +48,6 @@ class MpcFlags(Flags):  # pylint: disable=too-many-instance-attributes
         return "mpc"
 
     def __init__(self, args):
-        self.random_paths = args.random_paths
         self.onpol_iters = args.onpol_iters
         self.onpol_paths = args.onpol_paths
         self.horizon = args.horizon

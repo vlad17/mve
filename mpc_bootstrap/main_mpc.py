@@ -4,7 +4,7 @@ import os
 import json
 
 # import mujoco for weird dlopen reasons
-import mujoco_py # pylint: disable=unused-import
+import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 import numpy as np
 
@@ -13,32 +13,21 @@ from mpc_flags import MpcFlags
 from experiment_flags import ExperimentFlags
 from flags import (convert_flags_to_json, parse_args)
 from multiprocessing_env import mk_venv
-from random_policy import RandomPolicy
 from sample import sample_venv
-from utils import (Dataset, make_data_directory, seed_everything, timeit)
+from utils import (Dataset, make_data_directory,
+                   seed_everything, timeit, create_tf_session)
+from warmup import add_warmup_data, WarmupFlags
 import log
 import logz
 
 
 def _train(args):
-    # Generate random rollouts.
     env = args.experiment.mk_env()
     data = Dataset(env, args.mpc.horizon)
-    if args.mpc.random_paths > 0:
-        with timeit('generating random rollouts'):
-            venv = mk_venv(args.experiment.mk_env, args.mpc.random_paths)
-            random_policy = RandomPolicy(venv)
-            paths = sample_venv(venv, random_policy, args.mpc.horizon)
-            data.add_paths(paths)
-
+    with timeit('gathering warmup data'):
+        add_warmup_data(args, args.mpc, data)
     venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
-
-    # Initialize tensorflow session.
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    opt_opts = config.graph_options.optimizer_options
-    opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
-    sess = tf.Session(config=config)
+    sess = create_tf_session()
 
     dyn_model = args.dynamics.make_dynamics(venv, sess, data)
     controller = args.mpc.make_controller(env, venv, sess, dyn_model)
@@ -102,5 +91,5 @@ def _main(args):
 
 
 if __name__ == "__main__":
-    _args = parse_args([ExperimentFlags, MpcFlags, DynamicsFlags])
+    _args = parse_args([ExperimentFlags, MpcFlags, DynamicsFlags, WarmupFlags])
     _main(_args)
