@@ -9,7 +9,7 @@ import mujoco_py # pylint: disable=unused-import
 import tensorflow as tf
 import ray
 
-from dynamics_flags import DynamicsFlags
+from dynamics import DynamicsFlags
 from mpc_flags import MpcFlags
 from experiment_flags import ExperimentFlags
 from warmup import WarmupFlags
