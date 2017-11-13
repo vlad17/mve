@@ -31,10 +31,18 @@ class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
             help='DDPG critic learning rate'
         )
         argument_group.add_argument(
+            '--action_noise_exploration',
+            default=0,
+            type=float,
+            help='use DDPG actor action noise for MPC exploration: parameter '
+            'sets stddev for normal noise if >0'
+        )
+        argument_group.add_argument(
             '--param_noise_exploration',
             default=False,
             action='store_true',
-            help='use DDPG actor noise for MPC exploration'
+            help='use DDPG actor param noise for MPC exploration: only if '
+            'action_noise_exploration not set'
         )
         argument_group.add_argument(
             '--param_noise_exploitation',
@@ -52,6 +60,7 @@ class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
         self.action_stddev = args.action_stddev
         self.critic_l2_reg = args.critic_l2_reg
         self.critic_lr = args.critic_lr
+        self.action_noise_exploration = args.action_noise_exploration
         self.param_noise_exploration = args.param_noise_exploration
         self.param_noise_exploitation = args.param_noise_exploitation
 

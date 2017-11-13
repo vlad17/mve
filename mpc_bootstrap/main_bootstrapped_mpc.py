@@ -45,6 +45,9 @@ def _train(args, learner_flags):
     tf.get_default_graph().finalize()
 
     for itr in range(args.mpc.onpol_iters):
+        with timeit('dynamics fit'):
+            dyn_model.fit(data)
+
         with timeit('learner fit'):
             if data.stationary_obs().size:
                 learner.fit(data)
