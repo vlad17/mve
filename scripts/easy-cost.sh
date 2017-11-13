@@ -46,5 +46,3 @@ python mpc_bootstrap/plot.py \
     "data/gaussian_hc-easy:StandardizedRewardBias:Gaussian BMPC" \
     "data/no-explore-gaussian_hc-easy:StandardizedRewardBias:No-explore Gaussian BMPC" \
     --outfile report/easy-StandardizedRewardBias.pdf --yaxis "reward MSE"
-
-python mpc_bootstrap/tune.py  --onpol_iters 15 --exp_name mpc --seed 1 --verbose --env_name hc-easy
