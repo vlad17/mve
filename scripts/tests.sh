@@ -29,7 +29,6 @@ main() {
     }
     trap note_failure EXIT
 
-    tune_mpc="mpc_bootstrap/tune.py"
     main_random="mpc_bootstrap/main_random_policy.py"
     main_mpc="mpc_bootstrap/main_mpc.py"
     main_bmpc="mpc_bootstrap/main_bootstrapped_mpc.py"
@@ -59,8 +58,6 @@ main() {
     cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --param_noise_exploitation")
     cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --param_noise_exploration")
     cmds+=("python $main_bmpc zero $mpc_flags")
-    # Tune
-    cmds+=("python $tune_mpc $mpc_flags $warmup_flags")
 
     for cmd in "${cmds[@]}"; do
         box "$cmd"
