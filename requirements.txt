@@ -8,3 +8,4 @@ tensorflow
 # tensorflow-gpu
 mujoco-py == 0.5.7
 gym[all]
+ray

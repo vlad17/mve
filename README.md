@@ -23,6 +23,7 @@ Example conda installation with GPU (for CPU, modify `tensorflow-gpu` to `tensor
     conda install -y -c anaconda pandas
     conda install -y -c anaconda seaborn
     pip install gym[all] # make sure to install system deps first!
+    pip install ray
 
 Or, using `requirements.txt`:
 
