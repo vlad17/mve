@@ -6,6 +6,7 @@ import numpy as np
 from flags import Flags
 from utils import get_ac_dim, get_ob_dim, build_mlp
 
+
 class DynamicsFlags(Flags):
     """
     We use a neural network to model an environment's dynamics. These flags
@@ -61,13 +62,13 @@ class DynamicsFlags(Flags):
 
 class _DeltaNormalizer:
     def __init__(self, data, eps=1e-6):
-        self.mean_ob = np.mean(data.stationary_obs(), axis=0)
-        self.std_ob = np.std(data.stationary_obs(), axis=0)
-        diffs = data.stationary_next_obs() - data.stationary_obs()
+        self.mean_ob = np.mean(data.obs, axis=0)
+        self.std_ob = np.std(data.obs, axis=0)
+        diffs = data.next_obs - data.obs
         self.mean_delta = np.mean(diffs, axis=0)
         self.std_delta = np.std(diffs, axis=0)
-        self.mean_ac = np.mean(data.stationary_acs(), axis=0)
-        self.std_ac = np.std(data.stationary_acs(), axis=0)
+        self.mean_ac = np.mean(data.acs, axis=0)
+        self.std_ac = np.std(data.acs, axis=0)
         self.eps = eps
 
     def norm_obs(self, obs):
@@ -132,14 +133,14 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
         # data throughput per batch is small enough (since the data is so
         # simple) that up-front shuffling as performed here is probably
         # saving us more time.
-        nexamples = len(data.stationary_acs())
+        nexamples = len(data.acs)
         nbatches = max(nexamples // self.batch_size, 1)
         batches = np.random.randint(nexamples, size=(
             self.epochs * nbatches, self.batch_size))
         for batch_idx in batches:
-            input_states_sample = data.stationary_obs()[batch_idx]
-            next_states_sample = data.stationary_next_obs()[batch_idx]
-            actions_sample = data.stationary_acs()[batch_idx]
+            input_states_sample = data.obs[batch_idx]
+            next_states_sample = data.next_obs[batch_idx]
+            actions_sample = data.acs[batch_idx]
             self.sess.run(self.update_op, feed_dict={
                 self.input_state_ph_ns: input_states_sample,
                 self.input_action_ph_na: actions_sample,
@@ -174,8 +175,8 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
     def dataset_mse(self, data):
         """Return the MSE of predictions for the given dataset"""
         mse = self.sess.run(self.mse, feed_dict={
-            self.input_state_ph_ns: data.stationary_obs(),
-            self.input_action_ph_na: data.stationary_acs(),
-            self.next_state_ph_ns: data.stationary_next_obs(),
+            self.input_state_ph_ns: data.obs,
+            self.input_action_ph_na: data.acs,
+            self.next_state_ph_ns: data.next_obs,
         })
         return mse

@@ -12,8 +12,10 @@ TODO: consider caching warmup data. Be careful to only use the cache
 when all relevant (MPC, Dyanmics, experiment env) parameters are the same.
 """
 
+import numpy as np
 import tensorflow as tf
 
+from dataset import one_shot_dataset
 from dynamics import NNDynamicsModel
 from flags import Flags
 from log import debug
@@ -21,7 +23,7 @@ from mpc import MPC
 from multiprocessing_env import mk_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
-from utils import create_tf_session, Dataset, seed_everything
+from utils import create_tf_session, seed_everything
 
 
 class WarmupFlags(Flags):
@@ -55,7 +57,7 @@ class WarmupFlags(Flags):
 
 def _sample_random(venv, data):
     random_policy = RandomPolicy(venv)
-    paths = sample_venv(venv, random_policy, data.horizon)
+    paths = sample_venv(venv, random_policy, data.max_horizon)
     data.add_paths(paths)
     debug('random agent warmup complete')
 
@@ -63,11 +65,10 @@ def _sample_random(venv, data):
 def _mpc_loop(iterations, data, dynamics, controller, venv):
     for i in range(iterations):
         dynamics.fit(data)
-        paths = sample_venv(venv, controller, data.horizon)
+        paths = sample_venv(venv, controller, data.max_horizon)
         data.add_paths(paths)
-        most_recent = Dataset(venv, data.horizon)
-        most_recent.add_paths(paths)
-        ave_return = most_recent.rewards.sum(axis=0).mean()
+        most_recent = one_shot_dataset(paths)
+        ave_return = np.mean(most_recent.per_episode_rewards())
         mse = dynamics.dataset_mse(most_recent)
         debug('completed {: 4d} MPC warmup iterations (returns {:5.0f} '
               'dynamics mse {:8.2f})', i + 1, ave_return, mse)

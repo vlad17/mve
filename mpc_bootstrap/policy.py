@@ -15,10 +15,3 @@ class Policy(object):
         policy is based on MPC.
         """
         raise NotImplementedError
-
-    def reset(self, nstates):
-        """
-        For stateful RNN-based policies, this should be called at the
-        beginning of each rollout to reset the state.
-        """
-        pass

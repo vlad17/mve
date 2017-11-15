@@ -8,6 +8,7 @@ import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 import numpy as np
 
+from dataset import Dataset, one_shot_dataset
 from dynamics import DynamicsFlags, NNDynamicsModel
 from mpc import MPC
 from mpc_flags import MpcFlags
@@ -15,8 +16,8 @@ from experiment_flags import ExperimentFlags
 from flags import (convert_flags_to_json, parse_args)
 from multiprocessing_env import mk_venv
 from sample import sample_venv
-from utils import (Dataset, make_data_directory,
-                   seed_everything, timeit, create_tf_session)
+from utils import (make_data_directory, seed_everything, timeit,
+                   create_tf_session)
 from warmup import add_warmup_data, WarmupFlags
 import log
 import logz
@@ -24,7 +25,7 @@ import logz
 
 def _train(args):
     env = args.experiment.mk_env()
-    data = Dataset(env, args.mpc.horizon)
+    data = Dataset.from_env(env, args.mpc.horizon, args.mpc.bufsize)
     with timeit('gathering warmup data'):
         add_warmup_data(args, data)
     venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
@@ -41,7 +42,8 @@ def _train(args):
 
     for itr in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
-            dyn_model.fit(data)
+            if data.obs.size:
+                dyn_model.fit(data)
 
         with timeit('sample controller'):
             paths = sample_venv(venv, controller, args.mpc.horizon)
@@ -50,9 +52,8 @@ def _train(args):
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
-            most_recent = Dataset(venv, args.mpc.horizon)
-            most_recent.add_paths(paths)
-            returns = most_recent.rewards.sum(axis=0)
+            most_recent = one_shot_dataset(paths)
+            returns = most_recent.per_episode_rewards()
             mse = dyn_model.dataset_mse(most_recent)
             bias, zero_bias = most_recent.reward_bias(args.mpc.mpc_horizon)
             ave_bias = bias.mean() / np.fabs(zero_bias.mean())

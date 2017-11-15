@@ -93,8 +93,8 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
         return self._exploit_policy(states_ns, reuse=True)
 
     def fit(self, data):
-        obs = data.stationary_obs()
-        acs = data.stationary_acs()
+        obs = data.obs
+        acs = data.acs
         nexamples = len(obs)
         assert nexamples == len(acs), (nexamples, len(acs))
         per_epoch = max(nexamples // self.batch_size, 1)
@@ -121,6 +121,6 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
         logz.log_tabular('LearnerPolicyStdStd', np.std(std_a))
         most_recent = most_recent_rollouts
         nll = self.sess.run(self._nll, feed_dict={
-            self.input_state_ph_ns: most_recent.stationary_obs(),
-            self.expert_action_ph_na: most_recent.stationary_acs()})
+            self.input_state_ph_ns: most_recent.obs,
+            self.expert_action_ph_na: most_recent.acs})
         logz.log_tabular('AverageNLL', nll)

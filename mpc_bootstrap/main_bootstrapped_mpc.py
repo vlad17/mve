@@ -9,6 +9,7 @@ import tensorflow as tf
 import numpy as np
 
 from bootstrapped_mpc import BootstrappedMPC
+from dataset import Dataset, one_shot_dataset
 from ddpg_learner_flags import DDPGLearnerFlags
 from deterministic_learner_flags import DeterministicLearnerFlags
 from dynamics import DynamicsFlags, NNDynamicsModel
@@ -18,7 +19,7 @@ from mpc_flags import MpcFlags
 from multiprocessing_env import mk_venv
 from sample import sample_venv
 from stochastic_learner_flags import StochasticLearnerFlags
-from utils import (Dataset, make_data_directory, seed_everything, timeit,
+from utils import (make_data_directory, seed_everything, timeit,
                    create_tf_session)
 from warmup import add_warmup_data, WarmupFlags
 from zero_learner_flags import ZeroLearnerFlags
@@ -28,7 +29,7 @@ import logz
 
 def _train(args, learner_flags):
     env = args.experiment.mk_env()
-    data = Dataset(env, args.mpc.horizon)
+    data = Dataset.from_env(env, args.mpc.horizon, args.mpc.bufsize)
     with timeit('gathering warmup data'):
         add_warmup_data(args, data)
     venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
@@ -46,10 +47,11 @@ def _train(args, learner_flags):
 
     for itr in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
-            dyn_model.fit(data)
+            if data.obs.size:
+                dyn_model.fit(data)
 
         with timeit('learner fit'):
-            if data.stationary_obs().size:
+            if data.obs.size:
                 learner.fit(data)
 
         with timeit('sample controller'):
@@ -59,9 +61,8 @@ def _train(args, learner_flags):
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
-            most_recent = Dataset(venv, args.mpc.horizon)
-            most_recent.add_paths(paths)
-            returns = most_recent.rewards.sum(axis=0)
+            most_recent = one_shot_dataset(paths)
+            returns = most_recent.per_episode_rewards()
             mse = dyn_model.dataset_mse(most_recent)
             bias, zero_bias = most_recent.reward_bias(args.mpc.mpc_horizon)
             ave_bias = bias.mean() / np.fabs(zero_bias.mean())
@@ -73,10 +74,9 @@ def _train(args, learner_flags):
             # out-of-band learner evaluation
             # TODO: move this (get paths, make empty dataset, fill it with
             # paths) sequence into a utility method and dedup
-            learner_paths = sample_venv(venv, learner, data.horizon)
-            learner_data = Dataset(venv, data.horizon)
-            learner_data.add_paths(learner_paths)
-            learner_returns = learner_data.rewards.sum(axis=0)
+            learner_paths = sample_venv(venv, learner, data.max_horizon)
+            learner_data = one_shot_dataset(learner_paths)
+            learner_returns = learner_data.per_episode_rewards()
             # TODO: make logging an Average,Std,Min,Max a utility method
             logz.log_tabular('LearnerAverageReturn', np.mean(learner_returns))
             logz.log_tabular('LearnerStdReturn', np.std(learner_returns))

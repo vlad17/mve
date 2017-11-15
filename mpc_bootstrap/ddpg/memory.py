@@ -2,11 +2,13 @@
 
 import numpy as np
 
-# RingBuffer-based implementation, requires some adaptation for vectorized
-# environments
 
+class RingBuffer(object):
+    """
+    A RingBuffer is a finite-size cylic buffer that supports
+    fast insertion and access.
+    """
 
-class _RingBuffer(object):
     def __init__(self, maxlen, shape, dtype='float32'):
         self.maxlen = maxlen
         self.start = 0
@@ -25,6 +27,13 @@ class _RingBuffer(object):
         """return items at requested indices"""
         return self.data[(self.start + idxs) % self.maxlen]
 
+    def all_data(self):
+        """return all data in the buffer"""
+        if self.length == self.maxlen:
+            return self.data
+        assert self.start == 0, self.start
+        return self.data[:self.length]
+
     def append(self, v):
         """Add v to ring buffer, evicting old data if necessary"""
         if self.length < self.maxlen:
@@ -38,60 +47,40 @@ class _RingBuffer(object):
             raise RuntimeError()
         self.data[(self.start + self.length - 1) % self.maxlen] = v
 
+    def append_all(self, vs):
+        """Append an array of values"""
+        if len(vs) > self.maxlen:
+            raise ValueError('cannot add array of size {} to ringbuf size {}'
+                             .format(len(vs), self.length))
+        if self.length < self.maxlen:
+            assert self.start == 0, self.start
+            room = self.maxlen - self.length
+            to_fill = min(len(vs), room)
+            self.data[self.length:self.length + to_fill] = vs[:to_fill]
+            self.length += to_fill
+            if to_fill == len(vs):
+                return
+            vs = vs[to_fill:]
+
+        assert self.length == self.maxlen, (self.length, self.maxlen)
+        to_fill = min(self.maxlen - self.start, len(vs))
+        self.data[self.start:self.start + to_fill] = vs[:to_fill]
+
+        self.start = (self.start + to_fill) % self.maxlen
+        if to_fill == len(vs):
+            return
+        assert self.start == 0, self.start
+        assert len(vs) < self.maxlen, (len(vs), self.maxlen)
+        vs = vs[to_fill:]
+        self.data[:len(vs)] = vs
+        self.start = len(self.vs)
+
 
 def _array_min2d(x):
     x = np.array(x)
     if x.ndim >= 2:
         return x
     return x.reshape(-1, 1)
-
-
-class _Memory(object):
-    def __init__(self, limit, action_shape, observation_shape):
-        self.limit = limit
-
-        self.observations0 = _RingBuffer(limit, shape=observation_shape)
-        self.actions = _RingBuffer(limit, shape=action_shape)
-        self.rewards = _RingBuffer(limit, shape=(1,))
-        self.terminals1 = _RingBuffer(limit, shape=(1,))
-        self.observations1 = _RingBuffer(limit, shape=observation_shape)
-
-    def sample(self, batch_size):
-        """Sample from memory"""
-        # Draw such that we always have a proceeding element.
-        batch_idxs = np.random.random_integers(
-            self.nb_entries - 2, size=batch_size)
-
-        obs0_batch = self.observations0.get_batch(batch_idxs)
-        obs1_batch = self.observations1.get_batch(batch_idxs)
-        action_batch = self.actions.get_batch(batch_idxs)
-        reward_batch = self.rewards.get_batch(batch_idxs)
-        terminal1_batch = self.terminals1.get_batch(batch_idxs)
-
-        result = {
-            'obs0': _array_min2d(obs0_batch),
-            'obs1': _array_min2d(obs1_batch),
-            'rewards': _array_min2d(reward_batch),
-            'actions': _array_min2d(action_batch),
-            'terminals1': _array_min2d(terminal1_batch),
-        }
-        return result
-
-    def append(self, obs0, action, reward, obs1, terminal1, training=True):
-        """Append transition to memory"""
-        if not training:
-            return
-
-        self.observations0.append(obs0)
-        self.actions.append(action)
-        self.rewards.append(reward)
-        self.observations1.append(obs1)
-        self.terminals1.append(terminal1)
-
-    @property
-    def nb_entries(self):
-        """returns number of entries in the replay buffer"""
-        return len(self.observations0)
 
 
 class Memory(object):
@@ -105,15 +94,18 @@ class Memory(object):
 
     def sample(self, batch_size):
         """Draw a sample from the replay buffer"""
-        # Draw such that we always have a proceeding element.
         batch_idxs = np.random.random_integers(
-            self.nb_entries - 2, size=batch_size)
+            self.nb_entries - 1, size=batch_size)
 
-        obs0_batch = self._dataset.stationary_obs()[batch_idxs]
-        obs1_batch = self._dataset.stationary_next_obs()[batch_idxs]
-        action_batch = self._dataset.stationary_acs()[batch_idxs]
-        reward_batch = self._dataset.stationary_rewards()[batch_idxs]
-        terminal1_batch = np.zeros(batch_size)
+        # TODO: dataset should just have a sample method, or even better
+        # to amortize random int gen time, a sample_many
+        # method (dedup with all the *_learners fit() functions and
+        # inside ddpg fit)
+        obs0_batch = self._dataset.obs[batch_idxs]
+        obs1_batch = self._dataset.next_obs[batch_idxs]
+        action_batch = self._dataset.acs[batch_idxs]
+        reward_batch = self._dataset.rewards[batch_idxs]
+        terminal1_batch = self._dataset.terminals[batch_idxs]
 
         result = {
             'obs0': _array_min2d(obs0_batch),
@@ -122,10 +114,9 @@ class Memory(object):
             'actions': _array_min2d(action_batch),
             'terminals1': _array_min2d(terminal1_batch),
         }
-        # TODO: consider normalizing obs / rewards here
         return result
 
     @property
     def nb_entries(self):
         """return number of available transitions in buffer"""
-        return len(self._dataset.stationary_obs())
+        return len(self._dataset.obs)

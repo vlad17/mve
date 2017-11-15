@@ -69,12 +69,6 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
         self._init()
         # TODO: consider training for 0.5 epochs or even a fixed amount each
         # iter
-        nexamples = self._epochs * len(data.stationary_obs())
+        nexamples = self._epochs * len(data.obs)
         nbatch = max(nexamples // self._batch_size, 1)
         train(self._env, self._agent, nb_iterations=nbatch)
-
-    def reset(self, nstates):
-        self._init()
-        # applies random noise to the actor for the next set of
-        # nstates rollouts
-        self._agent.reset()
