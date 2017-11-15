@@ -33,6 +33,7 @@ main() {
     main_mpc="mpc_bootstrap/main_mpc.py"
     main_bmpc="mpc_bootstrap/main_bootstrapped_mpc.py"
 
+    tune_mpc="mpc_bootstrap/tune.py"
     experiment_flags="--exp_name basic_tests --verbose"
     random_flags="$experiment_flags --num_paths 8 --num_procs 2"
     dynamics_flags="--dyn_epochs 1 --dyn_depth 1 --dyn_width 8"
@@ -41,6 +42,8 @@ main() {
     nn_learner_flags="--con_depth 1 --con_width 1 --con_epochs 1"
 
     cmds=()
+    # Tune
+    cmds+=("python $tune_mpc $mpc_flags $warmup_flags")
     # Random
     cmds+=("python $main_random $random_flags")
     cmds+=("python $main_random $random_flags --env_name hc-easy")
