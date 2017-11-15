@@ -32,24 +32,26 @@ def _main(args):
 
     @ray.remote
     def _train_mpc(_logdir, seed, i):
-        # Save params to disk.
-        logdir_seed = os.path.join(_logdir, str(seed))
-        logdir_seed_proc = os.path.join(logdir_seed, str(i))
-        logz.configure_output_dir(logdir_seed_proc)
-        with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
-            json.dump(flags_to_json(args), f, sort_keys=True, indent=4)
-
-        args_inst = copy.deepcopy(args)
-        args_inst.mpc.onpol_paths = 5 + (5 * i)
-        log.debug('testing: --onpol_paths', args_inst.mpc.onpol_paths)
-        train_mpc(args_inst)
-
-    for seed in args.experiment.seed:
-        # Run experiment.
+        # build graph on worker
         g = tf.Graph()
         with g.as_default():
             seed_everything(seed)
-            ray.get([_train_mpc.remote(logdir, seed, i) for i in range(3)])
+
+            # Save params to disk.
+            logdir_seed = os.path.join(_logdir, str(seed))
+            logdir_seed_proc = os.path.join(logdir_seed, str(i))
+            logz.configure_output_dir(logdir_seed_proc)
+            with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
+                json.dump(flags_to_json(args), f, sort_keys=True, indent=4)
+
+            args_inst = copy.deepcopy(args)
+            args_inst.mpc.onpol_paths = 5 + (5 * i)
+            log.debug('testing: --onpol_paths', args_inst.mpc.onpol_paths)
+            train_mpc(args_inst)
+
+    for seed in args.experiment.seed:
+        # Run experiment.
+        ray.get([_train_mpc.remote(logdir, seed, i) for i in range(3)])
 
 
 if __name__ == "__main__":
