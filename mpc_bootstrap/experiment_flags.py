@@ -3,7 +3,8 @@
 import subprocess
 
 from flags import Flags
-from envs import (WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard)
+from envs import (WhiteBoxHalfCheetahEasy,
+                  WhiteBoxHalfCheetahHard, WhiteBoxAntEnv)
 
 
 class ExperimentFlags(Flags):
@@ -77,5 +78,7 @@ class ExperimentFlags(Flags):
             return WhiteBoxHalfCheetahHard(self.frame_skip)
         elif self.env_name == 'hc-easy':
             return WhiteBoxHalfCheetahEasy(self.frame_skip)
+        elif self.env_name == 'ant':
+            return WhiteBoxAntEnv(self.frame_skip)
         else:
             raise ValueError('env {} unsupported'.format(self.env_name))
