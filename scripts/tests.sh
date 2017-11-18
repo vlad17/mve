@@ -32,14 +32,16 @@ main() {
     main_random="mpc_bootstrap/main_random_policy.py"
     main_mpc="mpc_bootstrap/main_mpc.py"
     main_bmpc="mpc_bootstrap/main_bootstrapped_mpc.py"
+    main_ddpg="mpc_bootstrap/main_ddpg.py"
 
     tune_mpc="mpc_bootstrap/tune.py"
-    experiment_flags="--exp_name basic_tests --verbose"
+    experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8 --num_procs 2"
     dynamics_flags="--dyn_epochs 1 --dyn_depth 1 --dyn_width 8"
-    mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 1 --onpol_paths 3 --horizon 5 --mpc_simulated_paths 2 --mpc_horizon 3"
+    mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --onpol_paths 3 --mpc_simulated_paths 2 --mpc_horizon 3"
     warmup_flags="--warmup_paths_random 2"
     nn_learner_flags="--con_depth 1 --con_width 1 --con_epochs 1"
+    ddpg_flags="$experiment_flags $nn_learner_flags --onpol_iters 2 --onpol_paths 3"
 
     cmds=()
     # Tune
@@ -52,6 +54,8 @@ main() {
     cmds+=("python $main_mpc $mpc_flags $warmup_flags")
     cmds+=("python $main_mpc $mpc_flags $warmup_flags --env_name hc-easy")
     cmds+=("python $main_mpc $mpc_flags $warmup_flags --onpol_iters 3 --exp_name plotexp")
+    # DDPG
+    cmds+=("python $main_ddpg $ddpg_flags")
     # BMPC
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags")
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags --warmup_iterations_mpc 1")

@@ -48,7 +48,7 @@ def train(env, agent, nb_iterations=500, param_noise_adaption_interval=50,
     max_action = env.action_space.high
     assert np.all(max_action == -env.action_space.low), \
         (env.action_space.low, env.action_space.high)
-    period = nb_iterations // nprints
+    period = max(nb_iterations // nprints, 1)
     distance = 0.
     for itr in range(nb_iterations):
         # Adapt param noise, if necessary.

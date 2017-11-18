@@ -14,7 +14,7 @@ from ddpg.main import mkagent, train
 
 class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
     """
-    Use a DDPG agent to learn. Not compatible with dagger.
+    Use a DDPG agent to learn.
     """
 
     def __init__(self, env, data, sess, ddpg_flags):
