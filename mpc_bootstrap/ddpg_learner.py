@@ -27,6 +27,7 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
         self._param_noise = ddpg_flags.param_noise_exploration
         self._action_noise = ddpg_flags.action_noise_exploration
         self._param_noise_act = ddpg_flags.param_noise_exploitation
+        self._training_batches = ddpg_flags.training_batches
 
     def _init(self):
         if not self._initted:
@@ -67,8 +68,9 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
     def fit(self, data):
         """Fit the learner to the specified labels."""
         self._init()
-        # TODO: consider training for 0.5 epochs or even a fixed amount each
-        # iter
-        nexamples = self._epochs * len(data.obs)
-        nbatch = max(nexamples // self._batch_size, 1)
+        if self._training_batches is not None:
+            nbatch = self._training_batches
+        else:
+            nexamples = self._epochs * len(data.obs)
+            nbatch = max(nexamples // self._batch_size, 1)
         train(self._env, self._agent, nb_iterations=nbatch)

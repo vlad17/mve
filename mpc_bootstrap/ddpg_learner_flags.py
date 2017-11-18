@@ -50,6 +50,13 @@ class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
             action='store_true',
             help='use DDPG actor noise when the learner acts'
         )
+        argument_group.add_argument(
+            '--training_batches',
+            default=None,
+            type=int,
+            help='if set, specifies the fixed number of minibatches to train '
+            'DDPG on, overriding --con_epochs'
+        )
 
     @staticmethod
     def name():
@@ -63,6 +70,7 @@ class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
         self.action_noise_exploration = args.action_noise_exploration
         self.param_noise_exploration = args.param_noise_exploration
         self.param_noise_exploitation = args.param_noise_exploitation
+        self.training_batches = args.training_batches
 
     def make_learner(self, venv, sess, data):
         """Make a DDPGLearner."""

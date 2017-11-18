@@ -56,6 +56,7 @@ main() {
     cmds+=("python $main_mpc $mpc_flags $warmup_flags --onpol_iters 3 --exp_name plotexp")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --training_batches 2")
     # BMPC
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags")
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags --warmup_iterations_mpc 1")
