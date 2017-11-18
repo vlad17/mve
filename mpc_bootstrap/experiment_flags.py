@@ -7,7 +7,7 @@ from envs import (WhiteBoxHalfCheetahEasy,
                   WhiteBoxHalfCheetahHard, WhiteBoxAntEnv)
 
 
-class ExperimentFlags(Flags):
+class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
     """Flags common to all experiments."""
 
     @staticmethod
@@ -58,6 +58,18 @@ class ExperimentFlags(Flags):
             type=int,
             default=1,
         )
+        experiment.add_argument(
+            '--horizon',
+            type=int,
+            default=1000,
+            help='real rollout maximum horizon',
+        )
+        experiment.add_argument(
+            '--bufsize',
+            type=int,
+            default=int(1e6),
+            help='transition replay buffer maximum size',
+        )
 
     @staticmethod
     def name():
@@ -70,6 +82,8 @@ class ExperimentFlags(Flags):
         self.verbose = args.verbose
         self.env_name = args.env_name
         self.frame_skip = args.frame_skip
+        self.horizon = args.horizon
+        self.bufsize = args.bufsize
 
     # TODO(mwhittaker): Consistently choose "mk" or "make".
     def mk_env(self):
@@ -82,3 +96,9 @@ class ExperimentFlags(Flags):
             return WhiteBoxAntEnv(self.frame_skip)
         else:
             raise ValueError('env {} unsupported'.format(self.env_name))
+
+    def log_directory(self):
+        """return a root name for the log directory of this experiment"""
+        exp_name = self.exp_name
+        env_name = self.env_name
+        return "{}_{}".format(exp_name, env_name)

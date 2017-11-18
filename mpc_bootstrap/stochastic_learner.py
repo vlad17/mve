@@ -9,7 +9,8 @@ import tensorflow as tf
 import numpy as np
 
 from learner import Learner
-from utils import (build_mlp, create_random_tf_policy, get_ac_dim, get_ob_dim)
+from utils import (build_mlp, create_random_tf_policy,
+                   get_ac_dim, get_ob_dim, log_statistics)
 import logz
 
 
@@ -117,10 +118,9 @@ class StochasticLearner(Learner):  # pylint: disable=too-many-instance-attribute
         with tf.variable_scope('learner_policy', reuse=True):
             logstd_a = tf.get_variable('logstd')
         std_a = np.exp(self.sess.run(logstd_a))
-        logz.log_tabular('LearnerPolicyStdAverage', np.mean(std_a))
-        logz.log_tabular('LearnerPolicyStdStd', np.std(std_a))
+        log_statistics('learner-policy-std', std_a)
         most_recent = most_recent_rollouts
         nll = self.sess.run(self._nll, feed_dict={
             self.input_state_ph_ns: most_recent.obs,
             self.expert_action_ph_na: most_recent.acs})
-        logz.log_tabular('AverageNLL', nll)
+        logz.log_tabular('avg-nll', nll)

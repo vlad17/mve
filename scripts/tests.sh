@@ -69,12 +69,12 @@ main() {
         $cmd
     done
 
-    instance="data/plotexp_hc-hard:DynamicsMSE:x"
+    instance="data/plotexp_hc-hard:dynamics-mse:x"
     cmd="python mpc_bootstrap/plot.py $instance --outfile x.pdf --yaxis x --notex"
     $cmd
     rm x.pdf
 
-    instance="data/plotexp_hc-hard:AverageReturn:x"
+    instance="data/plotexp_hc-hard:avg-return:x"
     cmd="python mpc_bootstrap/plot.py $instance --outfile y.pdf --yaxis y --notex"
     $cmd
     rm y.pdf

@@ -7,7 +7,6 @@ import json
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
-import numpy as np
 
 from dataset import one_shot_dataset
 from experiment_flags import ExperimentFlags
@@ -15,7 +14,8 @@ from flags import (Flags, convert_flags_to_json, parse_args)
 from multiprocessing_env import mk_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
-from utils import (make_data_directory, seed_everything, timeit)
+from utils import (make_data_directory, seed_everything,
+                   timeit, log_statistics)
 import log
 import logz
 
@@ -34,12 +34,6 @@ class RandomPolicyFlags(Flags):
             help='number of paths',
         )
         random.add_argument(
-            '--horizon',
-            type=int,
-            default=1000,
-            help='path horizon',
-        )
-        random.add_argument(
             '--num_procs',
             type=int,
             default=multiprocessing.cpu_count(),
@@ -56,7 +50,6 @@ class RandomPolicyFlags(Flags):
         assert args.num_paths % args.num_procs == 0, args
 
         self.num_paths = args.num_paths
-        self.horizon = args.horizon
         self.num_procs = args.num_procs
 
 
@@ -68,25 +61,19 @@ def _train(args):
         start = itr * args.random.num_procs
         stop = (itr + 1) * args.random.num_procs
         with timeit('generating rollouts {}-{}'.format(start, stop)):
-            paths = sample_venv(venv, random_policy, args.random.horizon)
+            paths = sample_venv(venv, random_policy, args.experiment.horizon)
             all_paths += paths
 
     data = one_shot_dataset(all_paths)
     returns = data.per_episode_rewards()
-    logz.log_tabular('AverageReturn', np.mean(returns))
-    logz.log_tabular('StdReturn', np.std(returns))
-    logz.log_tabular('MinimumReturn', np.min(returns))
-    logz.log_tabular('MaximumReturn', np.max(returns))
+    log_statistics('return', returns)
     logz.dump_tabular()
 
 
 def _main(args):
     log.init(args.experiment.verbose)
-
-    exp_name = args.experiment.exp_name
-    env_name = args.experiment.env_name
-    datadir = "{}_{}".format(exp_name, env_name)
-    logdir = make_data_directory(datadir)
+    logdir_name = args.experiment.log_directory()
+    logdir = make_data_directory(logdir_name)
 
     for seed in args.experiment.seed:
         # Save params to disk.

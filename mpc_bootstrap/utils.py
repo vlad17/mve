@@ -14,6 +14,7 @@ import gym
 import numpy as np
 
 import log
+import logz
 
 
 def create_tf_session():
@@ -131,3 +132,15 @@ def make_data_directory(name):
         print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
 
     return name
+
+
+def log_statistics(name, observations):
+    """
+    Logz statistics for a list of observations, namely avg-<name>,
+    std-<name>, min-<name>, max-<name>
+    """
+    statistics_names = ['avg', 'std', 'min', 'max']
+    statistics = [np.mean, np.std, np.min, np.max]
+    for stat_name, stat in zip(statistics_names, statistics):
+        col_name = stat_name + '-' + name
+        logz.log_tabular(col_name, stat(observations))

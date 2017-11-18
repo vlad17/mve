@@ -5,7 +5,7 @@ import json
 import copy
 
 # import mujoco for weird dlopen reasons
-import mujoco_py # pylint: disable=unused-import
+import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 import ray
 
@@ -20,15 +20,13 @@ import log
 import logz
 from main_mpc import _train as train_mpc
 
+
 def _main(args):
     log.init(args.experiment.verbose)
+    logdir_name = args.experiment.log_directory()
+    logdir = make_data_directory(logdir_name)
 
-    exp_name = args.experiment.exp_name
-    env_name = args.experiment.env_name
-    datadir = "{}_{}".format(exp_name, env_name)
-    logdir = make_data_directory(datadir)
-
-    ray.init() # TODO: supply redis ip as cmd line arg
+    ray.init()  # TODO: supply redis ip as cmd line arg
 
     @ray.remote
     def _train_mpc(_logdir, seed, i):

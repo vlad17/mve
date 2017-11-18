@@ -20,7 +20,7 @@ from multiprocessing_env import mk_venv
 from sample import sample_venv
 from stochastic_learner_flags import StochasticLearnerFlags
 from utils import (make_data_directory, seed_everything, timeit,
-                   create_tf_session)
+                   create_tf_session, log_statistics)
 from warmup import add_warmup_data, WarmupFlags
 from zero_learner_flags import ZeroLearnerFlags
 import log
@@ -29,7 +29,8 @@ import logz
 
 def _train(args, learner_flags):
     env = args.experiment.mk_env()
-    data = Dataset.from_env(env, args.mpc.horizon, args.mpc.bufsize)
+    data = Dataset.from_env(env, args.experiment.horizon,
+                            args.experiment.bufsize)
     with timeit('gathering warmup data'):
         add_warmup_data(args, data)
     venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
@@ -55,7 +56,7 @@ def _train(args, learner_flags):
                 learner.fit(data)
 
         with timeit('sample controller'):
-            paths = sample_venv(venv, controller, args.mpc.horizon)
+            paths = sample_venv(venv, controller, args.experiment.horizon)
 
         with timeit('adding paths to dataset'):
             data.add_paths(paths)
@@ -68,29 +69,18 @@ def _train(args, learner_flags):
             ave_bias = bias.mean() / np.fabs(zero_bias.mean())
             ave_sqerr = np.square(bias).mean() / np.square(zero_bias).mean()
             # TODO: bootstrap ave_bias ci, ave_sqerr ci
-
             learner.log(most_recent)
-
             # out-of-band learner evaluation
-            # TODO: move this (get paths, make empty dataset, fill it with
-            # paths) sequence into a utility method and dedup
             learner_paths = sample_venv(venv, learner, data.max_horizon)
             learner_data = one_shot_dataset(learner_paths)
             learner_returns = learner_data.per_episode_rewards()
-            # TODO: make logging an Average,Std,Min,Max a utility method
-            logz.log_tabular('LearnerAverageReturn', np.mean(learner_returns))
-            logz.log_tabular('LearnerStdReturn', np.std(learner_returns))
-            logz.log_tabular('LearnerMinimumReturn', np.min(learner_returns))
-            logz.log_tabular('LearnerMaximumReturn', np.max(learner_returns))
+            log_statistics('learner-return', learner_returns)
 
-        logz.log_tabular('Iteration', itr)
-        logz.log_tabular('AverageReturn', np.mean(returns))
-        logz.log_tabular('StdReturn', np.std(returns))
-        logz.log_tabular('MinimumReturn', np.min(returns))
-        logz.log_tabular('MaximumReturn', np.max(returns))
-        logz.log_tabular('DynamicsMSE', mse)
-        logz.log_tabular('StandardizedRewardBias', ave_bias)
-        logz.log_tabular('StandardizedRewardMSE', ave_sqerr)
+        logz.log_tabular('iteration', itr)
+        log_statistics('return', returns)
+        logz.log_tabular('dynamics-mse', mse)
+        logz.log_tabular('standardized-reward-bias', ave_bias)
+        logz.log_tabular('standardized-reward-mse', ave_sqerr)
         logz.dump_tabular()
 
     sess.__exit__(None, None, None)
@@ -98,11 +88,8 @@ def _train(args, learner_flags):
 
 def _main(args, learner_flags):
     log.init(args.experiment.verbose)
-
-    exp_name = args.experiment.exp_name
-    env_name = args.experiment.env_name
-    datadir = "{}_{}".format(exp_name, env_name)
-    logdir = make_data_directory(datadir)
+    logdir_name = args.experiment.log_directory()
+    logdir = make_data_directory(logdir_name)
 
     for seed in args.experiment.seed:
         # Save params to disk.

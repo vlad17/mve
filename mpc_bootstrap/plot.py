@@ -48,7 +48,7 @@ import seaborn as sns
 
 def _plot_data(data, value, outfile):
     sns.set(style='darkgrid', font_scale=1.5)
-    sns.tsplot(data=data, time='aggregation iteration', value=value,
+    sns.tsplot(data=data, time='iteration', value=value,
                unit='Unit', condition='Condition')
     plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2)
     plt.savefig(outfile, format='pdf', bbox_inches='tight')
@@ -62,9 +62,8 @@ def _get_datasets(fpath, column, label, yaxis):
         if 'log.txt' in files:
             log_path = os.path.join(root, 'log.txt')
             experiment_data = pd.read_table(log_path)
-            experiment_data = experiment_data[['Iteration', column]]
+            experiment_data = experiment_data[['iteration', column]]
             experiment_data.rename(columns={
-                'Iteration': 'aggregation iteration',
                 column: yaxis}, inplace=True)
             experiment_data.insert(
                 len(experiment_data.columns),
@@ -105,7 +104,7 @@ def main():
         data += _get_datasets(logdir, value, label, args.yaxis)
 
     data = pd.concat(data, ignore_index=True)
-    data = data[data['aggregation iteration'] >= args.drop_iterations]
+    data = data[data['iteration'] >= args.drop_iterations]
     _plot_data(data, args.yaxis, args.outfile)
 
 
