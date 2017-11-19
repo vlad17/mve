@@ -1,4 +1,4 @@
-# MPC bootstrap
+# MPC bootstrap [![Build Status](https://travis-ci.com/vlad17/mpc-bootstrap.svg?token=9HHJycCztSrS3mCpqQ9s&branch=master)](https://travis-ci.com/vlad17/mpc-bootstrap)
 
 Improve expert controllers by using a learned policy within the MPC expansion.
 
@@ -31,7 +31,7 @@ Or, using `requirements.txt`:
     conda create -y -n gpu-tfgpu-py35 python=3.5
     source activate gpu-tfgpu-py35
     pip install -r requirements.txt
-    
+
 ## Scripts
 
 All scripts are available in `scripts/`, and should be run from the repo root.
