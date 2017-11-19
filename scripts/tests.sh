@@ -49,6 +49,7 @@ main() {
     # Random
     cmds+=("python $main_random $random_flags")
     cmds+=("python $main_random $random_flags --env_name ant")
+    cmds+=("python $main_random $random_flags --env_name walker2d")
     cmds+=("python $main_random $random_flags --env_name hc-easy")
     # MPC
     cmds+=("python $main_mpc $mpc_flags $warmup_flags")
@@ -68,6 +69,7 @@ main() {
     cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --param_noise_exploitation")
     cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --param_noise_exploration")
     cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --env_name ant")
+    cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --env_name walker2d")
     cmds+=("python $main_bmpc zero $mpc_flags")
 
     for cmd in "${cmds[@]}"; do

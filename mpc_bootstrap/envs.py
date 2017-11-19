@@ -206,3 +206,87 @@ class WhiteBoxAntEnv(MujocoEnv, EzPickle, WithReward):
         qvel = self.init_qvel + self.np_random.randn(self.model.nv) * .1
         self.set_state(qpos, qvel)
         return self._get_obs()
+
+
+class WhiteBoxWalker2dEnv(MujocoEnv, EzPickle, WithReward):
+    """
+    The Walker2d environment [1], with extra observation values for cacluating
+    reward. Everything is copied from [1] unless otherwise noted.
+
+    [1]: https://github.com/openai/gym/blob/master/gym/envs/mujoco/walker2d.py
+    """
+    def __init__(self, frame_skip):
+        MujocoEnv.__init__(self, "walker2d.xml", frame_skip)
+        EzPickle.__init__(self)
+
+    def _incremental_reward(self, state, action, next_state, reward,
+                            sqsum_axis1):
+        # For reference, see _step for the original cost calculation that this
+        # method copies.
+        posbefore = state[:, 0]
+        posafter = next_state[:, 0]
+        alive_bonus = 1.0
+        new_reward = ((posafter - posbefore) / self.dt)
+        new_reward += alive_bonus
+        new_reward -= 1e-3 * sqsum_axis1(action)
+        reward += new_reward
+        return reward
+
+    def _np_incremental_reward(self, state, action, next_state):
+        reward = 0
+        reward = self._incremental_reward(state, action, next_state, reward,
+                                          lambda x: np.square(x).sum(axis=1))
+        return reward
+
+    def tf_reward(self, state, action, next_state, curr_reward):
+        return self._incremental_reward(
+            state, action, next_state, curr_reward,
+            lambda x: tf.reduce_sum(tf.square(x), axis=1))
+
+    def _step(self, action):
+        # For reference, here is the original _step function:
+        #
+        #     def _step(self, a):
+        #         posbefore = self.model.data.qpos[0, 0]
+        #         self.do_simulation(a, self.frame_skip)
+        #         posafter, height, ang = self.model.data.qpos[0:3, 0]
+        #         alive_bonus = 1.0
+        #         reward = ((posafter - posbefore) / self.dt)
+        #         reward += alive_bonus
+        #         reward -= 1e-3 * np.square(a).sum()
+        #         done = not (height > 0.8 and height < 2.0 and
+        #                     ang > -1.0 and ang < 1.0)
+        #         ob = self._get_obs()
+        #         return ob, reward, done, {}
+        state_before = self._get_obs()
+        self.do_simulation(action, self.frame_skip)
+        state_after = self._get_obs()
+        reward = self._np_incremental_reward(
+            state_before[np.newaxis, ...],
+            action[np.newaxis, ...],
+            state_after[np.newaxis, ...])
+        height, ang = state_after[1:3]
+        done = not (height > 0.8 and height < 2.0 and
+                    ang > -1.0 and ang < 1.0)
+        return state_after, reward, done, {}
+
+    def _get_obs(self):
+        qpos = self.model.data.qpos
+        qvel = self.model.data.qvel
+        # Note that qpos has shape 9x1 and qvel has shape 9x1 (determined by
+        # printing them out). The orignal Walker2dEnv returns the following:
+        #
+        #   return np.concatenate([qpos[1:], np.clip(qvel, -10, 10)]).ravel()
+        #
+        # That is, it returns all but the first entry of qpos. The first entry
+        # of qpos is needed to compute reward, so we return it.
+        return np.concatenate([qpos, np.clip(qvel, -10, 10)]).ravel()
+
+    def reset_model(self):
+        self.set_state(
+            self.init_qpos + self.np_random.uniform(
+                low=-.005, high=.005, size=self.model.nq),
+            self.init_qvel + self.np_random.uniform(
+                low=-.005, high=.005, size=self.model.nv)
+        )
+        return self._get_obs()

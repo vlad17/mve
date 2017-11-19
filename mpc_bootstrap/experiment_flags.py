@@ -3,8 +3,8 @@
 import subprocess
 
 from flags import Flags
-from envs import (WhiteBoxHalfCheetahEasy,
-                  WhiteBoxHalfCheetahHard, WhiteBoxAntEnv)
+from envs import (WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard,
+                  WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
 
 
 class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
@@ -94,6 +94,8 @@ class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
             return WhiteBoxHalfCheetahEasy(self.frame_skip)
         elif self.env_name == 'ant':
             return WhiteBoxAntEnv(self.frame_skip)
+        elif self.env_name == 'walker2d':
+            return WhiteBoxWalker2dEnv(self.frame_skip)
         else:
             raise ValueError('env {} unsupported'.format(self.env_name))
 
