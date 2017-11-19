@@ -9,3 +9,4 @@ tensorflow
 mujoco-py == 0.5.7
 gym[all]
 ray
+cloudpickle==0.4.1

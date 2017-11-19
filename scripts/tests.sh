@@ -26,15 +26,20 @@ main() {
     cmd=""
     function note_failure {
         box "$cmd"
+        ray stop
     }
     trap note_failure EXIT
+
+    ray start --head --redis-port=6379 --num-gpus=1 2>&1 | tee ray-init.txt
+    ray_addr="$(cat ray-init.txt | awk '/ray start --redis-address/ { print $4 }')"
+    rm ray-init.txt
 
     main_random="mpc_bootstrap/main_random_policy.py"
     main_mpc="mpc_bootstrap/main_mpc.py"
     main_bmpc="mpc_bootstrap/main_bootstrapped_mpc.py"
     main_ddpg="mpc_bootstrap/main_ddpg.py"
+    tune="mpc_bootstrap/tune.py"
 
-    tune_mpc="mpc_bootstrap/tune.py"
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8 --num_procs 2"
     dynamics_flags="--dyn_epochs 1 --dyn_depth 1 --dyn_width 8"
@@ -42,10 +47,11 @@ main() {
     warmup_flags="--warmup_paths_random 2"
     nn_learner_flags="--con_depth 1 --con_width 1 --con_epochs 1"
     ddpg_flags="$experiment_flags $nn_learner_flags --onpol_iters 2 --onpol_paths 3 --warmup_iters 1"
+    tune_flags="--ray_addr $ray_addr"
 
     cmds=()
     # Tune
-    cmds+=("python $tune_mpc $mpc_flags $warmup_flags")
+    cmds+=("python $tune $mpc_flags $warmup_flags $tune_flags")
     # Random
     cmds+=("python $main_random $random_flags")
     cmds+=("python $main_random $random_flags --env_name ant")
@@ -87,6 +93,7 @@ main() {
     $cmd
     rm y.pdf
 
+    ray stop
     trap '' EXIT
 }
 

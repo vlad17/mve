@@ -14,11 +14,35 @@ from mpc_flags import MpcFlags
 from experiment_flags import ExperimentFlags
 from warmup import WarmupFlags
 from flags import convert_flags_to_json as flags_to_json
-from flags import parse_args
+from flags import (Flags, parse_args)
 from utils import (make_data_directory, seed_everything)
 import log
 import logz
 from main_mpc import _train as train_mpc
+
+
+class TuneFlags(Flags):
+    """
+    These flags define parameters for the ray tune script.
+    """
+
+    @staticmethod
+    def add_flags(parser):
+        """Adds flags to an argparse parser."""
+        tuner = parser.add_argument_group('tune')
+        tuner.add_argument(
+            '--ray_addr',
+            type=str,
+            default='',
+            help='ray head node redis ip:port address'
+        )
+
+    @staticmethod
+    def name():
+        return 'tune'
+
+    def __init__(self, args):
+        self.ray_addr = args.ray_addr
 
 
 def _main(args):
@@ -26,9 +50,9 @@ def _main(args):
     logdir_name = args.experiment.log_directory()
     logdir = make_data_directory(logdir_name)
 
-    ray.init()  # TODO: supply redis ip as cmd line arg
+    ray.init(redis_address=(args.tune.ray_addr))
 
-    @ray.remote
+    @ray.remote(num_gpus=1)
     def _train_mpc(_logdir, seed, i):
         # build graph on worker
         g = tf.Graph()
@@ -53,5 +77,6 @@ def _main(args):
 
 
 if __name__ == "__main__":
-    _args = parse_args([ExperimentFlags, MpcFlags, DynamicsFlags, WarmupFlags])
+    _args = parse_args([ExperimentFlags, MpcFlags, DynamicsFlags, WarmupFlags,
+                        TuneFlags])
     _main(_args)

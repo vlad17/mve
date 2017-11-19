@@ -24,6 +24,7 @@ Example conda installation with GPU (for CPU, modify `tensorflow-gpu` to `tensor
     conda install -y -c anaconda seaborn
     pip install gym[all] # make sure to install system deps first!
     pip install ray
+    pip install cloudpickle==0.4.1
 
 Or, using `requirements.txt`:
 
