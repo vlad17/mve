@@ -32,6 +32,14 @@ def _train(args):
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
+    for itr in range(args.run.warmup_iters):
+        with timeit('warmup round {}'.format(itr)):
+            if data.obs.size:
+                learner.fit(data)
+            paths = sample_venv(venv, learner, args.experiment.horizon)
+            data.add_paths(paths)
+
+    agg_returns = []
     for itr in range(args.run.onpol_iters):
         with timeit('learner fit'):
             if data.obs.size:
@@ -47,9 +55,13 @@ def _train(args):
             most_recent = one_shot_dataset(paths)
             returns = most_recent.per_episode_rewards()
 
-        logz.log_tabular('iteration', itr)
-        log_statistics('return', returns)
-        logz.dump_tabular()
+        agg_returns += returns
+        if (itr + 1) % args.run.log_every == 0:
+            log_itr = (itr + 1) // args.run.log_every
+            logz.log_tabular('iteration', log_itr)
+            log_statistics('return', agg_returns)
+            logz.dump_tabular()
+            agg_returns = []
 
     sess.__exit__(None, None, None)
 
@@ -84,14 +96,26 @@ class RunFlags(Flags):
         argument_group.add_argument(
             '--onpol_iters',
             type=int,
-            default=1,
+            default=300,
             help='number of outermost on policy aggregation iterations',
         )
         argument_group.add_argument(
             '--onpol_paths',
             type=int,
-            default=10,
+            default=1,
             help='number of rollouts per on policy iteration',
+        )
+        argument_group.add_argument(
+            '--warmup_iters',
+            type=int,
+            default=100,
+            help='how many warmup iterations DDPG gets (not recorded)',
+        )
+        argument_group.add_argument(
+            '--log_every',
+            type=int,
+            default=10,
+            help='how frequently to log statistics',
         )
 
     @staticmethod
@@ -101,6 +125,8 @@ class RunFlags(Flags):
     def __init__(self, args):
         self.onpol_iters = args.onpol_iters
         self.onpol_paths = args.onpol_paths
+        self.warmup_iters = args.warmup_iters
+        self.log_every = args.log_every
 
 
 if __name__ == "__main__":

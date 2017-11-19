@@ -41,7 +41,7 @@ main() {
     mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --onpol_paths 3 --mpc_simulated_paths 2 --mpc_horizon 3"
     warmup_flags="--warmup_paths_random 2"
     nn_learner_flags="--con_depth 1 --con_width 1 --con_epochs 1"
-    ddpg_flags="$experiment_flags $nn_learner_flags --onpol_iters 2 --onpol_paths 3"
+    ddpg_flags="$experiment_flags $nn_learner_flags --onpol_iters 2 --onpol_paths 3 --warmup_iters 1"
 
     cmds=()
     # Tune
@@ -57,6 +57,7 @@ main() {
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags")
     cmds+=("python $main_ddpg $ddpg_flags --training_batches 2")
+    cmds+=("python $main_ddpg $ddpg_flags --training_batches 2 --log_every 1")
     # BMPC
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags")
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags --warmup_iterations_mpc 1")
