@@ -26,7 +26,7 @@ def _train(args):
     venv = mk_venv(args.experiment.mk_env, args.run.onpol_paths)
     sess = create_tf_session()
 
-    learner = args.ddpg.make_learner(venv, sess, data)
+    learner = args.ddpg.make_learner(venv, sess)
 
     sess.__enter__()
     tf.global_variables_initializer().run()
@@ -42,7 +42,7 @@ def _train(args):
     agg_returns = []
     for itr in range(args.run.onpol_iters):
         with timeit('learner fit'):
-            if data.obs.size:
+            if data.size:
                 learner.fit(data)
 
         with timeit('sample learner'):

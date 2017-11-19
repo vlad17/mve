@@ -72,6 +72,6 @@ class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
         self.param_noise_exploitation = args.param_noise_exploitation
         self.training_batches = args.training_batches
 
-    def make_learner(self, venv, sess, data):
+    def make_learner(self, venv, sess):
         """Make a DDPGLearner."""
-        return DDPGLearner(env=venv, data=data, sess=sess, ddpg_flags=self)
+        return DDPGLearner(env=venv, sess=sess, ddpg_flags=self)

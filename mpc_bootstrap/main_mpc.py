@@ -43,7 +43,7 @@ def _train(args):
 
     for itr in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
-            if data.obs.size:
+            if data.size:
                 dyn_model.fit(data)
 
         with timeit('sample controller'):

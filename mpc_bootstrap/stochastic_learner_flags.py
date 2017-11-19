@@ -28,7 +28,7 @@ class StochasticLearnerFlags(NeuralNetworkLearnerFlags):
         super().__init__(args)
         self.no_extra_explore = args.no_extra_explore
 
-    def make_learner(self, venv, sess, _data):
+    def make_learner(self, venv, sess):
         """Make a StochasticLearner."""
         return StochasticLearner(
             env=venv,

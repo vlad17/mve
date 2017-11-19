@@ -29,7 +29,7 @@ class DeterministicLearnerFlags(NeuralNetworkLearnerFlags):
         super().__init__(args)
         self.explore_std = args.explore_std
 
-    def make_learner(self, venv, sess, _data):
+    def make_learner(self, venv, sess):
         """Make a DeterministicLearner."""
         return DeterministicLearner(
             env=venv,

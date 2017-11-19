@@ -102,6 +102,14 @@ class Dataset(object):
         return Dataset(get_ac_dim(env), get_ob_dim(env), max_horizon, maxlen)
 
     @property
+    def size(self):
+        """
+        Number of observations. This is at most the maximum buffer length
+        specified at initialization.
+        """
+        return self._obs.length
+
+    @property
     def obs(self):
         """All observed states so far."""
         return self._obs.all_data()
@@ -184,6 +192,30 @@ class Dataset(object):
         """Return a list with the total reward for each seen episode"""
         all_rewards = self._split_array(self.rewards)
         return [r.sum() for r in all_rewards]
+
+    def batches_per_epoch(self, batch_size):
+        """
+        Given a fixed batch size, returns the number of batches necessary
+        to do a full pass over all data in this replay buffer.
+        """
+        return max(self.size // batch_size, 1)
+
+    def sample_many(self, nbatches, batch_size):
+        """
+        Generates nbatches worth of batches, iid-sampled from the internal
+        buffers.
+
+        Values returned are transitions, which are tuples of:
+        (current) observations, next observations, rewards, actions,
+        and terminal state indicators.
+        """
+        batch_idxs = np.random.randint(self.size, size=(
+            nbatches, batch_size))
+        transitions = [self.obs, self.next_obs, self.rewards, self.acs,
+                       self.terminals]
+        for batch_idx in batch_idxs:
+            yield [transition_item[batch_idx] for transition_item
+                   in transitions]
 
 
 def one_shot_dataset(paths):

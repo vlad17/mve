@@ -20,5 +20,5 @@ class ZeroLearnerFlags(LearnerFlags):
     def __init__(self, _args):
         pass
 
-    def make_learner(self, venv, _sess, _data):
+    def make_learner(self, venv, _):
         return ZeroLearner(venv)

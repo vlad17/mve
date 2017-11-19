@@ -87,20 +87,12 @@ class DeterministicLearner(Learner):  # pylint: disable=too-many-instance-attrib
         return self._exploit_policy(states_ns, reuse=True)
 
     def fit(self, data):
-        obs = data.obs
-        acs = data.acs
-
-        nexamples = len(obs)
-        assert nexamples == len(acs), (nexamples, len(acs))
-        per_epoch = max(nexamples // self.batch_size, 1)
-        batches = np.random.randint(nexamples, size=(
-            self.epochs * per_epoch, self.batch_size))
-        for batch_idx in batches:
-            input_states_sample = obs[batch_idx]
-            label_actions_sample = acs[batch_idx]
+        nbatches = data.batches_per_epoch(self.batch_size) * self.epochs
+        for batch in data.sample_many(nbatches, self.batch_size):
+            obs, _, _, acs, _ = batch
             self.sess.run(self.update_op, feed_dict={
-                self.input_state_ph_ns: input_states_sample,
-                self.expert_action_ph_na: label_actions_sample})
+                self.input_state_ph_ns: obs,
+                self.expert_action_ph_na: acs})
 
     def act(self, states_ns):
         acs = self.sess.run(self.policy_action_na, feed_dict={

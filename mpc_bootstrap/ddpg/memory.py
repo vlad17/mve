@@ -83,40 +83,15 @@ def _array_min2d(x):
     return x.reshape(-1, 1)
 
 
-class Memory(object):
+def openai_batch(obs, next_obs, rewards, acs, terminals):
     """
-    An OpenAI-compatible memory class that wraps an mpc_bootstrap
-    utils.Dataset.
+    Converts a regular batch of data into the format openai's DDPG
+    class expects.
     """
-
-    def __init__(self, dataset):
-        self._dataset = dataset
-
-    def sample(self, batch_size):
-        """Draw a sample from the replay buffer"""
-        batch_idxs = np.random.random_integers(
-            self.nb_entries - 1, size=batch_size)
-
-        # TODO: dataset should just have a sample method, or even better
-        # to amortize random int gen time, a sample_many
-        # method (dedup with all the *_learners fit() functions and
-        # inside ddpg fit)
-        obs0_batch = self._dataset.obs[batch_idxs]
-        obs1_batch = self._dataset.next_obs[batch_idxs]
-        action_batch = self._dataset.acs[batch_idxs]
-        reward_batch = self._dataset.rewards[batch_idxs]
-        terminal1_batch = self._dataset.terminals[batch_idxs]
-
-        result = {
-            'obs0': _array_min2d(obs0_batch),
-            'obs1': _array_min2d(obs1_batch),
-            'rewards': _array_min2d(reward_batch),
-            'actions': _array_min2d(action_batch),
-            'terminals1': _array_min2d(terminal1_batch),
-        }
-        return result
-
-    @property
-    def nb_entries(self):
-        """return number of available transitions in buffer"""
-        return len(self._dataset.obs)
+    return {
+        'obs0': _array_min2d(obs),
+        'obs1': _array_min2d(next_obs),
+        'rewards': _array_min2d(rewards),
+        'actions': _array_min2d(acs),
+        'terminals1': _array_min2d(terminals),
+    }

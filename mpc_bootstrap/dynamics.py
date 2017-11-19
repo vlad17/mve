@@ -133,18 +133,13 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
         # data throughput per batch is small enough (since the data is so
         # simple) that up-front shuffling as performed here is probably
         # saving us more time.
-        nexamples = len(data.acs)
-        nbatches = max(nexamples // self.batch_size, 1)
-        batches = np.random.randint(nexamples, size=(
-            self.epochs * nbatches, self.batch_size))
-        for batch_idx in batches:
-            input_states_sample = data.obs[batch_idx]
-            next_states_sample = data.next_obs[batch_idx]
-            actions_sample = data.acs[batch_idx]
+        nbatches = data.batches_per_epoch(self.batch_size) * self.epochs
+        for batch in data.sample_many(nbatches, self.batch_size):
+            obs, next_obs, _, acs, _ = batch
             self.sess.run(self.update_op, feed_dict={
-                self.input_state_ph_ns: input_states_sample,
-                self.input_action_ph_na: actions_sample,
-                self.next_state_ph_ns: next_states_sample,
+                self.input_state_ph_ns: obs,
+                self.input_action_ph_na: acs,
+                self.next_state_ph_ns: next_obs,
             })
 
     def _predict_tf(self, states, actions, reuse=None):

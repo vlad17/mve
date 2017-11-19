@@ -37,7 +37,7 @@ def _train(args, learner_flags):
     sess = create_tf_session()
 
     dyn_model = NNDynamicsModel(venv, sess, data, args.dynamics)
-    learner = learner_flags.make_learner(venv, sess, data)
+    learner = learner_flags.make_learner(venv, sess)
     controller = BootstrappedMPC(
         venv, dyn_model, args.mpc.mpc_horizon,
         env.tf_reward, args.mpc.mpc_simulated_paths, learner, sess)
@@ -48,11 +48,11 @@ def _train(args, learner_flags):
 
     for itr in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
-            if data.obs.size:
+            if data.size:
                 dyn_model.fit(data)
 
         with timeit('learner fit'):
-            if data.obs.size:
+            if data.size:
                 learner.fit(data)
 
         with timeit('sample controller'):

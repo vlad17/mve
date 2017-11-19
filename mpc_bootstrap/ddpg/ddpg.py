@@ -53,7 +53,7 @@ def get_perturbed_actor_updates(actor, perturbed_actor, param_noise_stddev):
 
 
 class DDPG(object):
-    def __init__(self, actor, critic, memory, observation_shape, action_shape,
+    def __init__(self, actor, critic, observation_shape, action_shape,
                  param_noise=None, action_noise=None,
                  gamma=0.99, tau=0.001, normalize_returns=False,
                  enable_popart=False, normalize_observations=False,
@@ -82,7 +82,6 @@ class DDPG(object):
         # Parameters.
         self.gamma = gamma
         self.tau = tau
-        self.memory = memory
         self.normalize_observations = normalize_observations
         self.normalize_returns = normalize_returns
         self.action_noise = action_noise
@@ -291,10 +290,7 @@ class DDPG(object):
         if self.normalize_observations:
             self.obs_rms.update(np.array([obs0]))
 
-    def train(self):
-        # Get a batch.
-        batch = self.memory.sample(batch_size=self.batch_size)
-
+    def train(self, batch):
         if self.normalize_returns and self.enable_popart:
             assert False, 'normalizing returns currently unsupported'
             old_mean, old_std, target_Q = self.sess.run([self.ret_rms.mean,
@@ -335,31 +331,11 @@ class DDPG(object):
     def update_target_net(self):
         self.sess.run(self.target_soft_updates)
 
-    def get_stats(self):
-        if self.stats_sample is None:
-            # Get a sample and keep that fixed for all further computations.
-            # This allows us to estimate the change in value for the same set of inputs.
-            self.stats_sample = self.memory.sample(batch_size=self.batch_size)
-        values = self.sess.run(self.stats_ops, feed_dict={
-            self.obs0: self.stats_sample['obs0'],
-            self.actions: self.stats_sample['actions'],
-        })
-
-        names = self.stats_names[:]
-        assert len(names) == len(values)
-        stats = dict(zip(names, values))
-
-        if self.param_noise is not None:
-            stats = {**stats, **self.param_noise.get_stats()}
-
-        return stats
-
-    def adapt_param_noise(self):
+    def adapt_param_noise(self, batch):
         if self.param_noise is None:
             return 0.
 
         # Perturb a separate copy of the policy to adjust the scale for the next "real" perturbation.
-        batch = self.memory.sample(batch_size=self.batch_size)
         self.sess.run(self.perturb_adaptive_policy_ops, feed_dict={
             self.param_noise_stddev: self.param_noise.current_stddev,
         })

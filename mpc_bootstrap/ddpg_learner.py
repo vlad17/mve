@@ -17,8 +17,8 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
     Use a DDPG agent to learn.
     """
 
-    def __init__(self, env, data, sess, ddpg_flags):
-        self._agent = mkagent(env, data, ddpg_flags)
+    def __init__(self, env, sess, ddpg_flags):
+        self._agent = mkagent(env, ddpg_flags)
         self._initted = False
         self._sess = sess
         self._env = env
@@ -73,4 +73,4 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
         else:
             nexamples = self._epochs * len(data.obs)
             nbatch = max(nexamples // self._batch_size, 1)
-        train(self._env, self._agent, nb_iterations=nbatch)
+        train(self._env, self._agent, data, nb_iterations=nbatch)
