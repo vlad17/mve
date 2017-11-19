@@ -1,5 +1,7 @@
 """Implementation of a transition dataset (aka replay buffer)"""
 
+# import mujoco for weird dlopen reasons
+import mujoco_py  # pylint: disable=unused-import
 import numpy as np
 
 from ddpg.memory import RingBuffer
