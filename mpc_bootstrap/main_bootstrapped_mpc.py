@@ -1,5 +1,6 @@
 """Generate bootstrapped MPC rollouts."""
 
+import collections
 import json
 import os
 
@@ -27,7 +28,7 @@ import log
 import logz
 
 
-def _train(args, learner_flags):
+def _train(args, learner_flags, smoothing, status_reporter):
     env = args.experiment.mk_env()
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
@@ -41,11 +42,11 @@ def _train(args, learner_flags):
     controller = BootstrappedMPC(
         venv, dyn_model, args.mpc.mpc_horizon,
         env.tf_reward, args.mpc.mpc_simulated_paths, learner, sess)
-
     sess.__enter__()
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
+    historical_returns = collections.deque()
     for itr in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
             if data.size:
@@ -76,6 +77,12 @@ def _train(args, learner_flags):
             learner_returns = learner_data.per_episode_rewards()
             log_statistics('learner-return', learner_returns)
 
+        if len(historical_returns) == smoothing:
+            historical_returns.popleft()
+        historical_returns.append(np.mean(returns))
+        if len(historical_returns) == smoothing and status_reporter:
+            status_reporter(np.mean(historical_returns))
+
         logz.log_tabular('iteration', itr)
         log_statistics('return', returns)
         logz.log_tabular('dynamics-mse', mse)
@@ -86,7 +93,14 @@ def _train(args, learner_flags):
     sess.__exit__(None, None, None)
 
 
-def _main(args, learner_flags):
+def main(args, learner_flags, smoothing=None, status_reporter=None):
+    """
+    With args and learner_flags as specified in __main__ below,
+    this runs the specified bootstrapped_mpc.
+
+    Reports the average performance of the last smoothing number
+    of iterations for all seeds.
+    """
     log.init(args.experiment.verbose)
     logdir_name = args.experiment.log_directory()
     logdir = make_data_directory(logdir_name)
@@ -102,12 +116,18 @@ def _main(args, learner_flags):
         g = tf.Graph()
         with g.as_default():
             seed_everything(seed)
-            _train(args, learner_flags)
+            _train(args, learner_flags, smoothing or 1, status_reporter)
 
 
-if __name__ == "__main__":
+def flags_to_parse():
+    """Flags that BMPC should parse"""
     flags = [ExperimentFlags, MpcFlags, DynamicsFlags, WarmupFlags]
     subflags = [DeterministicLearnerFlags, StochasticLearnerFlags,
                 DDPGLearnerFlags, ZeroLearnerFlags]
-    _args, _learner_flags = parse_args_with_subcmds(flags, subflags)
-    _main(_args, _learner_flags)
+    return flags, subflags
+
+
+if __name__ == "__main__":
+    _flags, _subflags = flags_to_parse()
+    _args, _learner_flags = parse_args_with_subcmds(_flags, _subflags)
+    main(_args, _learner_flags)

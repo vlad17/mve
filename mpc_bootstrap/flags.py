@@ -11,6 +11,7 @@ line. This file helps do that without going crazy:
 import argparse
 import collections
 
+
 def convert_flags_to_json(flags):
     """
     Returns a "jsonnable" dict representation of Flags iterable. For example,
@@ -28,6 +29,7 @@ def convert_flags_to_json(flags):
         params[flag.name()] = vars(flag)
     return params
 
+
 class Flags(object):
     """A group of logically related flags."""
 
@@ -41,6 +43,7 @@ class Flags(object):
     def name(self):
         """Flag group name"""
         return self.__class__.__name__.replace('Flags', '').lower()
+
 
 def parse_args(flags):
     """
@@ -91,7 +94,7 @@ def parse_args(flags):
     return namedtuple(**kwargs)
 
 
-def parse_args_with_subcmds(flags, subflags):
+def parse_args_with_subcmds(flags, subflags, cmdargs=None):
     """
     Look at the documentation for parse_args. Consider the same Flags classes A
     and B. Imagine we have similar one named C. `parse_args_with_subcmds([A],
@@ -121,7 +124,7 @@ def parse_args_with_subcmds(flags, subflags):
             flag.add_flags(subparser)
         subflag.add_flags(subparser)
 
-    args = parser.parse_args()
+    args = parser.parse_args(args=cmdargs)
     subflags_by_name = {subflag.name(): subflag for subflag in subflags}
     if args.subcommand is None:
         names = list(subflags_by_name.keys())

@@ -30,9 +30,11 @@ main() {
     }
     trap note_failure EXIT
 
-    ray start --head --redis-port=6379 --num-gpus=1 2>&1 | tee ray-init.txt
+    ray start --head --num-gpus=1 2>&1 | tee ray-init.txt
     ray_addr="$(cat ray-init.txt | awk '/ray start --redis-address/ { print $4 }')"
     rm ray-init.txt
+
+    tune_params_json='[{"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "warmup_iterations_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}, {"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "warmup_iterations_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}]'
 
     main_random="mpc_bootstrap/main_random_policy.py"
     main_mpc="mpc_bootstrap/main_mpc.py"
@@ -51,7 +53,9 @@ main() {
 
     cmds=()
     # Tune
-    cmds+=("python $tune $mpc_flags $warmup_flags $tune_flags")
+    echo "$tune_params_json" > params.json
+    cmds+=("python $tune $tune_flags --tunefile params.json")
+    cmds+=("rm params.json")
     # Random
     cmds+=("python $main_random $random_flags")
     cmds+=("python $main_random $random_flags --env_name ant")

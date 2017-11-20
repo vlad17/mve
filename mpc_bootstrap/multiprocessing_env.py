@@ -14,6 +14,7 @@ import numpy as np
 _logger = logging.getLogger(__name__)
 _logger.setLevel(logging.INFO)
 
+
 def _display_name(exception):
     prefix = ''
     # AttributeError has no __module__; RuntimeError has module of
@@ -23,12 +24,14 @@ def _display_name(exception):
         prefix = exception.__module__ + '.'
     return prefix + type(exception).__name__
 
+
 def _render_dict(error):
     return {
         'type': _display_name(error),
         'message': error.message,
         'traceback': traceback.format_exc(error)
     }
+
 
 class _Worker(object):
     def __init__(self, env_m, worker_idx):
@@ -71,7 +74,7 @@ class _Worker(object):
     def _parent_send(self, msg):
         try:
             self.parent_conn.send(msg)
-        except IOError: # the worker is now dead
+        except IOError:  # the worker is now dead
             try:
                 res = self._parent_recv()
             except EOFError:
@@ -125,7 +128,7 @@ class _Worker(object):
         """run receive loop on remote worker process"""
         try:
             self.do_run()
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             rendered = _render_dict(e)
             self.child_conn.send((rendered, None))
             return
@@ -192,7 +195,7 @@ class _Worker(object):
 def _step_n(worker_n, action_n):
     accumulated = 0
     for worker in worker_n:
-        action_m = action_n[accumulated:accumulated+worker.m]
+        action_m = action_n[accumulated:accumulated + worker.m]
         worker.step_start(action_m)
         accumulated += worker.m
 
@@ -224,9 +227,10 @@ def _reset_n(worker_n):
 def _seed_n(worker_n, seeds):
     accumulated = 0
     for worker in worker_n:
-        seed_m = seeds[accumulated:accumulated+worker.m]
+        seed_m = seeds[accumulated:accumulated + worker.m]
         worker.seed_start(seed_m)
         accumulated += worker.m
+
 
 def _mask(worker_n, i):
     accumulated = 0
@@ -236,6 +240,7 @@ def _mask(worker_n, i):
         else:
             worker.mask_start(i - accumulated)
             return
+
 
 def _render_n(worker_n, mode, close):
     if mode == 'human':
@@ -251,6 +256,7 @@ def _render_n(worker_n, mode, close):
         return res
     return None
 
+
 def _close_n(worker_n):
     if worker_n is None:
         return
@@ -258,8 +264,9 @@ def _close_n(worker_n):
     for worker in worker_n:
         try:
             worker.close_start()
-        except: # pylint: disable=bare-except
+        except:  # pylint: disable=bare-except
             pass
+
 
 class MultiprocessingEnv(gym.Env):
     """
@@ -284,7 +291,7 @@ class MultiprocessingEnv(gym.Env):
         self.worker_n = []
         m = int((self.n + pool_size - 1) / pool_size)
         for i in range(0, self.n, m):
-            envs = self.envs[i:i+m]
+            envs = self.envs[i:i + m]
             self.worker_n.append(_Worker(envs, i))
 
     def _seed(self, seed=None):
@@ -311,6 +318,7 @@ class MultiprocessingEnv(gym.Env):
 def mk_venv(mk_env, n):
     """Generates vectorized multiprocessing env."""
     envs = [mk_env() for _ in range(n)]
+
     venv = MultiprocessingEnv(envs)
     seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]
     venv.seed(seeds)
