@@ -34,7 +34,7 @@ main() {
         local -r warmup_iterations_mpc=1
         local -r warmup_iters=1
     else
-        local -r ddpg_onpol_iters=30
+        local -r ddpg_onpol_iters=300
         local -r horizon=1000
         local -r log_every=10
         local -r mpc_onpol_iters=30
@@ -43,8 +43,8 @@ main() {
         local -r num_procs=48
         local -r plot_flags=""
         local -r training_batches=4000
-        local -r warmup_iterations_mpc=50
-        local -r warmup_iters=500
+        local -r warmup_iterations_mpc=10
+        local -r warmup_iters=100
     fi
 
     set -x
