@@ -2,7 +2,7 @@
 # Runs HalfCheetah environment experiments, using the usual (hard) reward function.
 # This script should be run from the repo root as follows:
 #
-# ./scripts/hard-cost.sh
+# ./scripts/hard-cheetah.sh
 #
 # This generates the following images in the report/ folder:
 #   hard-cheetah-return.pdf - returns for 1-4

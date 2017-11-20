@@ -89,7 +89,8 @@ main() {
     rm x.pdf
 
     instance="data/plotexp_hc-hard:avg-return:x"
-    cmd="python mpc_bootstrap/plot.py $instance --outfile y.pdf --yaxis y --notex"
+    hlines="--hlines data/plotexp_hc-hard:dynamics-mse:yy"
+    cmd="python mpc_bootstrap/plot.py $instance --outfile y.pdf --yaxis y --notex $hlines"
     $cmd
     rm y.pdf
 
