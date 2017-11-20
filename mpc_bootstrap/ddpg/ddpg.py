@@ -189,8 +189,13 @@ class DDPG(object):
         debug('setting up critic optimizer')
         normalized_critic_target_tf = tf.clip_by_value(normalize(
             self.critic_target, self.ret_rms), self.return_range[0], self.return_range[1])
-        self.critic_loss = tf.reduce_mean(
-            tf.square(self.normalized_critic_tf - normalized_critic_target_tf))
+        self.critic_abs_errors = tf.abs(
+            self.normalized_critic_tf - normalized_critic_target_tf)
+        self.importance_weights = tf.placeholder(tf.float32, [None, 1])
+        self.critic_loss = tf.losses.mean_squared_error(
+            normalized_critic_target_tf,
+            self.normalized_critic_tf,
+            weights=self.importance_weights)
         if self.critic_l2_reg > 0.:
             critic_reg_vars = [
                 var for var in self.critic.trainable_vars if 'kernel' in var.name and 'output' not in var.name]
@@ -291,6 +296,9 @@ class DDPG(object):
             self.obs_rms.update(np.array([obs0]))
 
     def train(self, batch):
+        """
+        Returns critic loss, actor loss, TD error.
+        """
         if self.normalize_returns and self.enable_popart:
             assert False, 'normalizing returns currently unsupported'
             old_mean, old_std, target_Q = self.sess.run([self.ret_rms.mean,
@@ -315,14 +323,18 @@ class DDPG(object):
 
         # Get all gradients and perform a synced update.
         ops = [self.actor_optimize, self.actor_loss,
-               self.critic_optimize, self.critic_loss]
-        _, actor_loss, _, critic_loss = self.sess.run(ops, feed_dict={
+               self.critic_optimize, self.critic_loss,
+               self.critic_abs_errors]
+        feed_dict = {
             self.obs0: batch['obs0'],
             self.actions: batch['actions'],
             self.critic_target: target_Q,
-        })
+            self.importance_weights: batch['weights']
+        }
+        _, actor_loss, _, critic_loss, abs_err = self.sess.run(
+            ops, feed_dict=feed_dict)
 
-        return critic_loss, actor_loss
+        return critic_loss, actor_loss, abs_err
 
     def initialize(self, sess):
         self.sess = sess

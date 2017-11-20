@@ -7,7 +7,7 @@ import os
 import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 
-from dataset import Dataset, one_shot_dataset
+from dataset import PrioritizedDataset, one_shot_dataset
 from ddpg_learner_flags import DDPGLearnerFlags
 from experiment_flags import ExperimentFlags
 from flags import (convert_flags_to_json, parse_args, Flags)
@@ -21,8 +21,8 @@ import logz
 
 def _train(args):
     env = args.experiment.mk_env()
-    data = Dataset.from_env(env, args.experiment.horizon,
-                            args.experiment.bufsize)
+    data = PrioritizedDataset.from_env(env, args.experiment.horizon,
+                                       args.experiment.bufsize)
     venv = mk_venv(args.experiment.mk_env, args.run.onpol_paths)
     sess = create_tf_session()
 

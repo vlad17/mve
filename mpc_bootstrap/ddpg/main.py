@@ -49,8 +49,8 @@ def train(env, agent, data, nb_iterations=500,
     period = max(nb_iterations // nprints, 1)
     distance = 0.
 
-    for itr, batch in enumerate(data.sample_many(
-            nb_iterations, agent.batch_size)):
+    gen = data.prioritized_sample_many(nb_iterations, agent.batch_size)
+    for itr, batch in enumerate(gen):
         batch = openai_batch(*batch)
 
         # Adapt param noise, if necessary.
@@ -58,9 +58,10 @@ def train(env, agent, data, nb_iterations=500,
            (itr + 1) % param_noise_adaption_interval == 0:
             distance = agent.adapt_param_noise(batch)
 
-        cl, al = agent.train(batch)
+        cl, al, errs = agent.train(batch)
         agent.update_target_net()
         if itr == 0 or itr + 1 == nb_iterations or (itr + 1) % period == 0:
             fmt = 'itr {: 6d} critic loss {:7.3f} actor loss {:7.3f} '
             fmt += 'dist {:10.3f}'
             debug(fmt, itr + 1, cl, al, distance)
+        data.update_errs(errs)

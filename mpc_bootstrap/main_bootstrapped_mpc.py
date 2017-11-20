@@ -10,7 +10,7 @@ import tensorflow as tf
 import numpy as np
 
 from bootstrapped_mpc import BootstrappedMPC
-from dataset import Dataset, one_shot_dataset
+from dataset import PrioritizedDataset, one_shot_dataset
 from ddpg_learner_flags import DDPGLearnerFlags
 from deterministic_learner_flags import DeterministicLearnerFlags
 from dynamics import DynamicsFlags, NNDynamicsModel
@@ -30,8 +30,8 @@ import logz
 
 def _train(args, learner_flags, smoothing, status_reporter):
     env = args.experiment.mk_env()
-    data = Dataset.from_env(env, args.experiment.horizon,
-                            args.experiment.bufsize)
+    data = PrioritizedDataset.from_env(env, args.experiment.horizon,
+                                       args.experiment.bufsize)
     with timeit('gathering warmup data'):
         add_warmup_data(args, data)
     venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)

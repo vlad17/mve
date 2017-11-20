@@ -83,7 +83,7 @@ def _array_min2d(x):
     return x.reshape(-1, 1)
 
 
-def openai_batch(obs, next_obs, rewards, acs, terminals):
+def openai_batch(obs, next_obs, rewards, acs, terminals, weights):
     """
     Converts a regular batch of data into the format openai's DDPG
     class expects.
@@ -94,4 +94,5 @@ def openai_batch(obs, next_obs, rewards, acs, terminals):
         'rewards': _array_min2d(rewards),
         'actions': _array_min2d(acs),
         'terminals1': _array_min2d(terminals),
+        'weights': _array_min2d(weights)
     }

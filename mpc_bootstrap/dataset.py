@@ -6,6 +6,7 @@ import numpy as np
 
 from ddpg.memory import RingBuffer
 from utils import get_ob_dim, get_ac_dim
+from heap import MaxHeap, SumTree
 
 
 class Path(object):
@@ -231,3 +232,100 @@ def one_shot_dataset(paths):
     dataset = Dataset(ac_dim, ob_dim, paths[0].max_horizon, tot_transitions)
     dataset.add_paths(paths)
     return dataset
+
+
+class PrioritizedDataset(Dataset):
+    """
+    Offers all of the functionality of the base class and
+    allows for additional prioritization in optimization.
+    """
+
+    def __init__(self, ac_dim, ob_dim, max_horizon, maxlen):
+        super().__init__(ac_dim, ob_dim, max_horizon, maxlen)
+        self._batch_idx = None
+        self._weight_heap = MaxHeap(maxlen)
+        self._sum_tree = SumTree(maxlen)
+        self._buffer_idx = 0
+
+    def prioritized_sample_many(self, nbatches, batch_size):
+        """
+        A generator analogous to sample_many, but this adds an
+        importance weight per Schaul et al 2015 to the end of the
+        batch tuple.
+
+        See https://arxiv.org/abs/1511.05952 for algorithm details.
+
+        If you use this method in a for-loop, you should co-operate
+        by calling prioritized_dataset.update_errs(...) with
+        the errors that each item in the batch generated for the
+        most recent batch. This lets the dataset updates its
+        importance weights. E.g.:
+
+        generator = data.prioritized_sample_many(...)
+        for batch in generator:
+            objective_errors = train(batch)
+            data.update_errs(objective_errors)
+        """
+        batch_idxs = self._sum_tree.sample(
+            nbatches * batch_size).reshape(nbatches, batch_size)
+        transitions = [self.obs, self.next_obs, self.rewards, self.acs,
+                       self.terminals]
+        for batch_idx in batch_idxs:
+            self._batch_idx = batch_idx
+            transition = [transition_item[batch_idx] for transition_item
+                          in transitions]
+            weights = self._weight_heap.get_values(batch_idx)
+            max_weight = self._weight_heap.max()
+            transition.append(weights / max_weight)
+            yield transition
+
+        self._batch_idx = None
+
+    def add_paths(self, paths):
+        super().add_paths(paths)
+        # _buffer_idx tracks where in each replay buffer (stored in the
+        # base class) that we are. Now that we just added the new
+        # paths we should update them.
+        num_new_transitions = sum(len(path.obs) for path in paths)
+        maxlen = self._sum_tree.size
+        prio_max = self._sum_tree.max()
+        if prio_max == 0:
+            prio_max = 1  # first add_paths we need to start w/ nonzero prio
+
+        while num_new_transitions > 0:
+            buffer_add_len = min(
+                maxlen - self._buffer_idx, num_new_transitions)
+            idxs = np.arange(buffer_add_len, dtype=int)
+            idxs += self._buffer_idx
+            vals = np.full(buffer_add_len, prio_max)
+            self._update_priorities(idxs, vals)
+            num_new_transitions -= buffer_add_len
+            self._buffer_idx = (self._buffer_idx + buffer_add_len) % maxlen
+
+    def _update_priorities(self, idxs, prios):
+        self._sum_tree.update_priorities(idxs, prios)
+        weights = 1 / np.sqrt(  # beta = 0.5 from the paper
+            self._weight_heap.size *
+            self._sum_tree.probabilities(idxs))
+        self._weight_heap.modify_values(idxs, weights)
+
+    def update_errs(self, errs):
+        """
+        This must be called from within a for-loop iterating over the
+        generator created by self.prioritized_sample_many.
+
+        This updates the corresponding importance weights for the
+        batch that was sent (and received the parameter absolute errors).
+        """
+        errs = np.squeeze(errs)
+        blended_errs = np.sqrt(errs)  # alpha = 0.5 from the paper
+        self._update_priorities(self._batch_idx, blended_errs)
+
+    @staticmethod
+    def from_env(env, max_horizon, maxlen):
+        """
+        Generate a dataset with action/observation as specified by an
+        environment.
+        """
+        return PrioritizedDataset(
+            get_ac_dim(env), get_ob_dim(env), max_horizon, maxlen)
