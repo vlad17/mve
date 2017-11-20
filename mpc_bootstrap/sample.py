@@ -23,7 +23,18 @@ def sample_venv(venv, policy, max_horizon=1000):
     active_n = np.ones(len(obs_n), dtype=bool)
     # a = number of active environments (not done)
     for _ in range(max_horizon):
+        # If there are no active environments, we're done!
+        if np.sum(active_n) == 0:
+            break
+
+        # Note that `np.asarray([[1, 1], [2, 2]]).shape` is `(2, 2)` but
+        # `np.asarray([None, [1, 1], [2, 2]])` is `(3,)`. The `None` prevents
+        # numpy from correctly inferring the shape of the array. Here, we
+        # filter out the Nones and then re-asarray `obs_a` so that numpy can
+        # properly infer the shape of `obs_a`.
         obs_a = np.asarray(obs_n)[active_n]
+        obs_a = np.asarray(obs_a.tolist())
+
         acs_a, predicted_rewards_a = policy.act(obs_a)
         # list conversion required below b/c acs_n is 1D array of objects
         # but acs_a is a 2D matrix of floats
