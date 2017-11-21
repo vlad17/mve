@@ -49,6 +49,11 @@ class TuneFlags(Flags):
             type=str,
             default='hc-hard',
             help='environment name for testing')
+        tuner.add_argument(
+            '--result_dir',
+            type=str,
+            default='data',
+            help='directory to store results in')
 
     @staticmethod
     def name():
@@ -58,6 +63,7 @@ class TuneFlags(Flags):
         self.ray_addr = args.ray_addr
         self.tunefile = args.tunefile
         self.env_name = args.env_name
+        self.result_dir = args.result_dir
 
 
 def train(config, status_reporter):
@@ -129,6 +135,7 @@ def _search_hypers(all_hypers, tune):
                 tune.env_name,
                 'script',
                 stopping_criterion={'timesteps_total': nit},
+                local_dir=tune.result_dir,
                 config=config,
                 resources=Resources(cpu=1, gpu=1)))
 
