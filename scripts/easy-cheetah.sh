@@ -28,9 +28,8 @@ python mpc_bootstrap/plot.py \
 python mpc_bootstrap/plot.py \
        'data/delta_hc-easy:avg-learner-return:$\delta$-BMPC' \
        'data/zero_hc-easy:avg-learner-return:$0$-BMPC (learner)' \
-       --hlines 'data/random_hc-easy:avg-return:random'
+       --hlines 'data/random_hc-easy:avg-return:random' \
        --yaxis "10-episode avg return" --outfile report/easy-cheetah-learner-return.pdf
-
 
 python mpc_bootstrap/plot.py \
        'data/delta_hc-easy:standardized-reward-bias:$\delta$-BMPC' \
