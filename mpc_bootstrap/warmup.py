@@ -41,14 +41,14 @@ class WarmupFlags(Flags):
             help='run this many random rollouts to add to the '
             'starting dataset of transitions')
         argument_group.add_argument(
-            '--warmup_iterations_mpc',
+            '--warmup_paths_mpc',
             type=int,
             default=0,
-            help='run this many iterations of MPC for warmup')
+            help='run this many total paths of MPC for warmup')
 
     def __init__(self, args):
         self.warmup_paths_random = args.warmup_paths_random
-        self.warmup_iterations_mpc = args.warmup_iterations_mpc
+        self.warmup_paths_mpc = args.warmup_paths_mpc
 
     @staticmethod
     def name():
@@ -89,7 +89,7 @@ def _sample_mpc(tf_reward, venv, warmup_flags, mpc_flags, dyn_flags, data):
             g.finalize()
 
             _mpc_loop(
-                warmup_flags.warmup_iterations_mpc,
+                warmup_flags.warmup_paths_mpc,
                 data, dynamics, controller, venv)
 
 
@@ -105,8 +105,8 @@ def add_warmup_data(flags, data):
                        flags.warmup.warmup_paths_random)
         _sample_random(venv, data)
 
-    if flags.warmup.warmup_iterations_mpc > 0:
-        venv = mk_venv(flags.experiment.mk_env, flags.mpc.onpol_paths)
+    if flags.warmup.warmup_paths_mpc > 0:
+        venv = mk_venv(flags.experiment.mk_env, 1)
         tf_reward = flags.experiment.mk_env().tf_reward
         _sample_mpc(
             tf_reward, venv, flags.warmup, flags.mpc, flags.dynamics, data)

@@ -31,7 +31,7 @@ main() {
         local -r num_procs=2
         local -r plot_flags="--notex"
         local -r training_batches=10
-        local -r warmup_iterations_mpc=1
+        local -r warmup_paths_mpc=1
         local -r warmup_iters=1
     else
         local -r ddpg_onpol_iters=300
@@ -39,12 +39,12 @@ main() {
         local -r log_every=10
         local -r mpc_onpol_iters=30
         local -r mpc_simulated_paths=1000
-        local -r num_paths=$((48 * 1000))
-        local -r num_procs=48
+        local -r num_paths=1000
+        local -r num_procs=50
         local -r plot_flags=""
         local -r training_batches=4000
-        local -r warmup_iterations_mpc=10
-        local -r warmup_iters=100
+        local -r warmup_paths_mpc=25
+        local -r warmup_iters=25
     fi
 
     set -x
@@ -70,7 +70,7 @@ main() {
         --con_depth 2 \
         --con_learning_rate 1e-4 \
         --critic_lr 1e-4 \
-        --warmup_iterations_mpc "$warmup_iterations_mpc" \
+        --warmup_paths_mpc "$warmup_paths_mpc" \
         --action_noise_exploration 0.1 \
         --onpol_paths 10
 
@@ -82,7 +82,7 @@ main() {
         --mpc_simulated_paths "$mpc_simulated_paths" \
         --onpol_iters "$mpc_onpol_iters" \
         --seed 1 5 10 \
-        --warmup_iterations_mpc "$warmup_iterations_mpc" \
+        --warmup_paths_mpc "$warmup_paths_mpc" \
         --onpol_paths 10
 
     # note ddpg does 1 rollout / iter, hence the diff in numbers

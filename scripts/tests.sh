@@ -34,7 +34,7 @@ main() {
     ray_addr="$(cat ray-init.txt | awk '/ray start --redis-address/ { print $4 }')"
     rm ray-init.txt
 
-    tune_params_json='[{"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "warmup_iterations_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}, {"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "warmup_iterations_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}]'
+    tune_params_json='[{"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "warmup_paths_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}, {"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "warmup_paths_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}]'
 
     main_random="mpc_bootstrap/main_random_policy.py"
     main_mpc="mpc_bootstrap/main_mpc.py"
@@ -71,7 +71,7 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --training_batches 2 --log_every 1")
     # BMPC
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags")
-    cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags --warmup_iterations_mpc 1")
+    cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags --warmup_paths_mpc 1")
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags --explore_std 1")
     cmds+=("python $main_bmpc gaussian $mpc_flags $nn_learner_flags $warmup_flags")
     cmds+=("python $main_bmpc gaussian $mpc_flags $nn_learner_flags $warmup_flags --no_extra_explore")
