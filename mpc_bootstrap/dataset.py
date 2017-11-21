@@ -276,6 +276,7 @@ class PrioritizedDataset(Dataset):
                           in transitions]
             weights = self._weight_heap.get_values(batch_idx)
             max_weight = self._weight_heap.max()
+            assert max_weight > 0, max_weight
             transition.append(weights / max_weight)
             yield transition
 
@@ -304,9 +305,11 @@ class PrioritizedDataset(Dataset):
 
     def _update_priorities(self, idxs, prios):
         self._sum_tree.update_priorities(idxs, prios)
-        weights = 1 / np.sqrt(  # beta = 0.5 from the paper
+        weights = np.sqrt(  # beta = 0.5 from the paper
             self._weight_heap.size *
-            self._sum_tree.probabilities(idxs))
+            self._sum_tree.probabilities(idxs)) + 1e-6
+        assert np.all(weights) > 0, weights[weights <= 0]
+        weights = 1 / weights
         self._weight_heap.modify_values(idxs, weights)
 
     def update_errs(self, errs):
