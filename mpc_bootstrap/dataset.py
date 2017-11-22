@@ -1,5 +1,7 @@
 """Implementation of a transition dataset (aka replay buffer)"""
 
+import pickle
+
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 import numpy as np
@@ -218,6 +220,28 @@ class Dataset(object):
         for batch_idx in batch_idxs:
             yield [transition_item[batch_idx] for transition_item
                    in transitions]
+
+    def clone(self, that):
+        """Clone that into self."""
+        # pylint: disable=protected-access
+        self.max_horizon = that.max_horizon
+        self._obs = that._obs
+        self._next_obs = that._next_obs
+        self._rewards = that._rewards
+        self._acs = that._acs
+        self._terminals = that._terminals
+        self._predicted_rewards = that._predicted_rewards
+
+    def dump(self, filename):
+        """Dump a Dataset to a file."""
+        with open(filename, "wb") as f:
+            pickle.dump(self, f)
+
+    @staticmethod
+    def load(filename):
+        """Load a Dataset from a file."""
+        with open(filename, "rb") as f:
+            return pickle.load(f)
 
 
 def one_shot_dataset(paths):

@@ -81,11 +81,23 @@ main() {
     cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --env_name ant")
     cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --env_name walker2d")
     cmds+=("python $main_bmpc zero $mpc_flags")
+    # Check that warmup caching doesn't break anything. These commands should
+    # create two new cache directories.
+    rm -rf data/test_warmup_cache
+    cmds+=("python $main_mpc $mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
+    cmds+=("python $main_mpc $mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
+    cmds+=("python $main_mpc $mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 4 --warmup_paths_mpc 2")
 
     for cmd in "${cmds[@]}"; do
         box "$cmd"
         $cmd
     done
+
+    num_caches="$(ls data/test_warmup_cache | wc -l)"
+    if [[ "$num_caches" -ne 2 ]]; then
+        echo "num_caches = $num_caches"
+        exit 1
+    fi
 
     instance="data/plotexp_hc-hard:dynamics-mse:x"
     cmd="python mpc_bootstrap/plot.py $instance --outfile x.pdf --yaxis x --notex"
