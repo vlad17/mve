@@ -17,7 +17,7 @@
 python mpc_bootstrap/main_bootstrapped_mpc.py delta --verbose --exp_name delta --env_name hc-easy --onpol_iters 20 --seed 1 5 10
 python mpc_bootstrap/main_bootstrapped_mpc.py zero --verbose --exp_name zero --env_name hc-easy --onpol_iters 20 --seed 1 5 10
 python mpc_bootstrap/main_mpc.py --verbose --exp_name mpc --env_name hc-easy --onpol_iters 20 --seed 1 5 10
-python mpc_bootstrap/main_random_policy.py --verbose --exp_name random --env_name hc-easy --num_paths 20 --num_procs 20 --seed 1 5 10
+python mpc_bootstrap/main_random_policy.py --verbose --exp_name random --env_name hc-easy --num_paths 20 --seed 1 5 10
 
 python mpc_bootstrap/plot.py \
        'data/delta_hc-easy:avg-return:$\delta$-BMPC' \

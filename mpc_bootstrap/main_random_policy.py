@@ -1,6 +1,5 @@
 """Generate random rollouts."""
 
-import multiprocessing
 import os
 import json
 
@@ -14,8 +13,7 @@ from flags import (Flags, convert_flags_to_json, parse_args)
 from multiprocessing_env import mk_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
-from utils import (make_data_directory, seed_everything,
-                   timeit, log_statistics)
+from utils import (make_data_directory, seed_everything, log_statistics)
 import log
 import logz
 
@@ -33,38 +31,20 @@ class RandomPolicyFlags(Flags):
             default=100,
             help='number of paths',
         )
-        random.add_argument(
-            '--num_procs',
-            type=int,
-            default=multiprocessing.cpu_count(),
-            help='number of procs for venv',
-        )
 
     @staticmethod
     def name():
         return "random"
 
     def __init__(self, args):
-        # For simplicity, we enforce that the number of paths a multiple of the
-        # number of processors.
-        assert args.num_paths % args.num_procs == 0, args
-
         self.num_paths = args.num_paths
-        self.num_procs = args.num_procs
 
 
 def _train(args):
-    venv = mk_venv(args.experiment.mk_env, args.random.num_procs)
-    all_paths = []
+    venv = mk_venv(args.experiment.mk_env, args.random.num_paths)
     random_policy = RandomPolicy(venv)
-    for itr in range(args.random.num_paths // args.random.num_procs):
-        start = itr * args.random.num_procs
-        stop = (itr + 1) * args.random.num_procs
-        with timeit('generating rollouts {}-{}'.format(start, stop)):
-            paths = sample_venv(venv, random_policy, args.experiment.horizon)
-            all_paths += paths
-
-    data = one_shot_dataset(all_paths)
+    paths = sample_venv(venv, random_policy, args.experiment.horizon)
+    data = one_shot_dataset(paths)
     returns = data.per_episode_rewards()
     log_statistics('return', returns)
     logz.dump_tabular()

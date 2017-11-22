@@ -28,7 +28,6 @@ main() {
         local -r mpc_onpol_iters=3
         local -r mpc_simulated_paths=10
         local -r num_paths=10
-        local -r num_procs=2
         local -r plot_flags="--notex"
         local -r training_batches=10
         local -r warmup_paths_mpc=1
@@ -40,7 +39,6 @@ main() {
         local -r mpc_onpol_iters=30
         local -r mpc_simulated_paths=1000
         local -r num_paths=1000
-        local -r num_procs=50
         local -r plot_flags=""
         local -r training_batches=4000
         local -r warmup_paths_mpc=25
@@ -52,7 +50,6 @@ main() {
         --verbose \
         --exp_name random \
         --env_name walker2d \
-        --num_procs "$num_procs" \
         --num_paths "$num_paths" \
         --horizon "$horizon" \
         --seed 1 5 10

@@ -43,7 +43,7 @@ main() {
     tune="mpc_bootstrap/tune.py"
 
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
-    random_flags="$experiment_flags --num_paths 8 --num_procs 2"
+    random_flags="$experiment_flags --num_paths 8"
     dynamics_flags="--dyn_epochs 1 --dyn_depth 1 --dyn_width 8"
     mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --onpol_paths 3 --mpc_simulated_paths 2 --mpc_horizon 3"
     warmup_flags="--warmup_paths_random 2"
