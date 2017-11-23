@@ -92,7 +92,7 @@ class RunFlags(Flags):
     def add_flags(parser, argument_group=None):
         """Adds flags to an argparse parser."""
         if argument_group is None:
-            argument_group = parser.add_argument_group('mpc')
+            argument_group = parser.add_argument_group('run')
         argument_group.add_argument(
             '--onpol_iters',
             type=int,
