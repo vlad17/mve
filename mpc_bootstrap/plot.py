@@ -58,7 +58,7 @@ def _plot_data(data, value, outfile, hlines):
     plt.clf()
 
 
-def _get_datasets(fpath, column, label, yaxis):
+def _get_datasets(fpath, column, label, yaxis, smoothing):
     unit = 0
     datasets = []
     for root, _, files in os.walk(fpath):
@@ -78,6 +78,8 @@ def _get_datasets(fpath, column, label, yaxis):
                 'Condition',
                 label
             )
+            experiment_data[yaxis] = pd.rolling_mean(
+                experiment_data[yaxis], smoothing)
 
             datasets.append(experiment_data)
             unit += 1
@@ -118,6 +120,7 @@ def main():
     parser.add_argument('--drop_iterations', default=0, type=int)
     # uses last record and plots it as a horizontal line
     parser.add_argument('--hlines', default=[], nargs='*', type=str)
+    parser.add_argument('--smoothing', default=1, type=int)
     args = parser.parse_args()
 
     if not args.notex:
@@ -126,7 +129,7 @@ def main():
     data = []
     for column in args.columns:
         logdir, value, label = column.split(':')
-        data += _get_datasets(logdir, value, label, args.yaxis)
+        data += _get_datasets(logdir, value, label, args.yaxis, args.smoothing)
 
     hlines = []
     for column in args.hlines:
