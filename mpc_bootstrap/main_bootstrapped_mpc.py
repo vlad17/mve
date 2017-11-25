@@ -66,9 +66,9 @@ def _train(args, learner_flags, smoothing, status_reporter):
             most_recent = one_shot_dataset(paths)
             returns = most_recent.per_episode_rewards()
             mse = dyn_model.dataset_mse(most_recent)
-            bias, zero_bias = most_recent.reward_bias(args.mpc.mpc_horizon)
-            ave_bias = bias.mean() / np.fabs(zero_bias.mean())
-            ave_sqerr = np.square(bias).mean() / np.square(zero_bias).mean()
+            bias, _ = most_recent.reward_bias(args.mpc.mpc_horizon)
+            ave_bias = bias.mean()
+            ave_sqerr = np.square(bias).mean()
             # TODO: bootstrap ave_bias ci, ave_sqerr ci
             learner.log(most_recent)
             # out-of-band learner evaluation

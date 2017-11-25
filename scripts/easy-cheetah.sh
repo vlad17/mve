@@ -12,6 +12,8 @@
 #   easy-cheetah-dynamics-mse.pdf - for 1-3
 #
 # (1) Uniform-sampling MPC (2) delta-BMPC (3) 0-BMPC (4) random
+#
+# Results from running this experiment can be found in report/easy-cheetah.tgz
 
 
 python mpc_bootstrap/main_bootstrapped_mpc.py delta --verbose --exp_name delta --env_name hc-easy --onpol_iters 20 --seed 1 5 10 15

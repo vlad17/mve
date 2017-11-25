@@ -56,9 +56,9 @@ def _train(args):
             most_recent = one_shot_dataset(paths)
             returns = most_recent.per_episode_rewards()
             mse = dyn_model.dataset_mse(most_recent)
-            bias, zero_bias = most_recent.reward_bias(args.mpc.mpc_horizon)
-            ave_bias = bias.mean() / np.fabs(zero_bias.mean())
-            ave_sqerr = np.square(bias).mean() / np.square(zero_bias).mean()
+            bias, _ = most_recent.reward_bias(args.mpc.mpc_horizon)
+            ave_bias = bias.mean()
+            ave_sqerr = np.square(bias).mean()
 
         logz.log_tabular('iteration', itr)
         log_statistics('return', returns)

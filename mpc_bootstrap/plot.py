@@ -47,13 +47,17 @@ import numpy as np
 import seaborn as sns
 
 
-def _plot_data(data, value, outfile, hlines):
+def _plot_data(data, value, outfile, hlines, yrange):
     sns.set(style='darkgrid', font_scale=1.5)
     sns.tsplot(data=data, time='iteration', value=value,
                unit='Unit', condition='Condition')
     for y, lbl in hlines:
         plt.axhline(y, label=lbl, linestyle='--')
     plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2)
+    if yrange:
+        lo, hi = yrange
+        plt.ylim(float(lo), float(hi))
+
     plt.savefig(outfile, format='pdf', bbox_inches='tight')
     plt.clf()
 
@@ -85,6 +89,7 @@ def _get_datasets(fpath, column, label, yaxis, smoothing):
             unit += 1
 
     return datasets
+
 
 def _get_hline(fpath, column, label):
     unit = 0
@@ -121,6 +126,7 @@ def main():
     # uses last record and plots it as a horizontal line
     parser.add_argument('--hlines', default=[], nargs='*', type=str)
     parser.add_argument('--smoothing', default=1, type=int)
+    parser.add_argument('--yrange', default=None, type=float, nargs=2)
     args = parser.parse_args()
 
     if not args.notex:
@@ -138,7 +144,7 @@ def main():
 
     data = pd.concat(data, ignore_index=True)
     data = data[data['iteration'] >= args.drop_iterations]
-    _plot_data(data, args.yaxis, args.outfile, hlines)
+    _plot_data(data, args.yaxis, args.outfile, hlines, args.yrange)
 
 
 if __name__ == "__main__":
