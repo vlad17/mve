@@ -28,6 +28,7 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
         self._action_noise = ddpg_flags.action_noise_exploration
         self._param_noise_act = ddpg_flags.param_noise_exploitation
         self._training_batches = ddpg_flags.training_batches
+        self._epsilon_ball = ddpg_flags.epsilon_ball
 
     def _init(self):
         if not self._initted:
@@ -36,6 +37,13 @@ class DDPGLearner(Learner):  # pylint: disable=too-many-instance-attributes
 
     def tf_action(self, states_ns, is_initial=False):
         acs = self._agent.actor(states_ns, reuse=True)
+        if self._epsilon_ball > 0:
+            perturb = tf.random_uniform(tf.shape(acs), minval=-1, maxval=1)
+            perturb *= self._epsilon_ball
+            acs += perturb
+            acs = tf.minimum(acs, self._env.action_space.high)
+            acs = tf.maximum(acs, self._env.action_space.low)
+            return acs
         acs *= self._env.action_space.high
         if is_initial:
             if self._action_noise > 0:

@@ -4,6 +4,7 @@ from ddpg_learner import DDPGLearner
 from neural_network_learner_flags import NeuralNetworkLearnerFlags
 
 
+# pylint: disable=too-many-instance-attributes
 class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
     """DDPGLearner flags."""
 
@@ -57,6 +58,13 @@ class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
             help='if set, specifies the fixed number of minibatches to train '
             'DDPG on, overriding --con_epochs'
         )
+        argument_group.add_argument(
+            '--epsilon_ball',
+            default=0,
+            type=float,
+            help='use epsilon-ball action exploration with the specified'
+            ' epsilon if >0 -- overrides all other noise strategies'
+        )
 
     @staticmethod
     def name():
@@ -71,6 +79,7 @@ class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
         self.param_noise_exploration = args.param_noise_exploration
         self.param_noise_exploitation = args.param_noise_exploitation
         self.training_batches = args.training_batches
+        self.epsilon_ball = args.epsilon_ball
 
     def make_learner(self, venv, sess):
         """Make a DDPGLearner."""
