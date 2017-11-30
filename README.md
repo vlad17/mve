@@ -1,4 +1,4 @@
-# CMPC: Constrianed Model Predictive Control [![Build Status](https://travis-ci.com/vlad17/mpc-bootstrap.svg?token=9HHJycCztSrS3mCpqQ9s&branch=master)](https://travis-ci.com/vlad17/mpc-bootstrap)
+# CMPC: Constrianed Model Predictive Control [![Build Status](https://travis-ci.com/vlad17/cmpc.svg?token=xAqzxKFpxN3pG4om3z4n&branch=master)](https://travis-ci.com/vlad17/cmpc)
 
 Account for model inaccuracies in MPC.
 
