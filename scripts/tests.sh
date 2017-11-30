@@ -36,11 +36,11 @@ main() {
 
     tune_params_json='[{"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "warmup_paths_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}, {"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "warmup_paths_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}]'
 
-    main_random="mpc_bootstrap/main_random_policy.py"
-    main_mpc="mpc_bootstrap/main_mpc.py"
-    main_bmpc="mpc_bootstrap/main_bootstrapped_mpc.py"
-    main_ddpg="mpc_bootstrap/main_ddpg.py"
-    tune="mpc_bootstrap/tune.py"
+    main_random="cmpc/main_random_policy.py"
+    main_mpc="cmpc/main_mpc.py"
+    main_bmpc="cmpc/main_cmpc.py"
+    main_ddpg="cmpc/main_ddpg.py"
+    tune="cmpc/tune.py"
 
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8"
@@ -100,13 +100,13 @@ main() {
     fi
 
     instance="data/plotexp_hc-hard:dynamics-mse:x"
-    cmd="python mpc_bootstrap/plot.py $instance --outfile x.pdf --yaxis x --notex"
+    cmd="python cmpc/plot.py $instance --outfile x.pdf --yaxis x --notex"
     $cmd
     rm x.pdf
 
     instance="data/plotexp_hc-hard:avg-return:x"
     hlines="--hlines data/plotexp_hc-hard:dynamics-mse:yy"
-    cmd="python mpc_bootstrap/plot.py $instance --outfile y.pdf --yaxis y --notex $hlines --smoothing 2"
+    cmd="python cmpc/plot.py $instance --outfile y.pdf --yaxis y --notex $hlines --smoothing 2"
     $cmd
     rm y.pdf
 

@@ -1,4 +1,4 @@
-"""Generate bootstrapped MPC rollouts."""
+"""Generate constrained MPC rollouts."""
 
 import collections
 import json
@@ -9,7 +9,7 @@ import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 import numpy as np
 
-from bootstrapped_mpc import BootstrappedMPC
+from mpc import CMPC
 from dataset import Dataset, one_shot_dataset
 from ddpg_learner_flags import DDPGLearnerFlags
 from deterministic_learner_flags import DeterministicLearnerFlags
@@ -39,7 +39,7 @@ def _train(args, learner_flags, smoothing, status_reporter):
 
     dyn_model = NNDynamicsModel(venv, sess, data, args.dynamics)
     learner = learner_flags.make_learner(venv, sess)
-    controller = BootstrappedMPC(
+    controller = CMPC(
         venv, dyn_model, args.mpc.mpc_horizon,
         env.tf_reward, args.mpc.mpc_simulated_paths, learner, sess)
     sess.__enter__()
@@ -96,7 +96,7 @@ def _train(args, learner_flags, smoothing, status_reporter):
 def main(args, learner_flags, smoothing=None, status_reporter=None):
     """
     With args and learner_flags as specified in __main__ below,
-    this runs the specified bootstrapped_mpc.
+    this runs the specified constrained MPC.
 
     Reports the average performance of the last smoothing number
     of iterations for all seeds.

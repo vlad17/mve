@@ -54,7 +54,7 @@ class _StackCrawlingFormatter(logging.Formatter):
         return s
 
 
-_LOGGER = logging.getLogger("mpc_bootstrap")
+_LOGGER = logging.getLogger("cmpc")
 _FORMAT_STRING = "[%(asctime)-15s {pathname}:{lineno}] %(message)s"
 _FORMATTER = _StackCrawlingFormatter(_FORMAT_STRING)
 

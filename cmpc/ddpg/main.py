@@ -1,4 +1,4 @@
-"""Glue between DDPG and mpc_bootstrap APIs"""
+"""Glue between DDPG and CMPC APIs"""
 
 import numpy as np
 

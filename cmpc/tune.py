@@ -1,5 +1,5 @@
 """
-Search for best hyperparameters of BMPC.
+Search for best hyperparameters of CMPC.
 
 Adapted from:
 https://github.com/ray-project/ray/blob/ray-0.2.2/python/ray/tune/examples/tune_mnist_ray.py
@@ -18,8 +18,8 @@ from ray.tune.trial import (Trial, Resources)
 from ray.tune.trial_runner import TrialRunner
 
 from flags import (Flags, parse_args, parse_args_with_subcmds)
-from main_bootstrapped_mpc import main as bmpc_main
-from main_bootstrapped_mpc import flags_to_parse as bmpc_flags
+from main_cmpc import main as cmpc_main
+from main_cmpc import flags_to_parse as cmpc_flags
 
 
 class TuneFlags(Flags):
@@ -73,7 +73,7 @@ def train(config, status_reporter):
     config should be a dictionary with the usual BMPC flags.
 
     This basically runs
-    python main_bootstrapped_mpc.py config['bmpc_type'] <other config args>
+    python main_cmpc.py config['cmpc_type'] <other config args>
 
     The other arguments are determined by their keys (flag) and values
     (argument for the flag). If the value is None then that flag gets no
@@ -88,7 +88,7 @@ def train(config, status_reporter):
     # per https://ray.readthedocs.io/en/latest/using-ray-with-gpus.html
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, ray.get_gpu_ids()))
 
-    args = [config['bmpc_type']]
+    args = [config['cmpc_type']]
     smoothing = config['smoothing']
 
     assert 'exp_name' not in config, 'exp_name in config'
@@ -102,7 +102,7 @@ def train(config, status_reporter):
     exp_name = datetime.datetime.now().strftime('%b-%d-%I%M%p-%G')
     args += ['--exp_name', exp_name, '--seed', '7']
 
-    flags, subflags = bmpc_flags()
+    flags, subflags = cmpc_flags()
     parsed_flags, parsed_subflags = parse_args_with_subcmds(
         flags, subflags, args)
     ctr = 0
@@ -114,7 +114,7 @@ def train(config, status_reporter):
             episode_reward_mean=result))
         ctr += 1
 
-    bmpc_main(parsed_flags, parsed_subflags, smoothing, _reporter)
+    cmpc_main(parsed_flags, parsed_subflags, smoothing, _reporter)
 
 
 def _search_hypers(all_hypers, tune):
@@ -125,7 +125,7 @@ def _search_hypers(all_hypers, tune):
             'script_file_path': os.path.abspath(__file__),
             'script_min_iter_time_s': 0,
             'smoothing': hyp['smoothing'],
-            'bmpc_type': 'ddpg',
+            'cmpc_type': 'ddpg',
         }
         del hyp['smoothing']
         config['hypers'] = hyp

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Generates a file called params.json in the cwd with parameters set
-in json, ready for consumption by mpc_bootstrap/tune.py
+in json, ready for consumption by cmpc/tune.py
 """
 
 import json

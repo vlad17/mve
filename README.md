@@ -1,6 +1,6 @@
-# MPC bootstrap [![Build Status](https://travis-ci.com/vlad17/mpc-bootstrap.svg?token=9HHJycCztSrS3mCpqQ9s&branch=master)](https://travis-ci.com/vlad17/mpc-bootstrap)
+# CMPC: Constrianed Model Predictive Control [![Build Status](https://travis-ci.com/vlad17/mpc-bootstrap.svg?token=9HHJycCztSrS3mCpqQ9s&branch=master)](https://travis-ci.com/vlad17/mpc-bootstrap)
 
-Improve expert controllers by using a learned policy within the MPC expansion.
+Account for model inaccuracies in MPC.
 
 ## Requirements
 
@@ -11,27 +11,19 @@ Here are setup-specific requirements that you really, really have to do yourself
 
 Other system dependencies:
 
-* System dependencies for `gym` - [gym README](https://github.com/openai/gym/blob/master/README.rst)
+* System dependencies for `gym` - [gym README](https://github.com/openai/gym/blob/master/README.rst).
 
-Example conda installation with GPU (for CPU, modify `tensorflow-gpu` to `tensorflow`)
+Example conda installation:
 
-    conda create -y -n gpu-tfgpu-py35 python=3.5
-    source activate gpu-tfgpu-py35
-    conda install -y numpy
-    conda install -y scipy
-    pip install tensorflow-gpu
-    conda install -y -c anaconda pandas
-    conda install -y -c anaconda seaborn
-    pip install gym[all] # make sure to install system deps first!
-    pip install ray
-    pip install cloudpickle==0.4.1
-
-Or, using `requirements.txt`:
-
-    conda create -y -n gpu-tfgpu-py35 python=3.5
-    source activate gpu-tfgpu-py35
+    # GPU version
+    conda create -y -n gpu-py3.5 python=3.5
+    source activate gpu-py3.5
+    pip install -r <( sed 's/tensorflow/tensorflow-gpu/' requirements.txt )
+    # CPU version
+    conda create -y -n cpu-py3.5 python=3.5
+    source activate cpu-py3.5
     pip install -r requirements.txt
-
+    
 ## Scripts
 
 All scripts are available in `scripts/`, and should be run from the repo root.
@@ -40,19 +32,12 @@ All scripts are available in `scripts/`, and should be run from the repo root.
 | ------ | ------- |
 | `lint.sh` | invokes `pylint` with the appropriate flags for this repo |
 | `ubuntu-install.sh` | installs all deps except MuJoCo/python on Ubuntu 14.04 or Ubuntu 16.04 |
+| `tests.sh` | runs tests |
+| `mkparams.py` | generate parameters for grid search |
 
 ## Recreating the Report
 
-    ./scripts/easy-cost.sh
-    ./scripts/hard-cost.sh
-    ./scripts/hard2-cost.sh
-
-    # dagger attempt out-of-date, should re-run later
-
-    cd report
-    pdflatex report.tex
-    pdflatex report.tex
-    cd ..
+TODO
 
 ## Adding MuJoCo key to CI securely
 

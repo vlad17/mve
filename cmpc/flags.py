@@ -1,6 +1,6 @@
 """
 Ever wonder what it looks like when a grenade goes off in a hyperparameter
-factory? Tranining a (potentially bootstrapped) on-policy MPC controller
+factory? Tranining a (potentially constrained) on-policy MPC controller
 involves a _lot_ of hyperparameters that we'd like to toggle from the command
 line. This file helps do that without going crazy:
 

@@ -2,20 +2,20 @@
 
 # Lints code:
 #
-#   # Lint mpc_bootstrap by default.
+#   # Lint cmpc by default.
 #   ./scripts/lint.sh
 #   # Lint specific files.
-#   ./scripts/lint.sh mpc_bootstrap/{logz,plot}.py
+#   ./scripts/lint.sh cmpc/{logz,plot}.py
 
 set -euo pipefail
 
 lint() {
-    PYTHONPATH=mpc_bootstrap pylint --disable=locally-disabled,fixme "$@"
+    PYTHONPATH=cmpc pylint --disable=locally-disabled,fixme "$@"
 }
 
 main() {
     if [[ "$#" -eq 0 ]]; then
-        lint mpc_bootstrap
+        lint cmpc
     else
         lint "$@"
     fi
