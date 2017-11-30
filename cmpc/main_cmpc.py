@@ -1,6 +1,5 @@
 """Generate constrained MPC rollouts."""
 
-import collections
 import json
 import os
 
@@ -28,7 +27,7 @@ import log
 import logz
 
 
-def _train(args, learner_flags, smoothing, status_reporter):
+def _train(args, learner_flags, status_reporter):
     env = args.experiment.mk_env()
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
@@ -46,7 +45,6 @@ def _train(args, learner_flags, smoothing, status_reporter):
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
-    historical_returns = collections.deque()
     for itr in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
             if data.size:
@@ -77,11 +75,8 @@ def _train(args, learner_flags, smoothing, status_reporter):
             learner_returns = learner_data.per_episode_rewards()
             log_statistics('learner-return', learner_returns)
 
-        if len(historical_returns) == smoothing:
-            historical_returns.popleft()
-        historical_returns.append(np.mean(returns))
-        if len(historical_returns) == smoothing and status_reporter:
-            status_reporter(np.mean(historical_returns))
+        if status_reporter:
+            status_reporter(np.mean(returns))
 
         logz.log_tabular('iteration', itr)
         log_statistics('return', returns)
@@ -93,13 +88,10 @@ def _train(args, learner_flags, smoothing, status_reporter):
     sess.__exit__(None, None, None)
 
 
-def main(args, learner_flags, smoothing=None, status_reporter=None):
+def main(args, learner_flags, status_reporter=None):
     """
     With args and learner_flags as specified in __main__ below,
     this runs the specified constrained MPC.
-
-    Reports the average performance of the last smoothing number
-    of iterations for all seeds.
     """
     log.init(args.experiment.verbose)
     logdir_name = args.experiment.log_directory()
@@ -116,7 +108,7 @@ def main(args, learner_flags, smoothing=None, status_reporter=None):
         g = tf.Graph()
         with g.as_default():
             seed_everything(seed)
-            _train(args, learner_flags, smoothing or 1, status_reporter)
+            _train(args, learner_flags, status_reporter)
 
 
 def flags_to_parse():

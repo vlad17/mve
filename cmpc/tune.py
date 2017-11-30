@@ -5,6 +5,7 @@ Adapted from:
 https://github.com/ray-project/ray/blob/ray-0.2.2/python/ray/tune/examples/tune_mnist_ray.py
 """
 
+import collections
 import datetime
 import os
 import json
@@ -91,8 +92,8 @@ def train(config, status_reporter):
     args = [config['cmpc_type']]
     smoothing = config['smoothing']
 
-    assert 'exp_name' not in config, 'exp_name in config'
-    assert 'seed' not in config, 'seed in config'
+    assert 'exp_name' not in config['hypers'], 'exp_name in config'
+    assert 'seed' not in config['hypers'], 'seed in config'
 
     for k, v in config['hypers'].items():
         args.append('--' + k)
@@ -105,16 +106,22 @@ def train(config, status_reporter):
     flags, subflags = cmpc_flags()
     parsed_flags, parsed_subflags = parse_args_with_subcmds(
         flags, subflags, args)
+
     ctr = 0
+    historical_returns = collections.deque()
 
     def _reporter(result):
-        nonlocal ctr
+        nonlocal ctr, historical_returns
+        if len(historical_returns) == smoothing:
+            historical_returns.popleft()
+        historical_returns.append(result)
+        smoothed_result = np.mean(historical_returns)
         status_reporter.report(TrainingResult(
             timesteps_total=ctr,
-            episode_reward_mean=result))
+            episode_reward_mean=smoothed_result))
         ctr += 1
 
-    cmpc_main(parsed_flags, parsed_subflags, smoothing, _reporter)
+    cmpc_main(parsed_flags, parsed_subflags, _reporter)
 
 
 def _search_hypers(all_hypers, tune):
