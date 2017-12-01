@@ -1,20 +1,14 @@
 """Generate random rollouts."""
 
-import os
-import json
-
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
-import tensorflow as tf
 
 from dataset import one_shot_dataset
-from experiment_flags import ExperimentFlags
-from flags import (Flags, convert_flags_to_json, parse_args)
+from experiment import ExperimentFlags, experiment_main
+from flags import (Flags, parse_args)
 from multiprocessing_env import mk_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
-from utils import (make_data_directory, seed_everything)
-import log
 import reporter
 
 
@@ -49,27 +43,6 @@ def _train(args):
     reporter.add_summary_statistics('return', returns)
     reporter.advance_iteration()
 
-
-def _main(args):
-    log.init(args.experiment.verbose)
-    logdir_name = args.experiment.log_directory()
-    logdir = make_data_directory(logdir_name)
-
-    for seed in args.experiment.seed:
-        # Save params to disk.
-        logdir_seed = os.path.join(logdir, str(seed))
-        os.makedirs(logdir_seed)
-        with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
-            json.dump(convert_flags_to_json(args), f, sort_keys=True, indent=4)
-
-        # Run experiment.
-        g = tf.Graph()
-        with g.as_default():
-            with reporter.create(logdir_seed, args.experiment.verbose):
-                seed_everything(seed)
-                _train(args)
-
-
 if __name__ == "__main__":
     _args = parse_args([ExperimentFlags, RandomPolicyFlags])
-    _main(_args)
+    experiment_main(_args, _train)

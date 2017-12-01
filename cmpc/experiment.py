@@ -1,11 +1,22 @@
-"""Flags common to all experiments."""
+"""
+This module defines the flags common to all experiments,
+and the general experimental procedure.
+"""
 
+import json
+import os
+import shutil
 import subprocess
+import time
 
-from flags import Flags
+from flags import Flags, convert_flags_to_json
 from envs import (WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard,
                   WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
+import tensorflow as tf
 
+import log
+import reporter
+from utils import seed_everything
 
 class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
     """Flags common to all experiments."""
@@ -104,3 +115,82 @@ class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
         exp_name = self.exp_name
         env_name = self.env_name
         return "{}_{}".format(exp_name, env_name)
+
+
+def _make_data_directory(name):
+    """
+    _make_data_directory(name) will create a directory data/name and return the
+    directory's name. If a data/name directory already exists, then it will be
+    renamed data/name-i where i is the smallest integer such that data/name-i
+    does not already exist. For example, imagine the data/ directory has the
+    following contents:
+
+        data/foo
+        data/foo-1
+        data/foo-2
+        data/foo-3
+
+    Then, make_data_directory("foo") will rename data/foo to data/foo-4 and
+    then create a fresh data/foo directory.
+    """
+    # Make the data directory if it does not already exist.
+    if not os.path.exists('data'):
+        os.makedirs('data')
+
+    name = os.path.join('data', name)
+    ctr = 0
+    logdir = name
+    while os.path.exists(logdir):
+        logdir = name + '-{}'.format(ctr)
+        ctr += 1
+    if ctr > 0:
+        log.debug('Experiment already exists, moved old one to {}.', logdir)
+        shutil.move(name, logdir)
+
+    os.makedirs(name)
+    with open(os.path.join(name, 'starttime.txt'), 'w') as f:
+        print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
+
+    return name
+
+def experiment_main(flags, experiment_fn, subflags=None):
+    """
+    Given parsed arguments, this method does the high-level governance
+    required for running an iterated experiment.
+
+    In particular, for every seed s0, ..., sn, this creates
+    a directory in data/${exp_name}_${env_name}/si for each i.
+
+    With logging, summary reporting, and parameters appropriately
+    configured, for every sub-directory and its corresponding
+    seed, a new experiment is invoked on a fresh, seeded environment.
+
+    experiment_fn(flags) is called, with the seed modified in args
+    to indicate which seed was used. If subflags is not None
+    then experiment_fn(flags, subflags) is called.
+    """
+    log.init(flags.experiment.verbose)
+    logdir_name = flags.experiment.log_directory()
+    logdir = _make_data_directory(logdir_name)
+
+    all_seeds = flags.experiment.seed
+    for seed in all_seeds:
+        # Save params to disk.
+        logdir_seed = os.path.join(logdir, str(seed))
+        os.makedirs(logdir_seed)
+        flags.experiment.seed = seed
+        with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
+            flag_dict = convert_flags_to_json(flags)
+            if subflags is not None:
+                flag_dict.update(convert_flags_to_json([subflags]))
+            json.dump(flag_dict, f, sort_keys=True, indent=4)
+
+        # Run experiment.
+        g = tf.Graph()
+        with g.as_default():
+            with reporter.create(logdir_seed, flags.experiment.verbose):
+                seed_everything(seed)
+                if subflags is not None:
+                    experiment_fn(flags, subflags)
+                else:
+                    experiment_fn(flags)

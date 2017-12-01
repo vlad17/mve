@@ -18,9 +18,11 @@ from ray.tune.result import TrainingResult
 from ray.tune.trial import (Trial, Resources)
 from ray.tune.trial_runner import TrialRunner
 
+from experiment import experiment_main
 from flags import (Flags, parse_args, parse_args_with_subcmds)
-from main_cmpc import main as cmpc_main
+from main_cmpc import train as cmpc_train
 from main_cmpc import flags_to_parse as cmpc_flags
+import reporter
 
 
 class TuneFlags(Flags):
@@ -110,8 +112,9 @@ def train(config, status_reporter):
     ctr = 0
     historical_returns = collections.deque()
 
-    def _reporter(result):
+    def _report_hook(_, statistics):
         nonlocal ctr, historical_returns
+        result = np.mean(statistics['reward'])
         if len(historical_returns) == smoothing:
             historical_returns.popleft()
         historical_returns.append(result)
@@ -121,7 +124,8 @@ def train(config, status_reporter):
             episode_reward_mean=smoothed_result))
         ctr += 1
 
-    cmpc_main(parsed_flags, parsed_subflags, _reporter)
+    with reporter.report_hook(_report_hook):
+        experiment_main(parsed_flags, cmpc_train, parsed_subflags)
 
 
 def _search_hypers(all_hypers, tune):

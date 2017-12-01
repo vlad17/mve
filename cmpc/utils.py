@@ -4,9 +4,7 @@ Python patterns
 """
 
 from contextlib import contextmanager
-import os
 import random
-import shutil
 import time
 
 import tensorflow as tf
@@ -97,40 +95,3 @@ def build_mlp(input_placeholder,
             out = tf.layers.dense(out, size, activation=activation)
         out = tf.layers.dense(out, output_size, activation=output_activation)
     return out
-
-
-def make_data_directory(name):
-    """
-    make_data_directory(name) will create a directory data/name and return the
-    directory's name. If a data/name directory already exists, then it will be
-    renamed data/name-i where i is the smallest integer such that data/name-i
-    does not already exist. For example, imagine the data/ directory has the
-    following contents:
-
-        data/foo
-        data/foo-1
-        data/foo-2
-        data/foo-3
-
-    Then, make_data_directory("foo") will rename data/foo to data/foo-4 and
-    then create a fresh data/foo directory.
-    """
-    # Make the data directory if it does not already exist.
-    if not os.path.exists('data'):
-        os.makedirs('data')
-
-    name = os.path.join('data', name)
-    ctr = 0
-    logdir = name
-    while os.path.exists(logdir):
-        logdir = name + '-{}'.format(ctr)
-        ctr += 1
-    if ctr > 0:
-        log.debug('Experiment already exists, moved old one to {}.', logdir)
-        shutil.move(name, logdir)
-
-    os.makedirs(name)
-    with open(os.path.join(name, 'starttime.txt'), 'w') as f:
-        print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
-
-    return name

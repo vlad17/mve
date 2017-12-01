@@ -1,8 +1,5 @@
 """Generate constrained MPC rollouts."""
 
-import json
-import os
-
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
@@ -13,20 +10,21 @@ from dataset import Dataset, one_shot_dataset
 from ddpg_learner_flags import DDPGLearnerFlags
 from deterministic_learner_flags import DeterministicLearnerFlags
 from dynamics import DynamicsFlags, NNDynamicsModel
-from experiment_flags import ExperimentFlags
-from flags import (convert_flags_to_json, parse_args_with_subcmds)
+from experiment import experiment_main, ExperimentFlags
+from flags import parse_args_with_subcmds
 from mpc_flags import MpcFlags
 from multiprocessing_env import mk_venv
 from sample import sample_venv
 from stochastic_learner_flags import StochasticLearnerFlags
-from utils import (make_data_directory, seed_everything, timeit,
-                   create_tf_session)
+from utils import (timeit, create_tf_session)
 from warmup import add_warmup_data, WarmupFlags
 from zero_learner_flags import ZeroLearnerFlags
-import log
 import reporter
 
-def _train(args, learner_flags, status_reporter):
+def train(args, learner_flags):
+    """
+    Train constrained MPC with the specified flags and subflags.
+    """
     env = args.experiment.mk_env()
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
@@ -74,9 +72,6 @@ def _train(args, learner_flags, status_reporter):
             learner_returns = learner_data.per_episode_rewards()
             reporter.add_summary_statistics('learner reward', learner_returns)
 
-        if status_reporter:
-            status_reporter(np.mean(returns))
-
         reporter.add_summary_statistics('reward', returns)
         reporter.add_summary('dynamics mse', mse)
         reporter.add_summary('reward bias', ave_bias)
@@ -84,32 +79,6 @@ def _train(args, learner_flags, status_reporter):
         reporter.advance_iteration()
 
     sess.__exit__(None, None, None)
-
-
-def main(args, learner_flags, status_reporter=None):
-    """
-    With args and learner_flags as specified in __main__ below,
-    this runs the specified constrained MPC.
-    """
-    log.init(args.experiment.verbose)
-    logdir_name = args.experiment.log_directory()
-    logdir = make_data_directory(logdir_name)
-
-    for seed in args.experiment.seed:
-        # Save params to disk.
-        # TODO: extract this param-create-subdir pattern into utils
-        logdir_seed = os.path.join(logdir, str(seed))
-        os.makedirs(logdir_seed)
-        with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
-            json.dump(convert_flags_to_json(args), f, sort_keys=True, indent=4)
-
-        # Run experiment.
-        g = tf.Graph()
-        with g.as_default():
-            with reporter.create(logdir_seed, args.experiment.verbose):
-                seed_everything(seed)
-                _train(args, learner_flags, status_reporter)
-
 
 def flags_to_parse():
     """Flags that BMPC should parse"""
@@ -122,4 +91,4 @@ def flags_to_parse():
 if __name__ == "__main__":
     _flags, _subflags = flags_to_parse()
     _args, _learner_flags = parse_args_with_subcmds(_flags, _subflags)
-    main(_args, _learner_flags)
+    experiment_main(_args, train, _learner_flags)
