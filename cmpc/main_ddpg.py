@@ -8,17 +8,17 @@ from dataset import Dataset, one_shot_dataset
 from ddpg_learner_flags import DDPGLearnerFlags
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags)
-from multiprocessing_env import mk_venv
+from multiprocessing_env import make_venv
 import reporter
 from sample import sample_venv
 from utils import (timeit, create_tf_session)
 
 
 def _train(args):
-    env = args.experiment.mk_env()
+    env = args.experiment.make_env()
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
-    venv = mk_venv(args.experiment.mk_env, args.run.onpol_paths)
+    venv = make_venv(args.experiment.make_env, args.run.onpol_paths)
     sess = create_tf_session()
 
     learner = args.ddpg.make_learner(venv, sess)

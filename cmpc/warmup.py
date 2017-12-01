@@ -15,7 +15,7 @@ from dynamics import NNDynamicsModel
 from flags import Flags
 from log import debug
 from mpc import MPC
-from multiprocessing_env import mk_venv
+from multiprocessing_env import make_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
 from utils import create_tf_session, seed_everything
@@ -93,6 +93,7 @@ def _sample_mpc(tf_reward, venv, warmup_flags, mpc_flags, dyn_flags, data):
                 warmup_flags.warmup_paths_mpc,
                 data, dynamics, controller, venv)
 
+
 def _hash_dict(d):
     """
     Return a hex digest of the hash of d. We want _hash_dict(d) to return the
@@ -109,6 +110,7 @@ def _hash_dict(d):
         hasher.update(bytes(str(k), "utf-8"))
         hasher.update(bytes(str(v), "utf-8"))
     return hasher.hexdigest()
+
 
 def add_warmup_data(flags, data):
     """
@@ -177,20 +179,20 @@ def add_warmup_data(flags, data):
         with open(params_filename, "r") as f:
             cached_warmup_params = json.load(f)
             assert warmup_params == cached_warmup_params, \
-                   (warmup_params, cached_warmup_params)
+                (warmup_params, cached_warmup_params)
         cached_data = Dataset.load(dataset_filename)
         data.clone(cached_data)
         return
     debug("Warmup cache miss! Directory {} doesn't exist.", dataset_dir)
 
     if flags.warmup.warmup_paths_random > 0:
-        venv = mk_venv(flags.experiment.mk_env,
-                       flags.warmup.warmup_paths_random)
+        venv = make_venv(flags.experiment.make_env,
+                         flags.warmup.warmup_paths_random)
         _sample_random(venv, data)
 
     if flags.warmup.warmup_paths_mpc > 0:
-        venv = mk_venv(flags.experiment.mk_env, 1)
-        tf_reward = flags.experiment.mk_env().tf_reward
+        venv = make_venv(flags.experiment.make_env, 1)
+        tf_reward = flags.experiment.make_env().tf_reward
         _sample_mpc(
             tf_reward, venv, flags.warmup, flags.mpc, flags.dynamics, data)
 

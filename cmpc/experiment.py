@@ -18,6 +18,7 @@ import log
 import reporter
 from utils import seed_everything
 
+
 class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
     """Flags common to all experiments."""
 
@@ -96,8 +97,7 @@ class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
         self.horizon = args.horizon
         self.bufsize = args.bufsize
 
-    # TODO(mwhittaker): Consistently choose "mk" or "make".
-    def mk_env(self):
+    def make_env(self):
         """Generates an unvectorized env."""
         if self.env_name == 'hc-hard':
             return WhiteBoxHalfCheetahHard(self.frame_skip)
@@ -152,6 +152,7 @@ def _make_data_directory(name):
         print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
 
     return name
+
 
 def experiment_main(flags, experiment_fn, subflags=None):
     """

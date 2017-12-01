@@ -315,9 +315,9 @@ class MultiprocessingEnv(gym.Env):
         _close_n(self.worker_n)
 
 
-def mk_venv(mk_env, n):
+def make_venv(make_env, n):
     """Generates vectorized multiprocessing env."""
-    envs = [mk_env() for _ in range(n)]
+    envs = [make_env() for _ in range(n)]
 
     venv = MultiprocessingEnv(envs)
     seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]

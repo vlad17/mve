@@ -13,7 +13,7 @@ from dynamics import DynamicsFlags, NNDynamicsModel
 from experiment import experiment_main, ExperimentFlags
 from flags import parse_args_with_subcmds
 from mpc_flags import MpcFlags
-from multiprocessing_env import mk_venv
+from multiprocessing_env import make_venv
 from sample import sample_venv
 from stochastic_learner_flags import StochasticLearnerFlags
 from utils import (timeit, create_tf_session)
@@ -25,12 +25,12 @@ def train(args, learner_flags):
     """
     Train constrained MPC with the specified flags and subflags.
     """
-    env = args.experiment.mk_env()
+    env = args.experiment.make_env()
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
     with timeit('gathering warmup data'):
         add_warmup_data(args, data)
-    venv = mk_venv(args.experiment.mk_env, args.mpc.onpol_paths)
+    venv = make_venv(args.experiment.make_env, args.mpc.onpol_paths)
     sess = create_tf_session()
 
     dyn_model = NNDynamicsModel(venv, sess, data, args.dynamics)

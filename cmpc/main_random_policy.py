@@ -6,7 +6,7 @@ import mujoco_py  # pylint: disable=unused-import
 from dataset import one_shot_dataset
 from experiment import ExperimentFlags, experiment_main
 from flags import (Flags, parse_args)
-from multiprocessing_env import mk_venv
+from multiprocessing_env import make_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
 import reporter
@@ -35,7 +35,7 @@ class RandomPolicyFlags(Flags):
 
 
 def _train(args):
-    venv = mk_venv(args.experiment.mk_env, args.random.num_paths)
+    venv = make_venv(args.experiment.make_env, args.random.num_paths)
     random_policy = RandomPolicy(venv)
     paths = sample_venv(venv, random_policy, args.experiment.horizon)
     data = one_shot_dataset(paths)
