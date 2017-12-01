@@ -3,48 +3,44 @@
 \usepackage{algorithm}
 \usepackage[noend]{algpseudocode}
 \input{defs}
-\usepackage{placeins}
+\usepackage{subcaption}
 
-\let\Oldsection\section
-\renewcommand{\section}{\FloatBarrier\Oldsection}
-
-\let\Oldsubsection\subsection
-\renewcommand{\subsection}{\FloatBarrier\Oldsubsection}
-
-\let\Oldsubsubsection\subsubsection
-\renewcommand{\subsubsection}{\FloatBarrier\Oldsubsubsection}
 
 \title{Constrained Model Predictive Control for Learned Dynamics\\\large CS 294-112}
 \author{Vladimir Feinberg, Samvit Jain, Michael Whittaker}
-\date{29 November 2017}
+\date{1 December 2017}
 
 \begin{document}
-	
+
 \maketitle
 
 \section{Abstract}
 
-TODO one-page abstract
+Deep reinforcement learning has recently made progress in traditionally unsolvable problems for continuous control. Such continuous control problems are characterized by a MDP setting, where an agent interacts with the world, characterized by a set of states $\mcS$, by taking actions chosen from a set of actions $\mcA$ to maximize the expected net present value of a reward given over time. Episodes of a single problem share the same MDP setting, but differ in the initial state. We are interested in spaces where the dimension of $\mcA$ is moderately large, continuous, or both; adversarial and stochastic worst-case or high-probability methods are not applicable.
+
+We consider a model-based method, Model Predictive Control (MPC), with unknown dynamics. In other words, both the transition model and policy for an unknown MDP must be learned, only by interacting with the environment. We find that even for simple continuous control problems, dynamics learning can be difficult. The usual MPC algorithm, which seeks to optimize over any actions and states over a small horizon, exhibits pathological behavior even for short horizons with poor dynamics due to a blunt optimization approach.
+
+We show that the root of the pathological behavior with unconstrained MPC derives from over-optimism during the planning phase. As an MPC agent improves its planning using a trained dynamics model, the agent actually tends to perform worse when using the real dynamics. In particular, the objective value of the reward function at the end of the planning phase can be viewed as the planner's estimator for future rewards. Treating it this way we find that this value over-inflates as the MPC planning optimization quality improves.
+
+We handicap MPC planning by only allowing optimization along the first action, so while planning may account for future steps in the simulated horizon, no new actions can be taken. This handicapped optimization performs uniformly better on a variety of small continuous control tasks.
+
+By taking into account, even crudely, for some uncertainty in the dynamics model, we can improve MPC performance. This indicates that a more careful approach which carefully analyzes dynamics uncertainty may be a promising direction for future work.
 
 \section{Introduction}
+Model-free reinforcement learning algorithms directly learn a policy that maps a state to the action that, when taken, maximizes the expected reward returned by the environment. Model-free methods perform all planning \emph{implicitly} and only with state information. Model-based reinforcement learning algorithms, on the other hand, construct models of the environment's dynamics and use the models to \emph{explicitly} plan. These model-based methods tend to have improved sample complexities relative to their model-free counterparts.
 
-Deep reinforcement learning has recently made progress in traditionally unsolvable problems for continuous control. Such continuous control problems are characterized by a MDP setting, where an agent interacts through the world, characterized by a set of states $\mcS$, by taking actions in $\mcA$ to maximize the expected net present value of a reward given over time. Episodes of a single problem share the same MDP setting, but differ in the initial state. Note we are interested in spaces where the dimension of $\mcA$ is moderately large, continuous, or both: adversarial and stochastic worst-case or high-probability methods are not applicable.
+However, constructing a model of the world---even in its restricted form as a simple dynamics prediction problem in continuous control---complicates the existing deep RL architecture. Purely model-based methods assume they have a completely accurate dynamics model and optimize expected reward under this assumption. Understandably, such methods are inherently limited by how accurate the dynamics model is. For instance, one such pure model-based algorithm, iLQG, was outperformed by an algorithm which used a learned model, Guided Policy Search~\cite{levine2014learning}. Moreover, generic global models, such as neural networks, have not historically performed as well as simple, local linear models~\cite{gu2016continuous}.  Altogether, pure model-based methods are fundamentally limited by \emph{model bias} and pure model-free methods are fundamentally limited by \emph{policy variance}.
 
-Model-free algorithms learn a direct mapping from $\mcS$ to $\mcA$, so all planning must be performed implicitly and only with state information. For this reason, model-based methods, which construct models for transitions between states, tend to have improved sample complexities relative to model-free algorithms.
-
-On the other hand, constructing a model of the world, even in its restricted form as a simple dynamics prediction problem in continuous control, complicates the existing deep RL architecture. Purely model-based methods presume the model is accurate, and optimize expected reward under this assumption. Understandably, such models are inherently limited by how realistic the transition model is. For instance, one such pure model-based algorithm, iLQG, was outperformed by an algorithm using a learned model, Guided Policy Search \cite{levine2014learning}. Moreover, generic global models, such as neural networks, have not historically performed as well as simple, local linear models \cite{gu2016continuous}. This is perhaps due to a latent interaction between the an agent's implicit planning and the explicit model-based planning with learned dynamics.
-
-Altogether, pure model-based methods are fundamentally limited by model bias and pure model-free methods are fundamentally limited by policy variance.
-
-Like every other problem in machine learning, we need to find the right trade-off between bias and variance. One way to bridge this gap is to explicitly include model-predicted rewards in the value estimates. In the style of SVG \cite{heess2015learning}, we might accelerate value learning by mixing in a model-based expansion of our value estimates, where the value $V^\pi:\mcS\rightarrow \R$ (the true net present value for the reward at a given state) is approximated with the help of dynamics $f:\mcS\times \mcA\rightarrow \mcS$ describing transitions deterministically for simplicity and the reward $r:\mcS\times\mcA\times\mcS\rightarrow\R$ for a policy $\pi:\mcS\rightarrow \mcA$:
+As is common in machine learning, we need to find the right trade-off between bias and variance. One way to bridge this gap is to explicitly include model-predicted rewards in the value estimates. In the style of SVG \cite{heess2015learning}, we might accelerate value learning by mixing in a model-based expansion of our value estimates, where the value $V^\pi:\mcS\rightarrow \R$ (the true net present value for the reward at a given state) is approximated with the help of dynamics $f:\mcS\times \mcA\rightarrow \mcS$ describing transitions deterministically for simplicity and the reward $r:\mcS\times\mcA\times\mcS\rightarrow\R$ for a policy $\pi:\mcS\rightarrow \mcA$:
 $$
-V^\pi(s_1)\approx\sum_{t=1}^Hr(s_t,a_t,s_{t+1})+\hat V(s_{H+1});\;\;\;\;\;\; s_{t+1}\triangleq f(s_t, a_t),a_t\triangleq \pi(s_t)
+  V^\pi(s_1)
+    \approx \pa{\sum_{t=1}^H r(s_t,a_t,s_{t+1})} + \hat{V}(s_{H+1});
+    \quad s_{t+1} \triangleq f(s_t, a_t), a_t\triangleq \pi(s_t)
 $$
 While a viable approach, an implementation must take care to account for bias in $f$, which may skew estimates in $V$, no matter how good $\hat V$ is. Second, this introduces a nuanced coupling of the training of $f,\hat V,\pi$ at the same time.
 
 \section{Background}
-
-We investigate a use of dynamics models less-coupled with policy learning, Model Predictive Control (MPC), and its interaction with learned dynamics. We will revisit the potential for fused model-free and model-based models at the end of the report. MPC builds on top of open-loop planners, which accept a dynamics model and a given horizon $H$ and choose the next $H$ actions to play. MPC uses the planner to create a policy that iteratively queries the planner at each time step, playing only the first action in the plan (\algref{mpc}).
+We investigate a use of dynamics models that is presumably less-coupled with policy learning. We will revisit the potential for fused model-free and model-based methods at the end of the report. MPC chooses actions using an open-loop planner $P$ that accepts a dynamics model $f$ and a horizon $H$ and returns the next $H$ actions to play. MPC iteratively queries the planner at each time step, playing only the first action in the plan (\algref{mpc}).
 
 \begin{algorithm}
 \caption{The \textsc{MPC} algorithm acts as a policy, returning an action for a given state, using an internal planner and a dynamics model.} \label{alg:mpc}
@@ -56,16 +52,16 @@ We investigate a use of dynamics models less-coupled with policy learning, Model
 \end{algorithmic}
 \end{algorithm}
 
-Most planners assume $f$ can be treated as the true dynamics (or, if it has a simple probibalistic form, then the assumption corresponds to accuracy of the probabilistic model). Then a planner attempts the following maximization, which is frequently intractable:
+Most planners treat $f$ as the true dynamics and attempt to solve the following maximization, which is frequently intractable:
 \begin{align}
     \max_{\{a_t,s_t\}_{t=1}^H}&\;\;\;\; \sum_{t=1}^H r(s_t, a_t) \label{eq:unconstrained}\\
     \text{s.t.} &\;\;\;\; s_{t+1} = f(s_t,a_t)\nonumber
 \end{align}
 
-A typical way of solving \equref{unconstrained} is with the random shooter, which samples the $t$-th action from $A_t(s_t)$ (\algref{rs}).
+A typical way of estimating a solution to \equref{unconstrained} is with the random shooter method, which samples the $t$-th action from the distribution $A_t(s_t)$ (\algref{rs}).
 
 \begin{algorithm}
-\caption{The \textsc{RandomShooter} algorithm is a planner approximately solving \equref{unconstrained}, where quality of the solution improves with the number of trials it attempts. Altogether, \textsc{RandomShooter} is a stochastic policy available only in this generative form, returning an action $a$ for a provided state $s$. The \textsc{RandomShooter}'s properties will be highly dependent on the state-conditional time-dependent action sampling distributions $A_t$.}\label{alg:rs}
+\caption{The \textsc{RandomShooter} algorithm is a planner that approximately solves \equref{unconstrained}, where the quality of the approximation improves with the number of trials it attempts. Altogether, \textsc{RandomShooter} is a stochastic policy available only in this generative form, returning an action $a$ for a provided state $s$. The \textsc{RandomShooter}'s properties highly depend on the state-conditional time-dependent action sampling distributions $A_t$.}\label{alg:rs}
 \begin{algorithmic}[1]
 \Procedure{RandomShooter}{state $s$, horizon $H$, reward $r$, dynamics $f$, samplers $\ca{A_t}_{t=1}^H$}
 \State $\ca{s_1^{(i)}\gets s}_{i=1}^K$.
@@ -77,7 +73,7 @@ A typical way of solving \equref{unconstrained} is with the random shooter, whic
 \State $R_i\gets\sum_{t=1}^{H}r\pa{s_{t}^{(i)},a_t^{(i)},s_{t+1}^{(i)}}$
 \EndFor
 \State $i_*=\argmax_i R_i$
-\State \Return $a_1^{(i_*)}$
+\State \Return $\ca{s^{(i*)}_t}_{t=1}^H$ % The planner above returned the whole action sequence, not just the first one.
 \EndProcedure
 \end{algorithmic}
 \end{algorithm}
@@ -88,20 +84,18 @@ Assuming a good reward estimator $R_i$, choosing the first action $a_1^{(i_*)}$ 
 
 \section{Contributions}
 
-We find that one needs to be concerned with both underoptimizing and overoptimizing \equref{unconstrained}. In particular, because $f$ is learned and partially inaccurate, improvements in \equref{unconstrained} do not correspond to improvements in actual reward. For instance, letting $\tilde R$ be the true $H$-step reward, the reward predicted by \algref{rs} with Uniform RS MPC, $\tilde R - R_{i_*}$ becomes increasingly negative as optimization quality is improved. As a function of optimization quality, the reward curve is actually U-shaped: too little optimization, and poor actions are chosen. Too much, and bias prevents or hurts improvement.
-
-Given our findings, we present a new MPC objective instead of \equref{unconstrained} and propose several methods to investigate in future work.
+We find that one needs to be concerned with both underoptimizing and overoptimizing \equref{unconstrained}. In particular, because $f$ is learned and partially inaccurate, improvements in \equref{unconstrained} do not correspond to improvements in actual reward. For instance, letting $\tilde R$ be the true $H$-step reward, the reward predicted by \algref{rs} with Uniform RS MPC, $\tilde R - R_{i_*}$, becomes increasingly negative as optimization quality is improved. As a function of optimization quality, the reward curve is actually U-shaped: too little optimization, and poor actions are chosen. Too much, and bias prevents or hurts improvement. Given our findings, we present a new MPC objective as an alternative to \equref{unconstrained} and propose several methods to investigate in future work.
 
 \section{Method}
 
-We consider learning a stationary action distribution conditional on the state, $\pi_\theta(s)$. This policy will be used to regularize the MPC optimization. In particular, if the planner is \textsc{RandomShooter}, then we might select $A_t^{(\pi_\theta)}$ to be a distribution that is some function of $\pi_\theta$. Overall, we consider a joint training algorithm, \algref{train}.
+We propose learning a stationary action distribution conditional on the state, $\pi_\theta(s)$. This policy is used to regularize the MPC optimization. In particular, if the planner is \textsc{RandomShooter}, then we select $A_t^{(\pi_\theta)}$ to be a distribution that is some function of $\pi_\theta$. Overall, we consider a joint training algorithm, \algref{train}.
 
 \begin{algorithm}
-\caption{This assumes we have the testing environment on which we may perform real rollouts to learn from. We consider some fixed class of deterministic functions $F$ to model dynamics, and a parameterization $\pi_\theta$ of generative action distributions conditioned on states, coupled with an associated loss $J$.} \label{alg:train}
+\caption{This algorithm assumes that we have the testing environment with which we may perform real rollouts to learn from. We consider some fixed class of deterministic functions $F$ to model dynamics, and a parameterization $\pi_\theta$ of generative action distributions conditioned on states, coupled with an associated loss $J$.} \label{alg:train}
 \begin{algorithmic}[1]
 \Procedure{TrainMPC}{iterations $N$, starter transition dataset $\mcD$, reward $r$}
 \For { $i\gets 1, \ldots, N$}
-\State $f\gets \argmin_F\E\ha{\norm{f(s,a)-s'}^2}$, where $(s,a,s')\sim\Uniform\mcD$
+\State $f\gets \argmin_{f \in F}\E\ha{\norm{f(s,a)-s'}^2}$, where $(s,a,s')\sim\Uniform\mcD$
 \State $\theta \gets \argmin_\theta J(\theta, \mcD)$
 \State sample $E$ episodes $\mcD'$ of $\textsc{MPC}(\cdot,  H, r, f, P_\theta)$, where $P_\theta$ is some planner parameterized by $\theta$.
 \State $\mcD\gets\mcD'\cup\mcD$
@@ -140,52 +134,153 @@ We refer to \textsc{TrainMPC} with \textsc{RandomShooter} using the distribution
 % centered figure with \autofig{filepath}{\label{fig:somelabel}}{caption}
 
 \subsection{Easy Cheetah}\label{sec:easy-cheetah}
-
-For preliminary validation of our ideas, we consider the environment provided in the course's Homework 4. In particular, we have the \texttt{HalfCheetah-v1} setting. Note that the reward function here includes additional penalties for undesirable behavior, making this an easy baseline to test on. \footnote{Here our dynamics model is represented by a neural network of depth 2 and width 500. With an MPC horizon $H=15$ and $K=1000$ simulation paths, we evaluate the performance of the proposed methods over several iterations of the training procedure (\algref{train}). Every iteration takes 10 sample episodes, and trains the dynamics for 60 epochs with a $10^{-3}$ learning rate. The policy optimization step, if present, does 100 epochs with $10^{-3}$ learning rate on a neural network $g_\theta$ of depth 5 and width 32. The universal batch size was 512. Reported results are averages over 4 seeds.}
+For preliminary validation of our ideas, we consider the \texttt{HalfCheetah-v1} environment with the reward function provided in Homework 4: an environment we call easy cheetah. In particular, the reward function includes additional penalties for undesirable behavior, making this an easy baseline to test on.\footnote{Here our dynamics model is represented by a neural network of depth 2 and width 500. With an MPC horizon $H=15$ and $K=1000$ simulation paths, we evaluate the performance of the proposed methods over several iterations of the training procedure (\algref{train}). Every iteration takes 10 sample episodes, and trains the dynamics for 60 epochs with a $10^{-3}$ learning rate. The policy optimization step, if present, does 100 epochs with $10^{-3}$ learning rate on a neural network $g_\theta$ of depth 5 and width 32. The universal batch size was 512. Reported results are averages over 4 seeds.}
 
 The performance of the various MPC policies is shown in \figref{easy-cheetah-return}. The underlying $\pi_\theta$ policy (henceforth the ``learner'') is poor (\figref{easy-cheetah-learner}), so the improvement it induces in MPC is likely coming from its regularizing properties rather than any smarter selection of actions that may be induced by the learner.
+%
+Notice that both regularized versions reduce the bias of the predicted reward from the MPC optimization, $\tilde R - R_i$ (\figref{easy-cheetah-bias}). This is not due to catastrophic cancellation either, as the MSE $(\tilde R - R_i)^2$ figures demonstrate (\figref{easy-cheetah-mse}).
 
+\begin{figure}[!ht]
+  \centering
 
-\autofig{easy-cheetah-return.pdf}{\label{fig:easy-cheetah-return}}{Performance during the course of optimization in the easy cheetah setting. Note both regularized versions significantly outperform Uniform MPC.}
-\autofig{easy-cheetah-learner-return.pdf}{\label{fig:easy-cheetah-learner}}{Performance of the underlying learner $\pi_\theta$ in the easy cheetah setting, during the course of optimization. We compare to the performance of an agent taking random actions uniformly on the action space.}
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \centering
+    \includegraphics[width=\textwidth]{easy-cheetah-return.pdf}
+    \caption{%
+      Performance during the course of optimization in the easy cheetah
+      setting. Note both regularized versions significantly outperform Uniform
+      MPC.
+    }\label{fig:easy-cheetah-return}
+  \end{subfigure}\hspace{1em}
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \centering
+    \includegraphics[width=\textwidth]{easy-cheetah-learner-return.pdf}
+    \caption{%
+      Performance of the underlying learner $\pi_\theta$ in the easy cheetah
+      setting, during the course of optimization. We compare to the performance
+      of an agent taking random actions uniformly on the action space.
+    }\label{fig:easy-cheetah-learner}
+  \end{subfigure}
 
-Notice both regularized versions reduce the bias of the predicted reward from the MPC optimization, $\tilde R - R_i$ (\figref{easy-cheetah-bias}). This is not due to catastrophic cancellation either, as the MSE $(\tilde R - R_i)^2$ figures demonstrate (\figref{easy-cheetah-mse}).
+  \vspace{1em}
 
-\autofig{easy-cheetah-reward-bias.pdf}{\label{fig:easy-cheetah-bias}}{Easy cheetah MPC predicted reward bias is calculated as the true $H$-step reward minus the MPC's planner objective value $H$ steps ago. A very negative value indicates overoptimism in the expected reward during MPC planning. We will refer to this as reward bias from this point.}
-\autofig{easy-cheetah-reward-mse.pdf}{\label{fig:easy-cheetah-mse}}{Easy cheetah MPC predicted reward MSE. This is the average bias of \figref{easy-cheetah-bias}, squared.}
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \centering
+    \includegraphics[width=\textwidth]{easy-cheetah-reward-bias.pdf}
+    \caption{%
+      Easy cheetah MPC predicted reward bias is calculated as the true $H$-step
+      reward minus the MPC's planner objective value $H$ steps ago. A very
+      negative value indicates overoptimism in the expected reward during MPC
+      planning. We will refer to this as reward bias from this point.
+    }\label{fig:easy-cheetah-bias}
+  \end{subfigure}\hspace{1em}
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \centering
+    \includegraphics[width=\textwidth]{easy-cheetah-reward-mse.pdf}
+    \caption{%
+      Easy cheetah MPC predicted reward MSE. This is the average bias of
+      \figref{easy-cheetah-bias}, squared.
+    }\label{fig:easy-cheetah-mse}
+  \end{subfigure}
+
+  \caption{Easy cheetah experiments}
+  \label{fig:easy-cheetah}
+\end{figure}
+
+% \autofig{easy-cheetah-return.pdf}{\label{fig:easy-cheetah-return}}{Performance during the course of optimization in the easy cheetah setting. Note both regularized versions significantly outperform Uniform MPC.}
+% \autofig{easy-cheetah-learner-return.pdf}{\label{fig:easy-cheetah-learner}}{Performance of the underlying learner $\pi_\theta$ in the easy cheetah setting, during the course of optimization. We compare to the performance of an agent taking random actions uniformly on the action space.}
+% \autofig{easy-cheetah-reward-bias.pdf}{\label{fig:easy-cheetah-bias}}{Easy cheetah MPC predicted reward bias is calculated as the true $H$-step reward minus the MPC's planner objective value $H$ steps ago. A very negative value indicates overoptimism in the expected reward during MPC planning. We will refer to this as reward bias from this point.}
+% \autofig{easy-cheetah-reward-mse.pdf}{\label{fig:easy-cheetah-mse}}{Easy cheetah MPC predicted reward MSE. This is the average bias of \figref{easy-cheetah-bias}, squared.}
 
 \section{Reward Bias}
+We now investigate more carefully the over-optimization that occurs when MPC optimizes the unconstrained \equref{unconstrained}. We consider the usual \texttt{HalfCheetah-v1} environment.\footnote{We use a minor modification to the observations in this environment to include additional position information in the state so that the usual Half Cheetah reward function is a function of the transitions. Otherwise MPC optimization would be impossible because usually the Half Cheetah enviroment determines the reward based on a latent coordinate position.} In particular, we improve the quality of the \textsc{RandomShooter} optimization of \equref{unconstrained} in the Uniform RS MPC procedure by increasing $K$. We note that as $K$ increases, so does the over-optimism in the expected reward from the MPC objective (\figref{mpc-bias}, \figref{mpc-mse}). Note that the predicted reward is a function of the states projected by the MPC planner $\ca{s_t}_{t=1}^H$. Then, a mismatch in the reward function implies a mismatch in predicted states, because the state space topology is necessary finer than the pushforward topology on the state space induced by the (continuous) reward function. This may explain why increases in $K$ do not result in improvements in episode reward, and start to hamper performance for large $K$ (\figref{mpc-reward}).\footnote{Hyperparameters are as in \secref{easy-cheetah}, except for $K$ which is modified as indicated.}
 
-We now investigate more carefully that it is over-optimization that occurs in MPC that optimizes for the unconstrained \equref{unconstrained}. We consider the usual \texttt{HalfCheetah-v1} environment.\footnote{We use a minor modification to the observations in this environment to include additional position information in the state so that the usual Half Cheetah reward function is a function of the transitions. Otherwise MPC optimization would be impossible because usually the Half Cheetah enviroment determines the reward based on a latent coordinate position.} In particular, we improve the quality of the \textsc{RandomShooter} optimization of \equref{unconstrained} in the Uniform RS MPC procedure by increasing $K$. We note that as $K$ increases, so does the over-optimism in the expected reward from the MPC objective (\figref{mpc-bias}, \figref{mpc-mse}). Note that the predicted reward is a function of the states projected by the MPC planner $\ca{s_t}_{t=1}^H$. Then, a mismatch in the reward function implies a mismatch in predicted states, because the state space topology is necessary finer than the pushforward topology on the state space induced by the (continuous) reward function. This may explain why increases in $K$ do not result in improvements in episode reward, and start to hamper performance for large $K$ (\figref{mpc-reward}).\footnote{Hyperparameters are as in \secref{easy-cheetah}, except for $K$ which is modified as indicated.}
+\begin{figure}[!ht]
+  \centering
 
-\autofig{mpc-reward-bias.pdf}{\label{fig:mpc-bias}}{Half Cheetah predicted reward bias for Uniform RS MPC on a variety of $K$, smoothed over the 5 previous iterations.}
-\autofig{mpc-reward-mse.pdf}{\label{fig:mpc-mse}}{Half Cheetah predicted reward MSE for Uniform RS MPC on a variety of $K$, smoothed.}
-\autofig{mpc-return.pdf}{\label{fig:mpc-reward}}{Half Cheetah reward for Uniform RS MPC on a variety of $K$, smoothed. Note that both underoptimizing and overoptimizing reduces performance.}
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \centering
+    \includegraphics[width=\textwidth]{mpc-reward-bias.pdf}
+    \caption{%
+      Half Cheetah predicted reward bias for Uniform RS MPC on a variety of
+      $K$, smoothed over the 5 previous iterations.
+    }\label{fig:mpc-bias}
+  \end{subfigure}\hspace{1em}
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \centering
+    \includegraphics[width=\textwidth]{mpc-reward-mse.pdf}
+    \caption{%
+      Half Cheetah predicted reward MSE for Uniform RS MPC on a variety of $K$,
+      smoothed.
+    }\label{fig:mpc-mse}
+  \end{subfigure}
+
+  \vspace{1em}
+
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \centering
+    \includegraphics[width=\textwidth]{mpc-return.pdf}
+    \caption{%
+      Half Cheetah reward for Uniform RS MPC on a variety of $K$, smoothed.
+      Note that both underoptimizing and overoptimizing reduces performance.
+    }\label{fig:mpc-reward}
+  \end{subfigure}
+
+  \caption{\texttt{HalfCheetah-v1} experiments}
+  \label{fig:half-cheetah}
+\end{figure}
+
+% \autofig{mpc-reward-bias.pdf}{\label{fig:mpc-bias}}{Half Cheetah predicted reward bias for Uniform RS MPC on a variety of $K$, smoothed over the 5 previous iterations.}
+% \autofig{mpc-reward-mse.pdf}{\label{fig:mpc-mse}}{Half Cheetah predicted reward MSE for Uniform RS MPC on a variety of $K$, smoothed.}
+% \autofig{mpc-return.pdf}{\label{fig:mpc-reward}}{Half Cheetah reward for Uniform RS MPC on a variety of $K$, smoothed. Note that both underoptimizing and overoptimizing reduces performance.}
 
 \section{Validation on Other Environments}
-
 We validate that regularizing MPC to solve \equref{constrained} with a Monte Carlo \textsc{RandomShooter} method (but supports of sampling distributions appropriately constrained) improves MPC performance across a variety of continuous control environments. We test on the \texttt{HalfCheetah-v1, Ant-v1, Walker2d-v1} environments, with observations slightly expanded to make the reward a function of the transition.\footnote{Hyperparameters are as in \secref{easy-cheetah}, except we only run for three random seeds and modify the simulation horizon and number of simulation paths as indicated.}
 
-\autofig{return-hc-hard.pdf}{\label{fig:return-hc-hard}}{Half Cheetah reward for Uniform RS MPC vs 0 RS MPC with $K=1000$ and $H=15$.}
-\autofig{long-return-hc-hard.pdf}{\label{fig:long-return-hc-hard}}{Half Cheetah reward for Uniform RS MPC vs 0 RS MPC with $K=3000$ and $H=30$.}
-\autofig{return-ant.pdf}{\label{fig:return-ant}}{Ant reward for Uniform RS MPC vs 0 RS MPC with $K=1000$ and $H=15$.}
-\autofig{long-return-ant.pdf}{\label{fig:long-return-ant}}{Ant reward for Uniform RS MPC vs 0 RS MPC with $K=3000$ and $H=30$.}
-\autofig{return-walker2d.pdf}{\label{fig:return-walker2d}}{Walker2d reward for Uniform RS MPC vs 0 RS MPC with $K=1000$ and $H=15$.}
-\autofig{long-return-walker2d.pdf}{\label{fig:long-return-walker2d}}{Walker2d reward for Uniform RS MPC vs 0 RS MPC with $K=3000$ and $H=30$.}
+\newcommand{\autosubfig}[3]{
+  \begin{subfigure}[b]{0.48\columnwidth}
+    \centering
+    \includegraphics[width=\textwidth]{#1}
+    \caption{#3}#2
+  \end{subfigure}
+}
+
+\begin{figure}[!ht]
+  \autosubfig{return-hc-hard.pdf}{\label{fig:return-hc-hard}}{Half Cheetah reward for Uniform RS MPC vs 0 RS MPC with $K=1000$ and $H=15$.}
+  \autosubfig{long-return-hc-hard.pdf}{\label{fig:long-return-hc-hard}}{Half Cheetah reward for Uniform RS MPC vs 0 RS MPC with $K=3000$ and $H=30$.}
+
+  \vspace{1em}
+
+  \autosubfig{return-ant.pdf}{\label{fig:return-ant}}{Ant reward for Uniform RS MPC vs 0 RS MPC with $K=1000$ and $H=15$.}
+  \autosubfig{long-return-ant.pdf}{\label{fig:long-return-ant}}{Ant reward for Uniform RS MPC vs 0 RS MPC with $K=3000$ and $H=30$.}
+
+  \vspace{1em}
+
+  \autosubfig{return-walker2d.pdf}{\label{fig:return-walker2d}}{Walker2d reward for Uniform RS MPC vs 0 RS MPC with $K=1000$ and $H=15$.}
+  \autosubfig{long-return-walker2d.pdf}{\label{fig:long-return-walker2d}}{Walker2d reward for Uniform RS MPC vs 0 RS MPC with $K=3000$ and $H=30$.}
+
+  \caption{\texttt{HalfCheetah-v1}, \texttt{Ant-v1}, and \texttt{Walker2d-v1} experiments.}
+  \label{fig:multienv-experiments}
+\end{figure}
+
+% \autofig{return-hc-hard.pdf}{\label{fig:return-hc-hard}}{Half Cheetah reward for Uniform RS MPC vs 0 RS MPC with $K=1000$ and $H=15$.}
+% \autofig{long-return-hc-hard.pdf}{\label{fig:long-return-hc-hard}}{Half Cheetah reward for Uniform RS MPC vs 0 RS MPC with $K=3000$ and $H=30$.}
+% \autofig{return-ant.pdf}{\label{fig:return-ant}}{Ant reward for Uniform RS MPC vs 0 RS MPC with $K=1000$ and $H=15$.}
+% \autofig{long-return-ant.pdf}{\label{fig:long-return-ant}}{Ant reward for Uniform RS MPC vs 0 RS MPC with $K=3000$ and $H=30$.}
+% \autofig{return-walker2d.pdf}{\label{fig:return-walker2d}}{Walker2d reward for Uniform RS MPC vs 0 RS MPC with $K=1000$ and $H=15$.}
+% \autofig{long-return-walker2d.pdf}{\label{fig:long-return-walker2d}}{Walker2d reward for Uniform RS MPC vs 0 RS MPC with $K=3000$ and $H=30$.}
 
 \section{Conclusion}
-
-We have provided evidence for the hypothesis that one needs to use constrained MPC per \equref{constrained} when using learned dynamics. The explicit relationship between over-optimization and over-optimism has been shown for one environment, and a generic but crude regularization strategy has shown promise in improving MPC performance.
+We have provided evidence for the hypothesis that one needs to use constrained MPC per \equref{constrained} when using learned dynamics. We have shown the explicit relationship between over-optimization and over-optimism for one environment, and a generic but crude regularization strategy has shown promise in improving MPC performance.
 
 \subsection{Future Work}
-
 We believe that our work provides sufficient evidence to explore several promising directions.
+%
+First, we propose fusing the model-based approach with the model-free approach, by virtue of using an off-policy model-free method to train $\pi_\theta$ with an appropriate choice of loss $J$ in \algref{train}. Centering MPC around $\pi_\theta$ may lead to performance improvements over the model-free method. However, a more valuable contribution would be to accelerate learning. In particular, by generating more performant episodes thanks to MPC, the off-policy algorithm may exhibit more stable or accelerated convergence properties. Early experiments show that this may be viable, but $\epsilon_t,\epsilon_t'$ from \equref{constrained} may require additional nuance over the course of training. Note that using a model-free approach here requires that the resulting trajectories are not too distant from those of the off-policy method: if the model-free method's value functions are not accurate on the support of the MPC agent's trajectories, then it will not learn from the off-policy data.
 
-First, we propose fusing the model-based with model-free approach, by virtue of using an off-policy model-free method to train $\pi_\theta$ with an appropriate choice of loss $J$ in \algref{train}. Centering MPC around $\pi_\theta$ may lead to performance improvements over the model-free method. However, a more valuable contribution would be to accelerate learning. In particular, by generating more performant episodes thanks to MPC, the off-policy algorithm may exhibit more stable or accelerated convergence properties. Early experiments show that this may be viable, but $\epsilon_t,\epsilon_t'$ from \equref{constrained} may require additional nuance over the course of training. Note using a model-free approach here requires that the resulting trajectories are not too distant from those of the off-policy method: if the model-free method's value functions are not accurate on the support of the MPC agent's trajectories, then it will not learn from the off-policy data.
+Second, we plan to move from using the \textsc{RandomShooter} for optimization to using an explicit colocation method directly solving \equref{constrained} with dual gradient ascent. This should reduce variance in the MPC runs by consistently finding a good estimator. Note that the MPC solution from a previous timestep can be re-used to warm-start the next MPC solution, making the method tractable.
 
-Second, we should move from using the \textsc{RandomShooter} for optimization to an explicit colocation method directly solving \equref{constrained} with dual gradient ascent. This should reduce variance in the MPC runs by consistently finding a good estimator. Note that the MPC solution from a previous timestep can be re-used to warm-start the next MPC solution, making the method tractable.
-
-Third, we need to have a more nuanced set of constraints than proximity to the mean. The phenomenon we are interesting in capturing is dynamics accuracy, so one approach might be to directly retrieve dynamics variance. Then we can solve the an MPC objective while constraining ourselves to likely trajectories \equref{likely}.
+Third, we plan to explore a more nuanced set of constraints than proximity to the mean. The phenomenon we are interesting in capturing is dynamics accuracy, so one approach might be to directly retrieve dynamics variance. Then we can solve the an MPC objective while constraining ourselves to likely trajectories (\equref{likely}).
 
 \begin{align}
     \max_{\{a_t,s_t\}_{t=1}^H}&\;\;\;\; \sum_{t=1}^H r(s_t, a_t) \label{eq:likely}\\
