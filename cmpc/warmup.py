@@ -82,16 +82,17 @@ def _sample_mpc(tf_reward, venv, warmup_flags, mpc_flags, dyn_flags, data):
     with g.as_default():
         with create_tf_session() as sess:
             seed_everything(seed)
-            dynamics = NNDynamicsModel(venv, sess, data, dyn_flags)
+            dynamics = NNDynamicsModel(
+                venv, data, dyn_flags)
             controller = MPC(
                 venv, dynamics, mpc_flags.mpc_horizon, tf_reward,
-                mpc_flags.mpc_simulated_paths, sess, learner=None)
+                mpc_flags.mpc_simulated_paths, learner=None)
             sess.run(tf.global_variables_initializer())
             g.finalize()
-
-            _mpc_loop(
-                warmup_flags.warmup_paths_mpc,
-                data, dynamics, controller, venv)
+            with sess.as_default():
+                _mpc_loop(
+                    warmup_flags.warmup_paths_mpc,
+                    data, dynamics, controller, venv)
 
 
 def _hash_dict(d):

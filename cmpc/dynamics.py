@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 
 from flags import Flags
-from utils import get_ac_dim, get_ob_dim, build_mlp
+from utils import build_mlp, get_ob_dim, get_ac_dim
 
 
 class DynamicsFlags(Flags):
@@ -91,21 +91,22 @@ class _DeltaNormalizer:
 class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
     """Stationary neural-network-based dynamics model."""
 
-    def __init__(self, env, sess, norm_data, dyn_flags):
+    def __init__(self, env, norm_data, dyn_flags):
+        ob_dim, ac_dim = get_ob_dim(env), get_ac_dim(env)
         self.epochs = dyn_flags.dyn_epochs
         self.batch_size = dyn_flags.dyn_batch_size
 
         self.input_state_ph_ns = tf.placeholder(
-            tf.float32, [None, get_ob_dim(env)], "dynamics_input_state")
+            tf.float32, [None, ob_dim], "dynamics_input_state")
         self.input_action_ph_na = tf.placeholder(
-            tf.float32, [None, get_ac_dim(env)], "dynamics_input_action")
+            tf.float32, [None, ac_dim], "dynamics_input_action")
         self.next_state_ph_ns = tf.placeholder(
-            tf.float32, [None, get_ob_dim(env)], "true_next_state_diff")
+            tf.float32, [None, ob_dim], "true_next_state_diff")
 
         self.norm = _DeltaNormalizer(norm_data)
 
         self.mlp_kwargs = {
-            'output_size': get_ob_dim(env),
+            'output_size': ob_dim,
             'scope': 'dynamics',
             'reuse': None,
             'n_layers': dyn_flags.dyn_depth,
@@ -115,7 +116,6 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
 
         self.predicted_next_state_ns, deltas_ns = self._predict_tf(
             self.input_state_ph_ns, self.input_action_ph_na, reuse=None)
-        self.sess = sess
         self.mse = tf.losses.mean_squared_error(
             self.next_state_ph_ns,
             self.predicted_next_state_ns)
@@ -136,7 +136,7 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
         nbatches = data.batches_per_epoch(self.batch_size) * self.epochs
         for batch in data.sample_many(nbatches, self.batch_size):
             obs, next_obs, _, acs, _ = batch
-            self.sess.run(self.update_op, feed_dict={
+            self.update_op.run(feed_dict={
                 self.input_state_ph_ns: obs,
                 self.input_action_ph_na: acs,
                 self.next_state_ph_ns: next_obs,
@@ -161,7 +161,7 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
 
     def predict(self, states, actions):
         """Return an array for the predicted next state"""
-        next_states = self.sess.run(self.predicted_next_state_ns, feed_dict={
+        next_states = self.predicted_next_state_ns.eval(feed_dict={
             self.input_state_ph_ns: states,
             self.input_action_ph_na: actions,
         })
@@ -169,7 +169,7 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
 
     def dataset_mse(self, data):
         """Return the MSE of predictions for the given dataset"""
-        mse = self.sess.run(self.mse, feed_dict={
+        mse = self.mse.eval(feed_dict={
             self.input_state_ph_ns: data.obs,
             self.input_action_ph_na: data.acs,
             self.next_state_ph_ns: data.next_obs,

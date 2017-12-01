@@ -5,7 +5,7 @@ import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 import numpy as np
 
-from mpc import CMPC
+from mpc import MPC
 from dataset import Dataset, one_shot_dataset
 from ddpg_learner_flags import DDPGLearnerFlags
 from deterministic_learner_flags import DeterministicLearnerFlags
@@ -21,6 +21,7 @@ from warmup import add_warmup_data, WarmupFlags
 from zero_learner_flags import ZeroLearnerFlags
 import reporter
 
+
 def train(args, learner_flags):
     """
     Train constrained MPC with the specified flags and subflags.
@@ -33,11 +34,11 @@ def train(args, learner_flags):
     venv = make_venv(args.experiment.make_env, args.mpc.onpol_paths)
     sess = create_tf_session()
 
-    dyn_model = NNDynamicsModel(venv, sess, data, args.dynamics)
+    dyn_model = NNDynamicsModel(env, data, args.dynamics)
     learner = learner_flags.make_learner(venv, sess)
-    controller = CMPC(
-        venv, dyn_model, args.mpc.mpc_horizon,
-        env.tf_reward, args.mpc.mpc_simulated_paths, learner, sess)
+    controller = MPC(
+        env, dyn_model, args.mpc.mpc_horizon,
+        env.tf_reward, args.mpc.mpc_simulated_paths, learner)
     sess.__enter__()
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
@@ -79,6 +80,7 @@ def train(args, learner_flags):
         reporter.advance_iteration()
 
     sess.__exit__(None, None, None)
+
 
 def flags_to_parse():
     """Flags that BMPC should parse"""

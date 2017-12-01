@@ -27,10 +27,10 @@ def _train(args):
     venv = make_venv(args.experiment.make_env, args.mpc.onpol_paths)
     sess = create_tf_session()
 
-    dyn_model = NNDynamicsModel(venv, sess, data, args.dynamics)
+    dyn_model = NNDynamicsModel(env, data, args.dynamics)
     controller = MPC(
-        venv, dyn_model, args.mpc.mpc_horizon,
-        env.tf_reward, args.mpc.mpc_simulated_paths, sess, learner=None)
+        env, dyn_model, args.mpc.mpc_horizon,
+        env.tf_reward, args.mpc.mpc_simulated_paths)
 
     sess.__enter__()
     tf.global_variables_initializer().run()
@@ -62,6 +62,7 @@ def _train(args):
         reporter.advance_iteration()
 
     sess.__exit__(None, None, None)
+
 
 if __name__ == "__main__":
     _args = parse_args([ExperimentFlags, MpcFlags, DynamicsFlags, WarmupFlags])

@@ -7,6 +7,7 @@ from ddpg_learner import DDPGLearner
 from policy import Policy
 from utils import (create_random_tf_policy, get_ac_dim, get_ob_dim)
 
+
 class MPC(Policy):  # pylint: disable=too-many-instance-attributes
     """
     Random MPC if learner is None. Otherwise, MPC which takes the action
@@ -24,10 +25,8 @@ class MPC(Policy):  # pylint: disable=too-many-instance-attributes
                  horizon=5,
                  reward_fn=None,
                  num_simulated_paths=10,
-                 sess=None,
                  learner=None):
         self._ac_dim = get_ac_dim(env)
-        self.sess = sess
         self.num_simulated_paths = num_simulated_paths
 
         # compute the rollout in full TF to keep all computation on the GPU
@@ -76,14 +75,16 @@ class MPC(Policy):  # pylint: disable=too-many-instance-attributes
             # maybe self.learner.reset() somehow, but still need the local
             # placeholder available... Damn tensorflow.
             # pylint:disable=protected-access
-            self.sess.run(self.learner._agent.acs_initializer,
-                          feed_dict={self.input_state_ph_is: states})
+            self.learner._agent.acs_initializer.run(
+                feed_dict={self.input_state_ph_is: states})
 
-        action_na = self.sess.run(self.initial_action_na,
-                                  feed_dict={self.input_state_ph_is: states})
-        _, _, _, trajectory_rewards_n = self.sess.run(self.loop, feed_dict={
-            self.input_state_ph_is: states,
-            self.input_action_ph_na: action_na})
+        action_na = tf.get_default_session().run(
+            self.initial_action_na,
+            feed_dict={self.input_state_ph_is: states})
+        _, _, _, trajectory_rewards_n = tf.get_default_session().run(
+            self.loop, feed_dict={
+                self.input_state_ph_is: states,
+                self.input_action_ph_na: action_na})
 
         # p = num simulated paths, i = nstates
         # note b/c of the way tf.tile works we need to reshape by p then i
@@ -115,26 +116,3 @@ class MPC(Policy):  # pylint: disable=too-many-instance-attributes
             acs[loc] = ac
             rws[loc] = rw
         return acs, rws
-
-class CMPC(Policy):
-    """
-    A constrained version of the MPC controller. Learn a policy from MPC
-    rollout data, and use it to run the simulations after the first action.
-    """
-
-    def __init__(self,
-                 env,
-                 dyn_model,
-                 horizon=None,
-                 reward_fn=None,
-                 num_simulated_paths=None,
-                 learner=None,
-                 sess=None):
-        self.env = env
-        self.learner = learner
-        self.mpc = MPC(
-            env, dyn_model, horizon, reward_fn, num_simulated_paths, sess,
-            learner)
-
-    def act(self, states_ns):
-        return self.mpc.act(states_ns)
