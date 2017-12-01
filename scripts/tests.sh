@@ -22,6 +22,15 @@ box() {
     echo "$msg" | sed 's/./\*/g'
 }
 
+# Argument 1 is the generated file name, arg2 is the command that makes it
+hermetic_file() {
+    if [ -f "$1" ] ; then
+        rm "$1"
+    fi
+    sh -c "$2"
+    rm "$1"
+}
+
 main() {
     cmd=""
     function note_failure {
@@ -52,10 +61,6 @@ main() {
     tune_flags="--ray_addr $ray_addr"
 
     cmds=()
-    # Tune
-    echo "$tune_params_json" > params.json
-    cmds+=("python $tune $tune_flags --tunefile params.json")
-    cmds+=("rm params.json")
     # Random
     cmds+=("python $main_random $random_flags")
     cmds+=("python $main_random $random_flags --env_name ant")
@@ -98,16 +103,18 @@ main() {
         exit 1
     fi
 
+    # Tune
+    cmd="echo '$tune_params_json' > /tmp/params.json && python $tune $tune_flags --tunefile /tmp/params.json"
+    hermetic_file /tmp/params.json "$cmd"
+
     instance="data/plotexp_hc-hard:dynamics mse:x"
-    cmd="python cmpc/plot.py \"$instance\" --outfile x.pdf --yaxis x --notex"
-    sh -c "$cmd"
-    rm x.pdf
+    cmd="python cmpc/plot.py \"$instance\" --outfile /tmp/x.pdf --yaxis x --notex"
+    hermetic_file "/tmp/x.pdf" "$cmd"
 
     instance="data/plotexp_hc-hard:reward mean:x"
     hlines="data/plotexp_hc-hard:dynamics mse:yy"
-    cmd="python cmpc/plot.py \"$instance\" --outfile y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
-    sh -c "$cmd"
-    rm y.pdf
+    cmd="python cmpc/plot.py \"$instance\" --outfile /tmp/y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
+    hermetic_file "/tmp/y.pdf" "$cmd"
 
     ray stop
     trap '' EXIT
