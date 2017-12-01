@@ -10,16 +10,16 @@ random seeds. The runner code stored it in the directory structure
     data
     L expname_envname
       L  0
-        L log.txt
+        L events.out.tfevents.*
         L params.json
       L  1
-        L log.txt
+        L events.out.tfevents.*
         L params.json
        .
        .
        .
       L  9
-        L log.txt
+        L events.out.tfevents.*
         L params.json
 
 To plot learning curves from the experiment, averaged over all random
@@ -44,6 +44,7 @@ matplotlib.use('Agg')
 # flake8: noqa pylint: disable=wrong-import-position
 import matplotlib.pyplot as plt
 import numpy as np
+import tensorflow as tf
 import seaborn as sns
 
 
@@ -66,51 +67,24 @@ def _get_datasets(fpath, column, label, yaxis, smoothing):
     unit = 0
     datasets = []
     for root, _, files in os.walk(fpath):
-        if 'log.txt' in files:
-            log_path = os.path.join(root, 'log.txt')
-            experiment_data = pd.read_table(log_path)
-            experiment_data = experiment_data[['iteration', column]]
-            experiment_data.rename(columns={
-                column: yaxis}, inplace=True)
-            experiment_data.insert(
-                len(experiment_data.columns),
-                'Unit',
-                unit
-            )
-            experiment_data.insert(
-                len(experiment_data.columns),
-                'Condition',
-                label
-            )
+        for fname in files:
+            if not fname.startswith('events.out.tfevents'):
+                continue
+            log_path = os.path.join(root, fname)
+            df = []
+            for e in tf.train.summary_iterator(log_path):
+                for v in e.summary.value:
+                    if v.tag == column:
+                        df.append([e.step, unit, label, v.simple_value])
+                        break
+            columns = ['iteration', 'Unit', 'Condition', yaxis]
+            experiment_data = pd.DataFrame(df, columns=columns)
             experiment_data[yaxis] = pd.rolling_mean(
                 experiment_data[yaxis], smoothing)
-
             datasets.append(experiment_data)
             unit += 1
-
+            break
     return datasets
-
-
-def _get_hline(fpath, column, label):
-    unit = 0
-    vals = []
-    for root, _, files in os.walk(fpath):
-        if 'log.txt' in files:
-            log_path = os.path.join(root, 'log.txt')
-            experiment_data = pd.read_table(log_path)
-            experiment_data.rename(columns={
-                column: 'value'}, inplace=True)
-            if len(experiment_data) == 1:
-                top = experiment_data
-            else:
-                experiment_data = experiment_data[['iteration', 'value']]
-                top = experiment_data.loc[
-                    experiment_data['iteration'].idxmax()]
-            vals.append(top['value'])
-            unit += 1
-
-    return np.mean(vals), label
-
 
 def main():
     """Entry point for plot.py"""
@@ -134,13 +108,20 @@ def main():
 
     data = []
     for column in args.columns:
+        print(column)
         logdir, value, label = column.split(':')
         data += _get_datasets(logdir, value, label, args.yaxis, args.smoothing)
 
     hlines = []
     for column in args.hlines:
+        print(column)
         logdir, value, label = column.split(':')
-        hlines.append(_get_hline(logdir, value, label))
+        dfs = _get_datasets(logdir, value, label, 'value', args.smoothing)
+        values = []
+        for df in dfs:
+            top = df.loc[df['iteration'].idxmax()]
+            values.append(top['value'])
+        hlines.append([np.mean(values), label])
 
     data = pd.concat(data, ignore_index=True)
     data = data[data['iteration'] >= args.drop_iterations]

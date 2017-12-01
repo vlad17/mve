@@ -14,9 +14,9 @@ from flags import (convert_flags_to_json, parse_args, Flags)
 from multiprocessing_env import mk_venv
 from sample import sample_venv
 from utils import (make_data_directory, seed_everything, timeit,
-                   create_tf_session, log_statistics)
+                   create_tf_session)
 import log
-import logz
+import reporter
 
 
 def _train(args):
@@ -39,7 +39,6 @@ def _train(args):
             paths = sample_venv(venv, learner, args.experiment.horizon)
             data.add_paths(paths)
 
-    agg_returns = []
     for itr in range(args.run.onpol_iters):
         with timeit('learner fit'):
             if data.size:
@@ -55,13 +54,8 @@ def _train(args):
             most_recent = one_shot_dataset(paths)
             returns = most_recent.per_episode_rewards()
 
-        agg_returns += returns
-        if (itr + 1) % args.run.log_every == 0:
-            log_itr = (itr + 1) // args.run.log_every
-            logz.log_tabular('iteration', log_itr)
-            log_statistics('return', agg_returns)
-            logz.dump_tabular()
-            agg_returns = []
+        reporter.add_summary_statistics('return', returns)
+        reporter.advance_iteration()
 
     sess.__exit__(None, None, None)
 
@@ -74,15 +68,16 @@ def _main(args):
     for seed in args.experiment.seed:
         # Save params to disk.
         logdir_seed = os.path.join(logdir, str(seed))
-        logz.configure_output_dir(logdir_seed)
+        os.makedirs(logdir_seed)
         with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
             json.dump(convert_flags_to_json(args), f, sort_keys=True, indent=4)
 
         # Run experiment.
         g = tf.Graph()
         with g.as_default():
-            seed_everything(seed)
-            _train(args)
+            with reporter.create(logdir_seed, args.experiment.verbose):
+                seed_everything(seed)
+                _train(args)
 
 
 class RunFlags(Flags):
@@ -111,12 +106,6 @@ class RunFlags(Flags):
             default=100,
             help='how many warmup iterations DDPG gets (not recorded)',
         )
-        argument_group.add_argument(
-            '--log_every',
-            type=int,
-            default=10,
-            help='how frequently to log statistics',
-        )
 
     @staticmethod
     def name():
@@ -126,7 +115,6 @@ class RunFlags(Flags):
         self.onpol_iters = args.onpol_iters
         self.onpol_paths = args.onpol_paths
         self.warmup_iters = args.warmup_iters
-        self.log_every = args.log_every
 
 
 if __name__ == "__main__":

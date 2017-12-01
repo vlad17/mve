@@ -68,7 +68,6 @@ main() {
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags")
     cmds+=("python $main_ddpg $ddpg_flags --training_batches 2")
-    cmds+=("python $main_ddpg $ddpg_flags --training_batches 2 --log_every 1")
     # BMPC
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags")
     cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags --warmup_paths_mpc 1")
@@ -99,15 +98,15 @@ main() {
         exit 1
     fi
 
-    instance="data/plotexp_hc-hard:dynamics-mse:x"
-    cmd="python cmpc/plot.py $instance --outfile x.pdf --yaxis x --notex"
-    $cmd
+    instance="data/plotexp_hc-hard:dynamics mse:x"
+    cmd="python cmpc/plot.py \"$instance\" --outfile x.pdf --yaxis x --notex"
+    sh -c "$cmd"
     rm x.pdf
 
-    instance="data/plotexp_hc-hard:avg-return:x"
-    hlines="--hlines data/plotexp_hc-hard:dynamics-mse:yy"
-    cmd="python cmpc/plot.py $instance --outfile y.pdf --yaxis y --notex $hlines --smoothing 2"
-    $cmd
+    instance="data/plotexp_hc-hard:reward mean:x"
+    hlines="data/plotexp_hc-hard:dynamics mse:yy"
+    cmd="python cmpc/plot.py \"$instance\" --outfile y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
+    sh -c "$cmd"
     rm y.pdf
 
     ray stop

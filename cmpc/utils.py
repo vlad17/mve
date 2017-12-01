@@ -14,12 +14,14 @@ import gym
 import numpy as np
 
 import log
-import logz
 
 
-def create_tf_session():
+def create_tf_session(gpu=True):
     """Create a TF session that doesn't eat all GPU memory."""
-    config = tf.ConfigProto()
+    if gpu:
+        config = tf.ConfigProto()
+    else:
+        config = tf.ConfigProto(device_count={'GPU': 0})
     config.gpu_options.allow_growth = True
     opt_opts = config.graph_options.optimizer_options
     opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
@@ -132,15 +134,3 @@ def make_data_directory(name):
         print(time.strftime("%d-%m-%Y_%H-%M-%S"), file=f)
 
     return name
-
-
-def log_statistics(name, observations):
-    """
-    Logz statistics for a list of observations, namely avg-<name>,
-    std-<name>, min-<name>, max-<name>
-    """
-    statistics_names = ['avg', 'std', 'min', 'max']
-    statistics = [np.mean, np.std, np.min, np.max]
-    for stat_name, stat in zip(statistics_names, statistics):
-        col_name = stat_name + '-' + name
-        logz.log_tabular(col_name, stat(observations))

@@ -13,9 +13,9 @@ from flags import (Flags, convert_flags_to_json, parse_args)
 from multiprocessing_env import mk_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
-from utils import (make_data_directory, seed_everything, log_statistics)
+from utils import (make_data_directory, seed_everything)
 import log
-import logz
+import reporter
 
 
 class RandomPolicyFlags(Flags):
@@ -46,8 +46,8 @@ def _train(args):
     paths = sample_venv(venv, random_policy, args.experiment.horizon)
     data = one_shot_dataset(paths)
     returns = data.per_episode_rewards()
-    log_statistics('return', returns)
-    logz.dump_tabular()
+    reporter.add_summary_statistics('return', returns)
+    reporter.advance_iteration()
 
 
 def _main(args):
@@ -58,15 +58,16 @@ def _main(args):
     for seed in args.experiment.seed:
         # Save params to disk.
         logdir_seed = os.path.join(logdir, str(seed))
-        logz.configure_output_dir(logdir_seed)
+        os.makedirs(logdir_seed)
         with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
             json.dump(convert_flags_to_json(args), f, sort_keys=True, indent=4)
 
         # Run experiment.
         g = tf.Graph()
         with g.as_default():
-            seed_everything(seed)
-            _train(args)
+            with reporter.create(logdir_seed, args.experiment.verbose):
+                seed_everything(seed)
+                _train(args)
 
 
 if __name__ == "__main__":

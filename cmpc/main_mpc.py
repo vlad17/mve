@@ -17,10 +17,10 @@ from flags import (convert_flags_to_json, parse_args)
 from multiprocessing_env import mk_venv
 from sample import sample_venv
 from utils import (make_data_directory, seed_everything, timeit,
-                   create_tf_session, log_statistics)
+                   create_tf_session)
 from warmup import add_warmup_data, WarmupFlags
 import log
-import logz
+import reporter
 
 
 def _train(args):
@@ -41,7 +41,7 @@ def _train(args):
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
-    for itr in range(args.mpc.onpol_iters):
+    for _ in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
             if data.size:
                 dyn_model.fit(data)
@@ -60,12 +60,11 @@ def _train(args):
             ave_bias = bias.mean()
             ave_sqerr = np.square(bias).mean()
 
-        logz.log_tabular('iteration', itr)
-        log_statistics('return', returns)
-        logz.log_tabular('dynamics-mse', mse)
-        logz.log_tabular('standardized-reward-bias', ave_bias)
-        logz.log_tabular('standardized-reward-mse', ave_sqerr)
-        logz.dump_tabular()
+        reporter.add_summary_statistics('reward', returns)
+        reporter.add_summary('dynamics mse', mse)
+        reporter.add_summary('reward bias', ave_bias)
+        reporter.add_summary('reward mse', ave_sqerr)
+        reporter.advance_iteration()
 
     sess.__exit__(None, None, None)
 
@@ -78,15 +77,16 @@ def _main(args):
     for seed in args.experiment.seed:
         # Save params to disk.
         logdir_seed = os.path.join(logdir, str(seed))
-        logz.configure_output_dir(logdir_seed)
+        os.makedirs(logdir_seed)
         with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
             json.dump(convert_flags_to_json(args), f, sort_keys=True, indent=4)
 
         # Run experiment.
         g = tf.Graph()
         with g.as_default():
-            seed_everything(seed)
-            _train(args)
+            with reporter.create(logdir_seed, args.experiment.verbose):
+                seed_everything(seed)
+                _train(args)
 
 
 if __name__ == "__main__":

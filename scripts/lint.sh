@@ -5,7 +5,7 @@
 #   # Lint cmpc by default.
 #   ./scripts/lint.sh
 #   # Lint specific files.
-#   ./scripts/lint.sh cmpc/{logz,plot}.py
+#   ./scripts/lint.sh cmpc/{reporter,plot}.py
 
 set -euo pipefail
 

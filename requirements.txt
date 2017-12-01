@@ -10,3 +10,4 @@ mujoco-py == 0.5.7
 gym[all]
 ray==0.2.2
 cloudpickle==0.4.1
+terminaltables
