@@ -48,10 +48,11 @@ class DynamicsFlags(Flags):
             help='dynamics NN batch size',
         )
         dynamics_nn.add_argument(
-            '--normalize',
+            '--renormalize',
             default=False,
             action='store_true',
-            help='calculate and use normalization statistics from the warmup',
+            help='re-calculate dynamics normalization statistics after every '
+            'iteration'
         )
 
     @staticmethod
@@ -64,56 +65,97 @@ class DynamicsFlags(Flags):
         self.dyn_learning_rate = args.dyn_learning_rate
         self.dyn_epochs = args.dyn_epochs
         self.dyn_batch_size = args.dyn_batch_size
-        self.normalize = args.normalize
+        self.renormalize = args.renormalize
+
+
+class _Statistics:
+    def __init__(self, data):
+        if data.size == 0:
+            self.mean_ob = np.zeros(data.obs.shape[1])
+            self.std_ob = np.ones(data.obs.shape[1])
+            self.mean_delta = np.zeros(data.obs.shape[1])
+            self.std_delta = np.ones(data.obs.shape[1])
+            self.mean_ac = np.zeros(data.acs.shape[1])
+            self.std_ac = np.ones(data.acs.shape[1])
+        else:
+            self.mean_ob = np.mean(data.obs, axis=0)
+            self.std_ob = np.std(data.obs, axis=0)
+            diffs = data.next_obs - data.obs
+            self.mean_delta = np.mean(diffs, axis=0)
+            self.std_delta = np.std(diffs, axis=0)
+            self.mean_ac = np.mean(data.acs, axis=0)
+            self.std_ac = np.std(data.acs, axis=0)
+
+
+class _AssignableStatistic:
+    # Need stateful statistics so we don't have to feed
+    # stats through a feed_dict every time we want to use the
+    # dynamics.
+    def __init__(self, suffix, initial_mean, initial_std):
+        self._mean_var = tf.Variable(
+            initial_value=initial_mean, dtype=tf.float32,
+            name='mean_' + suffix, trainable=False)
+        self._std_var = tf.Variable(
+            initial_value=initial_std, dtype=tf.float32,
+            name='std_' + suffix, trainable=False)
+        self._mean_ph = tf.placeholder(tf.float32, initial_mean.shape)
+        self._std_ph = tf.placeholder(tf.float32, initial_std.shape)
+        self._assign_both = tf.group(
+            tf.assign(self._mean_var, self._mean_ph),
+            tf.assign(self._std_var, self._std_ph))
+
+    def update_statistics(self, mean, std):
+        """
+        Update the stateful statistics using the default session.
+        """
+        tf.get_default_session().run(
+            self._assign_both, feed_dict={
+                self._mean_ph: mean,
+                self._std_ph: std})
+
+    def tf_normalize(self, x):
+        """Normalize a value according to these statistics"""
+        return (x - self._mean_var) / (self._std_var + 1e-6)
+
+    def tf_denormalize(self, x):
+        """Denormalize a value according to these statistics"""
+        return x * (self._std_var + 1e-6) + self._mean_var
 
 
 class _DeltaNormalizer:
     def __init__(self, data, eps=1e-6):
-        self.mean_ob = np.mean(data.obs, axis=0)
-        self.std_ob = np.std(data.obs, axis=0)
-        diffs = data.next_obs - data.obs
-        self.mean_delta = np.mean(diffs, axis=0)
-        self.std_delta = np.std(diffs, axis=0)
-        self.mean_ac = np.mean(data.acs, axis=0)
-        self.std_ac = np.std(data.acs, axis=0)
-        self.eps = eps
+        self._eps = eps
+        stats = _Statistics(data)
+        self._ob_tf_stats = _AssignableStatistic(
+            'ob', stats.mean_ob, stats.std_ob)
+        self._delta_tf_stats = _AssignableStatistic(
+            'delta', stats.mean_delta, stats.std_delta)
+        self._ac_tf_stats = _AssignableStatistic(
+            'ac', stats.mean_ac, stats.std_ac)
 
     def norm_obs(self, obs):
         """normalize observations"""
-        return (obs - self.mean_ob) / (self.std_ob + self.eps)
+        return self._ob_tf_stats.tf_normalize(obs)
 
     def norm_acs(self, acs):
         """normalize actions"""
-        return (acs - self.mean_ac) / (self.std_ac + self.eps)
+        return self._ac_tf_stats.tf_normalize(acs)
 
     def norm_delta(self, deltas):
         """normalize deltas"""
-        return (deltas - self.mean_delta) / (self.std_delta + self.eps)
+        return self._delta_tf_stats.tf_normalize(deltas)
 
     def denorm_delta(self, deltas):
         """denormalize deltas"""
-        return deltas * self.std_delta + self.mean_delta
+        return self._delta_tf_stats.tf_denormalize(deltas)
 
-
-class _NoNormalizer:
-    def __init__(self, data):
-        pass
-
-    def norm_obs(self, obs):  # pylint: disable=no-self-use
-        """(don't) normalize observations"""
-        return obs
-
-    def norm_acs(self, acs):  # pylint: disable=no-self-use
-        """(don't) normalize actions"""
-        return acs
-
-    def norm_delta(self, deltas):  # pylint: disable=no-self-use
-        """(don't) normalize deltas"""
-        return deltas
-
-    def denorm_delta(self, deltas):  # pylint: disable=no-self-use
-        """(don't) denormalize deltas"""
-        return deltas
+    def update_stats(self, data):
+        """update the stateful normalization statistics"""
+        stats = _Statistics(data)
+        self._ob_tf_stats.update_statistics(stats.mean_ob, stats.std_ob)
+        self._delta_tf_stats.update_statistics(
+            stats.mean_delta, stats.std_delta)
+        self._ac_tf_stats.update_statistics(stats.mean_ac, stats.std_ac)
 
 
 class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
@@ -131,10 +173,7 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
         self.next_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], "true_next_state_diff")
 
-        if dyn_flags.normalize:
-            self.norm = _DeltaNormalizer(norm_data)
-        else:
-            self.norm = _NoNormalizer(norm_data)
+        self.norm = _DeltaNormalizer(norm_data)
 
         self.mlp_kwargs = {
             'output_size': ob_dim,
@@ -156,9 +195,13 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
             true_deltas_ns, deltas_ns)
         self.update_op = tf.train.AdamOptimizer(
             dyn_flags.dyn_learning_rate).minimize(train_mse)
+        self._renormalize = dyn_flags.renormalize
 
     def fit(self, data):
         """Fit the dynamics to the given dataset of transitions"""
+        if self._renormalize:
+            self.norm.update_stats(data)
+
         # I actually tried out the tf.contrib.train.Dataset API, and
         # it was *slower* than this feed_dict method. I figure that the
         # data throughput per batch is small enough (since the data is so
