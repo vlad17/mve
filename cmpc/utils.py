@@ -95,3 +95,37 @@ def build_mlp(input_placeholder,
             out = tf.layers.dense(out, size, activation=activation)
         out = tf.layers.dense(out, output_size, activation=output_activation)
     return out
+
+
+def rate_limit(limit, fn, *args_n):
+    """
+    Suppose args_n is a list of arguments for the function fn, each of which
+    is a numpy array of dimension at least 1. Further, assume that fn
+    returns a tuple of numpy arrays of dimension at least 1, where
+    the length along the first axis of the returned arrays is the same as
+    that of the arguments given to fn.
+
+    Then rate_limit(limit, fn, *args_n) returns the result one
+    would expect from fn(*args_n) but with multiple function calls
+    so that fn is never called with arrays whose first axis
+    length is greater than limit.
+    """
+    n = len(args_n[0])
+    if n <= limit:
+        return fn(*args_n)
+
+    partial_slices = [arg[:limit] for arg in args_n]
+    partial_returns = fn(*partial_slices)
+    returns = [np.empty((n,) + ret.shape[1:], dtype=ret.dtype)
+               for ret in partial_returns]
+    for dst, src in zip(returns, partial_returns):
+        dst[:limit] = src
+
+    for i in range(limit, n - limit + 1, limit):
+        loc = slice(i, i + limit)
+        partial_slices = [arg[loc] for arg in args_n]
+        partial_returns = fn(*partial_slices)
+        for dst, src in zip(returns, partial_returns):
+            dst[loc] = src
+
+    return returns

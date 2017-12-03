@@ -91,14 +91,5 @@ class RandomShooter(Policy):
         # GPU memory size, and use the state dimension + MPC horizon
         # to figure out the appropriate batch amount.
         batch_size = 500
-        if len(states_ns) <= batch_size:
-            return self._act(states_ns)
-
-        acs = np.empty((len(states_ns), self._ac_dim))
-        rws = np.empty((len(states_ns),))
-        for i in range(0, len(states_ns) - batch_size + 1, batch_size):
-            loc = slice(i, i + batch_size)
-            ac, rw = self._act(states_ns[loc])
-            acs[loc] = ac
-            rws[loc] = rw
-        return acs, rws
+        from utils import rate_limit
+        return rate_limit(batch_size, self._act, states_ns)
