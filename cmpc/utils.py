@@ -59,14 +59,14 @@ def get_ob_dim(env):
     return ob_space.shape[0]
 
 
-def create_random_tf_policy(ac_space):
+def create_random_tf_action(ac_space):
     """
     Given an environment `env` with states of length s and actions of length a,
-    `create_random_tf_policy(env.action_space)` will return a function `f` that
+    `create_random_tf_action(env.action_space)` will return a function `f` that
     takes in an n x s tensor and returns an n x a tensor drawn uniformly at
     random from `env.action_space`.
     """
-    def _policy(state_ns, **_):
+    def _policy(state_ns):
         n = tf.shape(state_ns)[0]
         ac_dim = ac_space.low.shape
         ac_na = tf.random_uniform((n,) + ac_dim)

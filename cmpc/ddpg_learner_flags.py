@@ -1,24 +1,41 @@
 """DDPGLearner flags."""
 
 from ddpg_learner import DDPGLearner
-from neural_network_learner_flags import NeuralNetworkLearnerFlags
+from learner_flags import LearnerFlags
 
 
 # pylint: disable=too-many-instance-attributes
-class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
+class DDPGLearnerFlags(LearnerFlags):
     """DDPGLearner flags."""
 
     @staticmethod
     def add_flags(parser, argument_group=None):
+        """Add flags for DDPG Learner configuration to the parser"""
         if argument_group is None:
             argument_group = parser.add_argument_group('ddpg learner')
 
-        NeuralNetworkLearnerFlags.add_flags(parser, argument_group)
         argument_group.add_argument(
-            '--action_stddev',
+            '--learner_depth',
+            type=int,
+            default=2,
+            help='depth for both actor and critic networks',
+        )
+        argument_group.add_argument(
+            '--learner_width',
+            type=int,
+            default=64,
+            help='width for both actor and critic networks',
+        )
+        argument_group.add_argument(
+            '--actor_lr',
             type=float,
-            default=0.2,
-            help='desired stddev for injected noise in DDPG actions')
+            default=1e-4,
+            help='actor network learning rate')
+        argument_group.add_argument(
+            '--critic_lr',
+            type=float,
+            default=1e-4,
+            help='critic network learning rate')
         argument_group.add_argument(
             '--critic_l2_reg',
             type=float,
@@ -26,44 +43,16 @@ class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
             help='DDPG critic regularization constant'
         )
         argument_group.add_argument(
-            '--critic_lr',
-            type=float,
-            default=1e-3,
-            help='DDPG critic learning rate'
-        )
-        argument_group.add_argument(
-            '--action_noise_exploration',
-            default=0,
-            type=float,
-            help='use DDPG actor action noise for MPC exploration: parameter '
-            'sets stddev for normal noise if >0'
-        )
-        argument_group.add_argument(
-            '--param_noise_exploration',
-            default=False,
-            action='store_true',
-            help='use DDPG actor param noise for MPC exploration: only if '
-            'action_noise_exploration not set'
-        )
-        argument_group.add_argument(
-            '--param_noise_exploitation',
-            default=False,
-            action='store_true',
-            help='use DDPG actor noise when the learner acts'
-        )
-        argument_group.add_argument(
-            '--training_batches',
+            '--learner_nbatches',
             default=None,
             type=int,
-            help='if set, specifies the fixed number of minibatches to train '
-            'DDPG on, overriding --con_epochs'
+            help='number of minibatches to train on per iteration'
         )
         argument_group.add_argument(
-            '--epsilon_ball',
-            default=0,
-            type=float,
-            help='use epsilon-ball action exploration with the specified'
-            ' epsilon if >0 -- overrides all other noise strategies'
+            '--learner_batch_size',
+            default=512,
+            type=int,
+            help='number of minibatches to train on per iteration'
         )
 
     @staticmethod
@@ -71,16 +60,14 @@ class DDPGLearnerFlags(NeuralNetworkLearnerFlags):
         return 'ddpg'
 
     def __init__(self, args):
-        super().__init__(args)
-        self.action_stddev = args.action_stddev
-        self.critic_l2_reg = args.critic_l2_reg
+        self.depth = args.learner_depth
+        self.width = args.learner_width
+        self.actor_lr = args.actor_lr
         self.critic_lr = args.critic_lr
-        self.action_noise_exploration = args.action_noise_exploration
-        self.param_noise_exploration = args.param_noise_exploration
-        self.param_noise_exploitation = args.param_noise_exploitation
-        self.training_batches = args.training_batches
-        self.epsilon_ball = args.epsilon_ball
+        self.critic_l2_reg = args.critic_l2_reg
+        self.nbatches = args.learner_nbatches
+        self.batch_size = args.learner_batch_size
 
-    def make_learner(self, venv, sess):
+    def make_learner(self, env):
         """Make a DDPGLearner."""
-        return DDPGLearner(env=venv, sess=sess, ddpg_flags=self)
+        return DDPGLearner(env, self)

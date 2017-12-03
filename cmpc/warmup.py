@@ -14,7 +14,6 @@ from dataset import (Dataset, one_shot_dataset)
 from dynamics import NNDynamicsModel
 from flags import Flags
 from log import debug
-from mpc import MPC
 from multiprocessing_env import make_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
@@ -75,7 +74,7 @@ def _mpc_loop(iterations, data, dynamics, controller, venv):
               'dynamics mse {:8.2f})', i + 1, ave_return, mse)
 
 
-def _sample_mpc(tf_reward, venv, warmup_flags, mpc_flags, dyn_flags, data):
+def _sample_mpc(tf_reward, venv, flags, data):
     # sample in a different graph to avoid variable shadowing
     seed = tf.get_default_graph().seed
     g = tf.Graph()
@@ -83,15 +82,14 @@ def _sample_mpc(tf_reward, venv, warmup_flags, mpc_flags, dyn_flags, data):
         with create_tf_session() as sess:
             seed_everything(seed)
             dynamics = NNDynamicsModel(
-                venv, data, dyn_flags)
-            controller = MPC(
-                venv, dynamics, mpc_flags.mpc_horizon, tf_reward,
-                mpc_flags.mpc_simulated_paths, learner=None)
+                venv, data, flags.dynamics)
+            controller = flags.mpc.make_mpc(
+                venv, dynamics, tf_reward, None, flags)
             sess.run(tf.global_variables_initializer())
             g.finalize()
             with sess.as_default():
                 _mpc_loop(
-                    warmup_flags.warmup_paths_mpc,
+                    flags.warmup.warmup_paths_mpc,
                     data, dynamics, controller, venv)
 
 
@@ -141,8 +139,10 @@ def add_warmup_data(flags, data):
         "dyn_epochs": flags.dynamics.dyn_epochs,
         "dyn_batch_size": flags.dynamics.dyn_batch_size,
         # MPC flags.
-        "mpc_simulated_paths": flags.mpc.mpc_simulated_paths,
-        "mpc_horizon": flags.mpc.mpc_horizon,
+        "planner": flags.mpc.planner,
+        "mpc_horizon": flags.mpc.horizon,
+        "shooter:opt_horizon": flags.shooter.opt_horizon,
+        "shooter:simulated_paths": flags.shooter.simulated_paths
     }
     warmup_params_str = json.dumps(warmup_params, sort_keys=True, indent=4)
     warmup_params_hash = _hash_dict(warmup_params)
@@ -195,7 +195,7 @@ def add_warmup_data(flags, data):
         venv = make_venv(flags.experiment.make_env, 1)
         tf_reward = flags.experiment.make_env().tf_reward
         _sample_mpc(
-            tf_reward, venv, flags.warmup, flags.mpc, flags.dynamics, data)
+            tf_reward, venv, flags, data)
 
     # Update the cache.
     debug("Caching dataset and warmup params to {}.", dataset_dir)

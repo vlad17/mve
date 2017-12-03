@@ -14,22 +14,22 @@ def mkagent(env, flags):
     Make a DDPG agent with all the bells and whistles.
     """
     nb_actions = env.action_space.shape[-1]
-    stddev = flags.action_stddev
+    stddev = 0.2
     param_noise = AdaptiveParamNoiseSpec(
         initial_stddev=float(stddev),
         desired_action_stddev=float(stddev))
 
     kwargs = {'critic_l2_reg': flags.critic_l2_reg,
-              'batch_size': flags.con_batch_size,
-              'actor_lr': flags.con_learning_rate,
+              'batch_size': flags.batch_size,
+              'actor_lr': flags.actor_lr,
               'critic_lr': flags.critic_lr,
               'enable_popart': False,  # requires return normalization
               'gamma': 0.99,
               'clip_norm': None,
               'param_noise': param_noise,
               'action_noise': None}
-    critic = Critic(width=flags.con_width, depth=flags.con_depth)
-    actor = Actor(nb_actions, width=flags.con_width, depth=flags.con_depth)
+    critic = Critic(width=flags.width, depth=flags.depth)
+    actor = Actor(nb_actions, width=flags.width, depth=flags.depth)
     ddpg = DDPG(actor, critic, env.observation_space.shape,
                 env.action_space.shape, tau=0.01, **kwargs)
     return ddpg

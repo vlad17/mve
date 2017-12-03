@@ -43,21 +43,20 @@ main() {
     ray_addr="$(cat ray-init.txt | awk '/ray start --redis-address/ { print $4 }')"
     rm ray-init.txt
 
-    tune_params_json='[{"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "warmup_paths_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}, {"smoothing": 3, "horizon": 5, "mpc_simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "warmup_paths_mpc": 1, "con_depth": 1, "con_width": 10, "con_epochs": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}]'
+    tune_params_json='[{"smoothing": 3, "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "warmup_paths_mpc": 1, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}, {"smoothing": 3, "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "warmup_paths_mpc": 1, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}]'
 
     main_random="cmpc/main_random_policy.py"
-    main_mpc="cmpc/main_mpc.py"
-    main_bmpc="cmpc/main_cmpc.py"
+    main_cmpc="cmpc/main_cmpc.py"
     main_ddpg="cmpc/main_ddpg.py"
     tune="cmpc/tune.py"
 
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8"
     dynamics_flags="--dyn_epochs 1 --dyn_depth 1 --dyn_width 8"
-    mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --onpol_paths 3 --mpc_simulated_paths 2 --mpc_horizon 3"
+    mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --onpol_paths 3 --simulated_paths 2 --mpc_horizon 3"
     warmup_flags="--warmup_paths_random 2"
-    nn_learner_flags="--con_depth 1 --con_width 1 --con_epochs 1"
-    ddpg_flags="$experiment_flags $nn_learner_flags --onpol_iters 2 --onpol_paths 3 --warmup_iters 1"
+    nn_learner_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2"
+    ddpg_flags="$experiment_flags $nn_learner_flags"
     tune_flags="--ray_addr $ray_addr"
 
     cmds=()
@@ -67,30 +66,24 @@ main() {
     cmds+=("python $main_random $random_flags --env_name walker2d")
     cmds+=("python $main_random $random_flags --env_name hc-easy")
     # MPC
-    cmds+=("python $main_mpc $mpc_flags $warmup_flags")
-    cmds+=("python $main_mpc $mpc_flags $warmup_flags --env_name hc-easy")
-    cmds+=("python $main_mpc $mpc_flags $warmup_flags --onpol_iters 3 --exp_name plotexp")
+    cmds+=("python $main_cmpc none $mpc_flags $warmup_flags")
+    cmds+=("python $main_cmpc none $mpc_flags $warmup_flags --env_name hc-easy")
+    cmds+=("python $main_cmpc none $mpc_flags $warmup_flags --onpol_iters 3 --exp_name plotexp")
     # DDPG
-    cmds+=("python $main_ddpg $ddpg_flags")
-    cmds+=("python $main_ddpg $ddpg_flags --training_batches 2")
-    # BMPC
-    cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags")
-    cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags --warmup_paths_mpc 1")
-    cmds+=("python $main_bmpc delta $mpc_flags $nn_learner_flags $warmup_flags --explore_std 1")
-    cmds+=("python $main_bmpc gaussian $mpc_flags $nn_learner_flags $warmup_flags")
-    cmds+=("python $main_bmpc gaussian $mpc_flags $nn_learner_flags $warmup_flags --no_extra_explore")
-    cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags")
-    cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --param_noise_exploitation")
-    cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --param_noise_exploration")
-    cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --env_name ant")
-    cmds+=("python $main_bmpc ddpg $mpc_flags $nn_learner_flags $warmup_flags --env_name walker2d")
-    cmds+=("python $main_bmpc zero $mpc_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
+    cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-3 --episodes 2")
+    cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-3 --episodes 2")
+    # CMPC
+    cmds+=("python $main_cmpc cloner $mpc_flags $nn_learner_flags $warmup_flags")
+    cmds+=("python $main_cmpc cloner $mpc_flags $nn_learner_flags $warmup_flags")
+    cmds+=("python $main_cmpc ddpg $mpc_flags $ddpg_flags $warmup_flags")
+    cmds+=("python $main_cmpc zero $mpc_flags $warmup_flags ")
     # Check that warmup caching doesn't break anything. These commands should
     # create two new cache directories.
     rm -rf data/test_warmup_cache
-    cmds+=("python $main_mpc $mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
-    cmds+=("python $main_mpc $mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
-    cmds+=("python $main_mpc $mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 4 --warmup_paths_mpc 2")
+    cmds+=("python $main_cmpc none $mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
+    cmds+=("python $main_cmpc none $mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
+    cmds+=("python $main_cmpc none $mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 4 --warmup_paths_mpc 2")
 
     for cmd in "${cmds[@]}"; do
         box "$cmd"

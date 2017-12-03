@@ -1,24 +1,23 @@
-"""Generate constrained MPC rollouts."""
+"""Generate possibly constrained MPC rollouts."""
 
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 import numpy as np
 
-from mpc import MPC
+from cloning_learner import CloningLearnerFlags
 from dataset import Dataset, one_shot_dataset
 from ddpg_learner_flags import DDPGLearnerFlags
-from deterministic_learner_flags import DeterministicLearnerFlags
 from dynamics import DynamicsFlags, NNDynamicsModel
 from experiment import experiment_main, ExperimentFlags
 from flags import parse_args_with_subcmds
-from mpc_flags import MpcFlags
+from learner_flags import NoLearnerFlags
+from mpc_flags import MpcFlags, RandomShooterFlags
 from multiprocessing_env import make_venv
 from sample import sample_venv
-from stochastic_learner_flags import StochasticLearnerFlags
 from utils import (timeit, create_tf_session)
 from warmup import add_warmup_data, WarmupFlags
-from zero_learner_flags import ZeroLearnerFlags
+from zero_learner import ZeroLearnerFlags
 import reporter
 
 
@@ -35,10 +34,9 @@ def train(args, learner_flags):
     sess = create_tf_session()
 
     dyn_model = NNDynamicsModel(env, data, args.dynamics)
-    learner = learner_flags.make_learner(venv, sess)
-    controller = MPC(
-        env, dyn_model, args.mpc.mpc_horizon,
-        env.tf_reward, args.mpc.mpc_simulated_paths, learner)
+    learner = learner_flags.make_learner(env)
+    controller = args.mpc.make_mpc(
+        env, dyn_model, env.tf_reward, learner, args)
     sess.__enter__()
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
@@ -49,7 +47,7 @@ def train(args, learner_flags):
                 dyn_model.fit(data)
 
         with timeit('learner fit'):
-            if data.size:
+            if data.size and learner:
                 learner.fit(data)
 
         with timeit('sample controller'):
@@ -62,16 +60,18 @@ def train(args, learner_flags):
             most_recent = one_shot_dataset(paths)
             returns = most_recent.per_episode_rewards()
             mse = dyn_model.dataset_mse(most_recent)
-            bias, _ = most_recent.reward_bias(args.mpc.mpc_horizon)
+            bias, _ = most_recent.reward_bias(args.mpc.horizon)
             ave_bias = bias.mean()
             ave_sqerr = np.square(bias).mean()
             # TODO: bootstrap ave_bias ci, ave_sqerr ci
-            learner.log(most_recent)
-            # out-of-band learner evaluation
-            learner_paths = sample_venv(venv, learner, data.max_horizon)
-            learner_data = one_shot_dataset(learner_paths)
-            learner_returns = learner_data.per_episode_rewards()
-            reporter.add_summary_statistics('learner reward', learner_returns)
+            if learner:
+                learner.log(most_recent)
+                # out-of-band learner evaluation
+                learner_paths = sample_venv(venv, learner, data.max_horizon)
+                learner_data = one_shot_dataset(learner_paths)
+                learner_returns = learner_data.per_episode_rewards()
+                reporter.add_summary_statistics(
+                    'learner reward', learner_returns)
 
         reporter.add_summary_statistics('reward', returns)
         reporter.add_summary('dynamics mse', mse)
@@ -84,9 +84,10 @@ def train(args, learner_flags):
 
 def flags_to_parse():
     """Flags that BMPC should parse"""
-    flags = [ExperimentFlags, MpcFlags, DynamicsFlags, WarmupFlags]
-    subflags = [DeterministicLearnerFlags, StochasticLearnerFlags,
-                DDPGLearnerFlags, ZeroLearnerFlags]
+    flags = [ExperimentFlags, MpcFlags, DynamicsFlags, WarmupFlags,
+             RandomShooterFlags]
+    subflags = [CloningLearnerFlags, DDPGLearnerFlags,
+                ZeroLearnerFlags, NoLearnerFlags]
     return flags, subflags
 
 

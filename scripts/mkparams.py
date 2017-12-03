@@ -29,18 +29,14 @@ paths_iters = [
 
 sims = [{"mpc_simulated_paths": x} for x in [1000]]
 mpc_horiz = [{"mpc_horizon": x} for x in [15]]
-con_train_time = [
-    {"con_epochs": 10},
-    {"con_epochs": 1},
-    {"training_batches": 4000}]
+con_train_time = [{"learner_nbatches": 4000}]
 nn_shape = [
-    {"con_depth": 2, "con_width": 64},
-    {"con_depth": 5, "con_width": 32}]
-con_lr = [{"con_learning_rate": x, "critic_lr": x} for x in
+    {"learner_depth": 2, "learner_width": 64},
+    {"learner_depth": 5, "learner_width": 32}]
+con_lr = [{"actor_lr": x, "critic_lr": x} for x in
           [1e-4, 5e-5, 1e-5]]
 
 constants = [{
-    "action_noise_exploration": 0.1,
     "dyn_depth": 2,
     "dyn_width": 500,
     "dyn_epochs": 60}]

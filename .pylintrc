@@ -5,5 +5,3 @@ max-line-length=79
 [BASIC]
 good-names=i,j,k,x,y,xs,ys,t,ac,ob,acs,obs,p
 
-[SIMILARITIES]
-min-similarity-lines=50

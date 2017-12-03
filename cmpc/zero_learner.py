@@ -4,7 +4,29 @@ import tensorflow as tf
 import numpy as np
 
 from learner import Learner
-from utils import (create_random_tf_policy, get_ac_dim)
+from learner_flags import LearnerFlags
+from utils import get_ac_dim
+
+
+class ZeroLearnerFlags(LearnerFlags):
+    """ZeroLearner flags."""
+
+    @staticmethod
+    def add_flags(parser):
+        """Adds flags to an argparse parser."""
+        # ZeroLearner doesn't have any flags!
+        pass
+
+    @staticmethod
+    def name():
+        return 'zero'
+
+    def __init__(self, _args):
+        pass
+
+    def make_learner(self, env):
+        return ZeroLearner(env)
+
 
 class ZeroLearner(Learner):
     """Acts randomly on the first action, then just returns 0."""
@@ -13,10 +35,7 @@ class ZeroLearner(Learner):
         self.ac_space = env.action_space
         self.ac_dim = get_ac_dim(env)
 
-    def tf_action(self, states_ns, is_initial=True):
-        if is_initial:
-            random_policy = create_random_tf_policy(self.ac_space)
-            return random_policy(states_ns)
+    def tf_action(self, states_ns):
         return tf.zeros([tf.shape(states_ns)[0], self.ac_dim])
 
     def fit(self, data):
