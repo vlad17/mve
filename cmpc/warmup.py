@@ -64,7 +64,8 @@ def _sample_random(venv, data):
 
 def _mpc_loop(iterations, data, dynamics, controller, venv):
     for i in range(iterations):
-        dynamics.fit(data)
+        if data.size:
+            dynamics.fit(data)
         paths = sample_venv(venv, controller, data.max_horizon)
         data.add_paths(paths)
         most_recent = one_shot_dataset(paths)

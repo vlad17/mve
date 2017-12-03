@@ -33,6 +33,10 @@ def train(args, learner_flags):
     venv = make_venv(args.experiment.make_env, args.mpc.onpol_paths)
     sess = create_tf_session()
 
+    if not args.dynamics.normalize and args.warmup.warmup_paths_random > 0:
+        raise ValueError('What are you running random warmup paths for '
+                         'without normalization, you silly goose?')
+
     dyn_model = NNDynamicsModel(env, data, args.dynamics)
     learner = learner_flags.make_learner(env)
     controller = args.mpc.make_mpc(

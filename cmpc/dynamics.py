@@ -47,6 +47,12 @@ class DynamicsFlags(Flags):
             default=512,
             help='dynamics NN batch size',
         )
+        dynamics_nn.add_argument(
+            '--normalize',
+            default=False,
+            action='store_true',
+            help='calculate and use normalization statistics from the warmup',
+        )
 
     @staticmethod
     def name():
@@ -58,6 +64,7 @@ class DynamicsFlags(Flags):
         self.dyn_learning_rate = args.dyn_learning_rate
         self.dyn_epochs = args.dyn_epochs
         self.dyn_batch_size = args.dyn_batch_size
+        self.normalize = args.normalize
 
 
 class _DeltaNormalizer:
@@ -88,6 +95,27 @@ class _DeltaNormalizer:
         return deltas * self.std_delta + self.mean_delta
 
 
+class _NoNormalizer:
+    def __init__(self, data):
+        pass
+
+    def norm_obs(self, obs):  # pylint: disable=no-self-use
+        """(don't) normalize observations"""
+        return obs
+
+    def norm_acs(self, acs):  # pylint: disable=no-self-use
+        """(don't) normalize actions"""
+        return acs
+
+    def norm_delta(self, deltas):  # pylint: disable=no-self-use
+        """(don't) normalize deltas"""
+        return deltas
+
+    def denorm_delta(self, deltas):  # pylint: disable=no-self-use
+        """(don't) denormalize deltas"""
+        return deltas
+
+
 class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
     """Stationary neural-network-based dynamics model."""
 
@@ -103,7 +131,10 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
         self.next_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], "true_next_state_diff")
 
-        self.norm = _DeltaNormalizer(norm_data)
+        if dyn_flags.normalize:
+            self.norm = _DeltaNormalizer(norm_data)
+        else:
+            self.norm = _NoNormalizer(norm_data)
 
         self.mlp_kwargs = {
             'output_size': ob_dim,

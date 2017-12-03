@@ -181,7 +181,7 @@ class _Worker(object):
             if enabled:
                 observation, reward, done, info_i = env.step(action)
             else:
-                observation = env.observation_space.sample()
+                observation = np.zeros_like(env.observation_space.low)
                 reward = 0
                 done = True
                 info_i = {}
