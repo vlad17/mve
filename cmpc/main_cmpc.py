@@ -14,7 +14,7 @@ from flags import parse_args_with_subcmds
 from learner_flags import NoLearnerFlags
 from mpc_flags import MpcFlags, RandomShooterFlags
 from multiprocessing_env import make_venv
-from sample import sample_venv
+from sample import sample_venv, sample
 from utils import (timeit, create_tf_session)
 from warmup import add_warmup_data, WarmupFlags
 from zero_learner import ZeroLearnerFlags
@@ -41,7 +41,7 @@ def train(args, learner_flags):
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
-    for _ in range(args.mpc.onpol_iters):
+    for itr in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
             if data.size:
                 dyn_model.fit(data)
@@ -52,8 +52,6 @@ def train(args, learner_flags):
 
         with timeit('sample controller'):
             paths = sample_venv(venv, controller, args.experiment.horizon)
-
-        with timeit('adding paths to dataset'):
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
@@ -78,6 +76,12 @@ def train(args, learner_flags):
         reporter.add_summary('reward bias', ave_bias)
         reporter.add_summary('reward mse', ave_sqerr)
         reporter.advance_iteration()
+
+        if args.experiment.render_every > 0 and \
+           (itr + 1) % args.experiment.render_every == 0:
+            render_env = args.experiment.render_env(env, itr + 1)
+            _ = sample(
+                render_env, controller, args.experiment.horizon, render=True)
 
     sess.__exit__(None, None, None)
 

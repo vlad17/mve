@@ -9,11 +9,12 @@ import shutil
 import subprocess
 import time
 
+from gym import wrappers
+import tensorflow as tf
+
 from flags import Flags, convert_flags_to_json
 from envs import (WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard,
                   WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
-import tensorflow as tf
-
 import log
 import reporter
 from utils import seed_everything
@@ -82,6 +83,13 @@ class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
             default=int(1e6),
             help='transition replay buffer maximum size',
         )
+        experiment.add_argument(
+            '--render_every',
+            type=int,
+            default=0,
+            help='if possible, render an episode every render_every episodes. '
+            'If set to 0 then no rendering.'
+        )
 
     @staticmethod
     def name():
@@ -96,6 +104,8 @@ class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
         self.frame_skip = args.frame_skip
         self.horizon = args.horizon
         self.bufsize = args.bufsize
+        self.render_every = args.render_every
+        self.render_directory = None  # set by experiment_main
 
     def make_env(self):
         """Generates an unvectorized env."""
@@ -109,6 +119,13 @@ class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
             return WhiteBoxWalker2dEnv(self.frame_skip)
         else:
             raise ValueError('env {} unsupported'.format(self.env_name))
+
+    def render_env(self, env, uid):
+        """Take a regular env and make it render-able."""
+        limited_env = wrappers.TimeLimit(env, max_episode_steps=self.horizon)
+        directory = os.path.join(self.render_directory, str(uid))
+        render_env = wrappers.Monitor(limited_env, directory)
+        return render_env
 
     def log_directory(self):
         """return a root name for the log directory of this experiment"""
@@ -185,6 +202,10 @@ def experiment_main(flags, experiment_fn, subflags=None):
             if subflags is not None:
                 flag_dict.update(convert_flags_to_json([subflags]))
             json.dump(flag_dict, f, sort_keys=True, indent=4)
+
+        # Rendering directory
+        rendir = os.path.join(logdir_seed, 'render')
+        flags.experiment.render_directory = rendir
 
         # Run experiment.
         g = tf.Graph()

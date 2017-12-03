@@ -42,3 +42,23 @@ def sample_venv(venv, policy, max_horizon=1000):
                 active_n[i] = False
                 venv.mask(i)
     return paths
+
+
+def sample(env, policy, max_horizon=1000, render=False):
+    """
+    Given a single environment env, perform a rollout up to max_horizon
+    steps, possibly rendering, with the given policy.
+    """
+    ob = env.reset()
+    path = Path(env, ob, max_horizon)
+    policy.reset(1)
+
+    for _ in range(max_horizon):
+        if render:
+            env.render()
+        ac, pred_rew = policy.act(ob[np.newaxis, ...])
+        ob, reward, done, _ = env.step(ac[0])
+        path.next(ob, reward, done, ac[0], pred_rew[0])
+        if done:
+            break
+    return path

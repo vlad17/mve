@@ -6,7 +6,10 @@ from random_shooter import RandomShooter
 
 
 class MpcFlags(Flags):
-    """Top-level MPC flags, used regardless of the planner"""
+    """
+    Top-level MPC flags, used regardless of the planner for managing
+    options common to all MPC experiments.
+    """
 
     @staticmethod
     def add_flags(parser, argument_group=None):
