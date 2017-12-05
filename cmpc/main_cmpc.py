@@ -12,7 +12,7 @@ from dynamics import DynamicsFlags, NNDynamicsModel
 from experiment import experiment_main, ExperimentFlags
 from flags import parse_args_with_subcmds
 from learner_flags import NoLearnerFlags
-from mpc_flags import MpcFlags, RandomShooterFlags
+from mpc_flags import MpcFlags, RandomShooterFlags, ColocationFlags
 from multiprocessing_env import make_venv
 from sample import sample_venv, sample
 from utils import (timeit, create_tf_session)
@@ -89,7 +89,7 @@ def train(args, learner_flags):
 def flags_to_parse():
     """Flags that BMPC should parse"""
     flags = [ExperimentFlags, MpcFlags, DynamicsFlags, WarmupFlags,
-             RandomShooterFlags]
+             RandomShooterFlags, ColocationFlags]
     subflags = [CloningLearnerFlags, DDPGLearnerFlags,
                 ZeroLearnerFlags, NoLearnerFlags]
     return flags, subflags
