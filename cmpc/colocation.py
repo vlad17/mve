@@ -73,11 +73,17 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
         self._learner_dual_l = np.ones(mpc_horizon - flags.opt_horizon)
         # re-use _actions_ha solutions between act() calls (but shift over 1)
         self._roll_op = _tf_roll_assign(self._actions_ha)
+
         # placeholder to update state
-        self._state_init_ph_s = tf.placeholder(
+        self._state_init_ph_hs = tf.placeholder(
             tf.float32, [mpc_horizon, get_ob_dim(env)])
         self._assign_state = tf.assign(
-            self._states_hs, self._state_init_ph_s)
+            self._states_hs, self._state_init_ph_hs)
+        # placeholder to update action
+        self._action_init_ph_ha = tf.placeholder(
+            tf.float32, [mpc_horizon, get_ac_dim(env)])
+        self._assign_action = tf.assign(
+            self._actions_ha, self._action_init_ph_ha)
 
         opt = tf.train.AdamOptimizer(flags.primal_lr)
 
@@ -113,7 +119,6 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
         self._dual_steps = flags.dual_steps
 
     def reset(self, n):
-        tf.get_default_session().run([self._actions_ha.initializer])
         self._dynamics_dual_h = np.ones_like(self._dynamics_dual_h)
         self._learner_dual_l = np.ones_like(self._learner_dual_l)
         self._step = 0
@@ -128,7 +133,8 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
             self._learner_dual_ph_l: self._learner_dual_l}
         self._step += 1
 
-        # need to always re-center on current state
+        # need to always re-center on current state to not diverge in solution
+        # space
         # we also need to always add a random perturb
         # without this perturbation some numerical ill-conditioning
         # shit totally breaks
@@ -137,7 +143,15 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
         perturb *= (np.fabs(states_ns[0]) / 100) + 0.01  # TODO: hacky, fix
         next_states += perturb
         tf.get_default_session().run(self._assign_state, {
-            self._state_init_ph_s: next_states})
+            self._state_init_ph_hs: next_states})
+        if self._step == 1:
+            actions = np.zeros(self._actions_ha.shape)
+            # TODO: hacky, fix
+            actions[self._opt_horizon:] += np.random.uniform(
+                -1, 1, actions[self._opt_horizon:].shape) * 0.01
+            # actions similarly need perturbation on the first step
+            tf.get_default_session().run(self._assign_action, {
+                self._action_init_ph_ha: actions})
 
         # TODO reporter.report_incremental instead of logging
         log.debug('*' * 10 + ' STEP {:5d} '.format(self._step) + '*' * 10)

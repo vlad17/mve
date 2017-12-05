@@ -54,7 +54,7 @@ main() {
     random_flags="$experiment_flags --num_paths 8"
     dynamics_flags="--dyn_epochs 1 --dyn_depth 1 --dyn_width 8"
     mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 3"
-    rs_mpc_flags=" --onpol_paths 3 --simulated_paths 2"
+    rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
     warmup_flags="--warmup_paths_random 1"
     nn_learner_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2"
     ddpg_flags="$experiment_flags $nn_learner_flags"
@@ -83,11 +83,12 @@ main() {
     cmds+=("python $main_cmpc zero $rs_mpc_flags $warmup_flags")
     shooter_flags="--planner shooter --opt_horizon 1"
     cmds+=("python $main_cmpc zero $rs_mpc_flags $warmup_flags $shooter_flags")
-    colocation_flags="--planner colocation --coloc_opt_horizon 2 --coloc_primal_steps 2"
+    colocation_flags="--planner colocation --coloc_primal_steps 2"
     colocation_flags="$colocation_flags --coloc_dual_steps 2 --coloc_primal_tol 1e-2"
     colocation_flags="$colocation_flags --coloc_primal_lr 1e-4 --coloc_dual_lr 1e-3"
-    colocation_flags="--onpol_paths 1"
-    cmds+=("python $main_cmpc zero $mpc_flags $warmup_flags $colocation_flags")
+    colocation_flags="$colocation_flags --onpol_paths 1"
+    cmds+=("python $main_cmpc zero $mpc_flags $warmup_flags $colocation_flags --coloc_opt_horizon 2")
+    cmds+=("python $main_cmpc none $mpc_flags $warmup_flags $colocation_flags")
     # Check that warmup caching doesn't break anything. These commands should
     # create two new cache directories.
     rm -rf data/test_warmup_cache
