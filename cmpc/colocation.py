@@ -113,25 +113,20 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
         self._input_state = states_ns[0]
         self._step += 1
 
-        # need to always re-center on current state to not diverge in solution
-        # space
-        # we also need to always add a random perturb
-        # without this perturbation some numerical ill-conditioning
-        # shit totally breaks
-        next_states = np.repeat(states_ns, self._mpc_horizon, axis=0)
-        perturb = np.random.uniform(-1, 1, next_states.shape)
-        # TODO: hacky, fix
-        perturb *= (np.fabs(self._input_state) / 100) + 0.01
-        next_states += perturb
-        self._states_hs = next_states
+        # need to always re-center on current state, else we will diverge
+        # in our imaginary simulation space from reality (this wouldn't
+        # be a problem if we optimized to completion in act() since
+        # constraints would be re-met)
+        self._states_hs = np.repeat(states_ns, self._mpc_horizon, axis=0)
         if self._step == 1:
-            self._actions_ha[:] = 0
-            # TODO: hacky, fix
-            # actions similarly need perturbation on the first step
-            self._actions_ha[self._opt_horizon:] += np.random.uniform(
-                -1, 1, self._actions_ha[self._opt_horizon:].shape) * 0.01
+            self._actions_ha = np.zeros_like(self._actions_ha)
         else:
+            # uncomment below when optimization can be complete...
             self._actions_ha = np.roll(self._actions_ha, 1, axis=0)
+            # self._states_hs = np.roll(self._states_hs, 1, axis=0)
+            if self._mpc_horizon > 1:
+                self._actions_ha[-1] = self._actions_ha[-2]
+                # self._states_hs[-1] = self._states_hs[-2]
 
     def _feed_dict(self):
         assert self._input_state is not None
@@ -180,11 +175,11 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
         first_predicted_state = dyn_model.predict_tf(
             tf.expand_dims(self._input_state_ph_s, axis=0),
             actions_ha[:1])
-        first_dyn_violation = tf.norm(
-            first_predicted_state - states_hs[:1], axis=1) ** 2
-        rest_dyn_violations = tf.norm(
+        first_dyn_violation = _square_norm(
+            first_predicted_state - states_hs[:1], axis=1)
+        rest_dyn_violations = _square_norm(
             dyn_model.predict_tf(states_hs[:-1], actions_ha[1:]) -
-            states_hs[1:], axis=1) ** 2
+            states_hs[1:], axis=1)
         return tf.concat(
             [first_dyn_violation, rest_dyn_violations], axis=0)
 
@@ -192,8 +187,8 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
         # note we already assume opt_horizon > 0
         # get states s_o, ... s_h where o = opt_horizon
         states_o_to_h = states_hs[self._opt_horizon - 1:-1]
-        return tf.norm(learner(states_o_to_h) -
-                       actions_ha[self._opt_horizon:], axis=1) ** 2
+        return _square_norm(learner(states_o_to_h) -
+                            actions_ha[self._opt_horizon:], axis=1)
 
     def _primal(self, reward_fn, dyn_model, learner, states_hs, actions_ha):
         primal = -self._reward(reward_fn, states_hs, actions_ha)
@@ -240,3 +235,9 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
 
 def _dummy_learner(env):
     return lambda _: tf.zeros([0, get_ac_dim(env)])
+
+
+def _square_norm(x, axis=None):
+    # note using tf.norm for violation calculations will
+    # break the gradient at 0... come on, TensorFlow...
+    return tf.reduce_sum(tf.square(x), axis=axis)
