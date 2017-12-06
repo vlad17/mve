@@ -10,6 +10,8 @@ line. This file helps do that without going crazy:
 
 import argparse
 import collections
+import shlex
+import sys
 
 
 def convert_flags_to_json(flags):
@@ -132,6 +134,19 @@ def parse_args_with_subcmds(flags, subflags, cmdargs=None):
         raise ValueError(msg)
     chosen_subflag = subflags_by_name[args.subcommand]
     kwargs = {flag.name(): flag(args) for flag in flags + [chosen_subflag]}
+    meta = _FlagsMeta(args.subcommand, cmdargs)
+    kwargs[meta.name()] = meta
     namedtuple = collections.namedtuple("Args", kwargs.keys())
     t = namedtuple(**kwargs)
     return t, t._asdict()[args.subcommand]
+
+
+class _FlagsMeta(Flags):
+    def __init__(self, subcommand, cmdargs):
+        cmdargs = cmdargs if cmdargs is not None else sys.argv
+        self.invocation = ' '.join(shlex.quote(s) for s in cmdargs)
+        self.subcommand = subcommand
+
+    @staticmethod
+    def name():
+        return 'flags_meta'
