@@ -37,7 +37,7 @@ All scripts are available in `scripts/`, and should be run from the repo root.
 
 ## Recreating the Report
 
-TODO
+The report and all scripts related to its creation in `report/` are currently out-dated with respect to the current code. They correspond to a report written up when the code base was at commit `cda6b4de42d`.
 
 ## Adding MuJoCo key to CI securely
 
