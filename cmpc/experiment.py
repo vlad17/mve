@@ -199,8 +199,6 @@ def experiment_main(flags, experiment_fn, subflags=None):
         flags.experiment.seed = seed
         with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
             flag_dict = convert_flags_to_json(flags)
-            if subflags is not None:
-                flag_dict.update(convert_flags_to_json([subflags]))
             json.dump(flag_dict, f, sort_keys=True, indent=4)
 
         # Rendering directory
