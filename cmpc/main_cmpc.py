@@ -57,7 +57,6 @@ def train(args, learner_flags):
         with timeit('gathering statistics'):
             most_recent = one_shot_dataset(paths)
             returns = most_recent.per_episode_rewards()
-            mse = dyn_model.dataset_mse(most_recent)
             bias, _ = most_recent.reward_bias(args.mpc.horizon)
             ave_bias = bias.mean()
             ave_sqerr = np.square(bias).mean()
@@ -71,10 +70,11 @@ def train(args, learner_flags):
                 reporter.add_summary_statistics(
                     'learner reward', learner_returns)
 
-        reporter.add_summary_statistics('reward', returns)
-        reporter.add_summary('dynamics mse', mse)
-        reporter.add_summary('reward bias', ave_bias)
-        reporter.add_summary('reward mse', ave_sqerr)
+            reporter.add_summary_statistics('reward', returns)
+            reporter.add_summary('reward bias', ave_bias)
+            reporter.add_summary('reward mse', ave_sqerr)
+            dyn_model.log(most_recent)
+
         reporter.advance_iteration()
 
         if args.experiment.render_every > 0 and \

@@ -111,12 +111,12 @@ main() {
     cmd="echo '$tune_params_json' > /tmp/params.json && python $tune $tune_flags --tunefile /tmp/params.json"
     hermetic_file /tmp/params.json "$cmd"
 
-    instance="data/plotexp_hc-hard:dynamics mse:x"
+    instance="data/plotexp_hc-hard:absolute dynamics mse:x"
     cmd="python cmpc/plot.py \"$instance\" --outfile /tmp/x.pdf --yaxis x --notex"
     hermetic_file "/tmp/x.pdf" "$cmd"
 
     instance="data/plotexp_hc-hard:reward mean:x"
-    hlines="data/plotexp_hc-hard:dynamics mse:yy"
+    hlines="data/plotexp_hc-hard:dynamics smse:yy"
     cmd="python cmpc/plot.py \"$instance\" --outfile /tmp/y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
     hermetic_file "/tmp/y.pdf" "$cmd"
 

@@ -70,9 +70,9 @@ def _mpc_loop(iterations, data, dynamics, controller, venv):
         data.add_paths(paths)
         most_recent = one_shot_dataset(paths)
         ave_return = np.mean(most_recent.per_episode_rewards())
-        mse = dynamics.dataset_mse(most_recent)
+        smse, _ = dynamics._dataset_smse(most_recent) # pylint: disable=protected-access
         debug('completed {: 4d} MPC warmup iterations (returns {:5.0f} '
-              'dynamics mse {:8.2f})', i + 1, ave_return, mse)
+              'dynamics mse {:8.2f})', i + 1, ave_return, smse)
 
 
 def _sample_mpc(tf_reward, venv, flags, data):

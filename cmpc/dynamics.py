@@ -4,6 +4,7 @@ import tensorflow as tf
 import numpy as np
 
 from flags import Flags
+import reporter
 from utils import build_mlp, get_ob_dim, get_ac_dim
 
 
@@ -186,9 +187,6 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
 
         self.predicted_next_state_ns, deltas_ns = self._predict_tf(
             self.input_state_ph_ns, self.input_action_ph_na, reuse=None)
-        self.mse = tf.losses.mean_squared_error(
-            self.next_state_ph_ns,
-            self.predicted_next_state_ns)
         true_deltas_ns = self.norm.norm_delta(
             self.next_state_ph_ns - self.input_state_ph_ns)
         train_mse = tf.losses.mean_squared_error(
@@ -196,6 +194,17 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
         self.update_op = tf.train.AdamOptimizer(
             dyn_flags.dyn_learning_rate).minimize(train_mse)
         self._renormalize = dyn_flags.renormalize
+
+        # use actual next-state prediction MSE for metrics
+        # normalize by the MSE of guessing that we stay in the same state
+        mse = tf.losses.mean_squared_error(
+            self.next_state_ph_ns,
+            self.predicted_next_state_ns)
+        normalizer = tf.losses.mean_squared_error(
+            self.next_state_ph_ns,
+            self.input_state_ph_ns)
+        self._absolute_mse = mse
+        self._smse = mse / (normalizer + 1e-8)
 
     def fit(self, data):
         """Fit the dynamics to the given dataset of transitions"""
@@ -241,11 +250,26 @@ class NNDynamicsModel:  # pylint: disable=too-many-instance-attributes
         })
         return next_states
 
-    def dataset_mse(self, data):
-        """Return the MSE of predictions for the given dataset"""
-        mse = self.mse.eval(feed_dict={
-            self.input_state_ph_ns: data.obs,
-            self.input_action_ph_na: data.acs,
-            self.next_state_ph_ns: data.next_obs,
-        })
-        return mse
+    def _dataset_smse(self, data):
+        """
+        Returns a tuple:
+        First, the MSE in the next-state prediction, normalized by the MSE
+        of simply guessing the previous state. Second, this returns the
+        absolute MSE (unnormalized).
+        """
+        smse, absolute_mse = tf.get_default_session().run(
+            [self._smse, self._absolute_mse], feed_dict={
+                self.input_state_ph_ns: data.obs,
+                self.input_action_ph_na: data.acs,
+                self.next_state_ph_ns: data.next_obs,
+            })
+        return smse, absolute_mse
+
+    def log(self, data):
+        """
+        Given data from recent episodes, this reports various statistics about
+        dynamics prediction accuracy.
+        """
+        smse, absolute_mse = self._dataset_smse(data)
+        reporter.add_summary('absolute dynamics mse', absolute_mse)
+        reporter.add_summary('dynamics smse', smse)
