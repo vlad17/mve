@@ -197,6 +197,15 @@ class Dataset(object):
         all_rewards = self._split_array(self.rewards)
         return [r.sum() for r in all_rewards]
 
+    def episode_acs_obs(self):
+        """
+        Return a pair of lists, the first for all actions in an episode, and
+        the second for all observations.
+        """
+        acs = self._split_array(self.acs)
+        obs = self._split_array(self.obs)
+        return acs, obs
+
     def batches_per_epoch(self, batch_size):
         """
         Given a fixed batch size, returns the number of batches necessary

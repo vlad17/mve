@@ -70,9 +70,8 @@ def _mpc_loop(iterations, data, dynamics, controller, venv):
         data.add_paths(paths)
         most_recent = one_shot_dataset(paths)
         ave_return = np.mean(most_recent.per_episode_rewards())
-        smse, _ = dynamics._dataset_smse(most_recent) # pylint: disable=protected-access
-        debug('completed {: 4d} MPC warmup iterations (returns {:5.0f} '
-              'dynamics mse {:8.2f})', i + 1, ave_return, smse)
+        debug('completed {: 4d} MPC warmup iterations (returns {:5.0f})',
+              i + 1, ave_return)
 
 
 def _sample_mpc(tf_reward, venv, flags, data):
@@ -83,7 +82,7 @@ def _sample_mpc(tf_reward, venv, flags, data):
         with create_tf_session() as sess:
             seed_everything(seed)
             dynamics = NNDynamicsModel(
-                venv, data, flags.dynamics)
+                venv, data, flags.dynamics, flags.mpc.horizon)
             controller = flags.mpc.make_mpc(
                 venv, dynamics, tf_reward, None, flags)
             sess.run(tf.global_variables_initializer())

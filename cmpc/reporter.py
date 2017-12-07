@@ -148,9 +148,9 @@ class _Reporter:
     def _print_table(self):
         data = [['summary', 'value', 'min', 'mean', 'max', 'std']]
         data.append(['iteration', self._global_step, '', '', '', ''])
-        for name, value in self._latest_summaries.items():
+        for name, value in sorted(self._latest_summaries.items()):
             data.append([name, _floatprint(value), '', '', '', ''])
-        for name, values in self._latest_statistics.items():
+        for name, values in sorted(self._latest_statistics.items()):
             values = [statistic(values) for statistic in
                       [np.min, np.mean, np.max, np.std]]
             values = [_floatprint(value) for value in values]
