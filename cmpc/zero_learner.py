@@ -5,6 +5,7 @@ import numpy as np
 
 from learner import Learner
 from learner_flags import LearnerFlags
+from policy import Policy
 from utils import get_ac_dim
 
 
@@ -28,7 +29,7 @@ class ZeroLearnerFlags(LearnerFlags):
         return ZeroLearner(env)
 
 
-class ZeroLearner(Learner):
+class ZeroLearner(Learner, Policy):
     """Acts randomly on the first action, then just returns 0."""
 
     def __init__(self, env):
@@ -43,5 +44,4 @@ class ZeroLearner(Learner):
 
     def act(self, states_ns):
         acs = np.zeros((len(states_ns), self.ac_dim))
-        rws = np.zeros(len(states_ns))
-        return acs, rws
+        return acs, None, None

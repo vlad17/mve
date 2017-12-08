@@ -82,7 +82,8 @@ def _sample_mpc(tf_reward, venv, flags, data):
         with create_tf_session() as sess:
             seed_everything(seed)
             dynamics = NNDynamicsModel(
-                venv, data, flags.dynamics, flags.mpc.horizon)
+                venv, data, flags.dynamics, flags.mpc.horizon,
+                flags.experiment.make_env)
             controller = flags.mpc.make_mpc(
                 venv, dynamics, tf_reward, None, flags)
             sess.run(tf.global_variables_initializer())

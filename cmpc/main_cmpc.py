@@ -34,7 +34,7 @@ def train(args, learner_flags):
     sess = create_tf_session()
 
     dyn_model = NNDynamicsModel(
-        env, data, args.dynamics, args.mpc.horizon)
+        env, data, args.dynamics, args.mpc.horizon, args.experiment.make_env)
     learner = learner_flags.make_learner(env)
     controller = args.mpc.make_mpc(
         env, dyn_model, env.tf_reward, learner, args)

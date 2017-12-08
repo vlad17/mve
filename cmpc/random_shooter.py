@@ -51,39 +51,56 @@ class RandomShooter(Policy):
                            lambda: explore(states_ns),
                            lambda: exploit(states_ns))
 
-        def _body(t, state_ns, action_na, rewards):
+        # h = horizon
+        n = tf.shape(state_ns)[0]
+        # to create a matrix of actions, we need to know n, but we won't know
+        # it until runtime, so we can't globally initialize the action matrix
+        # instead, we initialize it to the right size at every act() call.
+        self._actions_hna = tf.get_variable(
+            'dynamics_actions', validate_shape=False,
+            initializer=tf.zeros([mpc_horizon, n, self._ac_dim]),
+            dtype=tf.float32, collections=[])
+
+        def _body(t, state_ns, rewards):
+            action_na = _policy(t, state_ns)
+            save_action_op = tf.scatter_update(self._actions_hna, t, action_na)
             next_state_ns = dyn_model.predict_tf(state_ns, action_na)
             next_rewards = reward_fn(
                 state_ns, action_na, next_state_ns, rewards)
-            next_action_na = _policy(t + 1, next_state_ns)
-            return [t + 1, next_state_ns, next_action_na, next_rewards]
+            with tf.control_dependencies([save_action_op]):
+                return [t + 1, next_state_ns, next_rewards]
 
-        n = tf.shape(state_ns)[0]
-        self._first_acs_na = _policy(tf.constant(0), state_ns)
-        loop_vars = [0, state_ns, self._first_acs_na, tf.zeros((n,))]
-        self._loop = tf.while_loop(
-            lambda t, _, __, ___: t < mpc_horizon, _body,
+        loop_vars = [0, state_ns, tf.zeros((n,))]
+        _, _, self._final_rewards_n = tf.while_loop(
+            lambda t, _, __: t < mpc_horizon, _body,
             loop_vars, back_prop=False)
+        self._mpc_horizon = mpc_horizon
 
     def _act(self, states):
         nstates = len(states)
-        loop_vars, action_na = tf.get_default_session().run(
-            [self._loop, self._first_acs_na], feed_dict={
+        tf.get_default_session().run(
+            self._actions_hna.initializer, feed_dict={
                 self._input_state_ph_is: states})
-        _, _, _, trajectory_rewards_n = loop_vars
+        trajectory_rewards_n = tf.get_default_session().run(
+            self._final_rewards_n, feed_dict={
+                self._input_state_ph_is: states})
+        action_hna = tf.get_default_session().run(self._actions_hna)
 
         # p = num simulated paths, i = nstates
         # note b/c of the way tf.tile works we need to reshape by p then i
         per_state_simulation_rewards_ip = trajectory_rewards_n.reshape(
             self._sims_per_state, nstates).T
         best_ac_ix_i = per_state_simulation_rewards_ip.argmax(axis=1)
-        action_samples_ipa = np.swapaxes(action_na.reshape(
-            self._sims_per_state, nstates, self._ac_dim), 0, 1)
-        best_ac_ia = action_samples_ipa[np.arange(nstates), best_ac_ix_i, :]
-        best_rewards_ia = per_state_simulation_rewards_ip[
+        action_hpia = action_hna.reshape(
+            self._mpc_horizon, self._sims_per_state, nstates, self._ac_dim)
+        action_samples_hipa = np.swapaxes(action_hpia, 1, 2)
+        best_ac_hia = action_samples_hipa[
+            :, np.arange(nstates), best_ac_ix_i, :]
+        best_rewards_i = per_state_simulation_rewards_ip[
             np.arange(nstates), best_ac_ix_i]
 
-        return best_ac_ia, best_rewards_ia
+        best_ac_iha = np.swapaxes(best_ac_hia, 0, 1)
+        return best_ac_hia[0], best_rewards_i, best_ac_iha
 
     def act(self, states_ns):
         # This batch size is specific to HalfCheetah and my setup.
@@ -93,3 +110,6 @@ class RandomShooter(Policy):
         batch_size = 500
         from utils import rate_limit
         return rate_limit(batch_size, self._act, states_ns)
+
+    def planning_horizon(self):
+        return self._mpc_horizon

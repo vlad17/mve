@@ -87,6 +87,7 @@ class _Worker(object):
     def close_start(self):
         """Close worker env, notify parent (currently no cleanup)"""
         self._parent_send(('close', None))
+        self.parent_conn.close()
 
     def close_finish(self):
         """Finish up process"""
@@ -116,6 +117,10 @@ class _Worker(object):
         """Seed envs"""
         self._parent_send(('seed', seed_m))
 
+    def set_state_from_obs(self, obs_m):
+        """Set envs states"""
+        self._parent_send(('set_state_from_obs', obs_m))
+
     def render_start(self, mode, close):
         """render envs"""
         self._parent_send(('render', (mode, close)))
@@ -133,7 +138,7 @@ class _Worker(object):
             self.child_conn.send((rendered, None))
             return
 
-    def do_run(self):
+    def do_run(self): # pylint: disable=too-many-branches
         """receive loop called in separate process"""
         # Child only!
         self.parent_conn.close()
@@ -141,7 +146,9 @@ class _Worker(object):
         while True:
             method, body = self.child_conn.recv()
             if method == 'close':
-                _logger.info('Closing envs')
+                for env in self.env_m:
+                    env.close()
+                self.child_conn.close()
                 return
             elif method == 'reset':
                 self._clear_state()
@@ -158,6 +165,10 @@ class _Worker(object):
                 seeds = body
                 for env, seed in zip(self.env_m, seeds):
                     env.seed(seed)
+            elif method == 'set_state_from_obs':
+                obs = body
+                for env, ob in zip(self.env_m, obs):
+                    env.set_state_from_ob(ob)
             elif method == 'render':
                 mode, close = body
                 if mode == 'human':
@@ -231,6 +242,12 @@ def _seed_n(worker_n, seeds):
         worker.seed_start(seed_m)
         accumulated += worker.m
 
+def _set_state_from_obs(worker_n, obs):
+    accumulated = 0
+    for worker in worker_n:
+        obs_m = obs[accumulated:accumulated + worker.m]
+        worker.set_state_from_obs(obs_m)
+        accumulated += worker.m
 
 def _mask(worker_n, i):
     accumulated = 0
@@ -264,6 +281,7 @@ def _close_n(worker_n):
     for worker in worker_n:
         try:
             worker.close_start()
+            worker.close_finish()
         except:  # pylint: disable=bare-except
             pass
 
@@ -293,6 +311,10 @@ class MultiprocessingEnv(gym.Env):
         for i in range(0, self.n, m):
             envs = self.envs[i:i + m]
             self.worker_n.append(_Worker(envs, i))
+
+    def set_state_from_obs(self, obs):
+        """Set the state for each sub-environment with the given obs"""
+        _set_state_from_obs(self.worker_n, obs)
 
     def _seed(self, seed=None):
         _seed_n(self.worker_n, seed)

@@ -18,13 +18,18 @@ class Policy(object):
 
     def act(self, states_ns):
         """
-        This method returns a tuple of two items.
+        This method returns a tuple of three items.
 
         The first is the action for every state in states_ns, where the batch
         size is n and the state shape is s.
 
         The second is some estimate of predicted reward (which may be all zeros
-        if the agent does not have this information).
+        if the agent does not have this information, or equivalently None).
+
+        The third is a list of planned actions, as an array of dimensions
+        n by h by s, where h is the agent's planning horizon. This may be None
+        if the agent is not planning anything, which is interpretted as an
+        empty array (with h = 0).
         """
         raise NotImplementedError
 
@@ -36,3 +41,9 @@ class Policy(object):
         A stateless agent may do nothing here.
         """
         pass
+
+    def planning_horizon(self): # pylint: disable=no-self-use
+        """
+        If this agent uses a planner, this returns the planning horizon.
+        """
+        return 0

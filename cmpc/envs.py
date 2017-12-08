@@ -16,9 +16,14 @@ import numpy as np
 import tensorflow as tf
 
 
-class WithReward:
+class SettableWithReward:
     """
     A mixin class with a white-box incremental reward function.
+
+    In addition, such an environment is "settable": given an observation
+    this environment can reset to that observation's state for
+    debugging purposes. Thus this implicitly requires a fully observable
+    MDP.
     """
 
     def tf_reward(self, state, action, next_state, curr_reward):
@@ -30,8 +35,15 @@ class WithReward:
         """
         raise NotImplementedError
 
+    def set_state_from_ob(self, ob):
+        """
+        Reset the environment, starting at the state corresponding to the
+        observation ob.
+        """
+        raise NotImplementedError
 
-class WhiteBoxHalfCheetahEasy(MujocoEnv, EzPickle, WithReward):
+
+class WhiteBoxHalfCheetahEasy(MujocoEnv, EzPickle, SettableWithReward):
     """White box HalfCheetah, with frameskip 1 and easy reward"""
     # same as gym except where highlighted
 
@@ -87,8 +99,16 @@ class WhiteBoxHalfCheetahEasy(MujocoEnv, EzPickle, WithReward):
         self.set_state(qpos, qvel)
         return self._get_obs()
 
+    def set_state_from_ob(self, ob):
+        self.reset()
+        split = self.init_qpos.size
+        qpos = ob[:split].reshape(self.init_qpos.shape)
+        qvel = ob[split:].reshape(self.init_qvel.shape)
+        self.set_state(qpos, qvel)
 
-class WhiteBoxHalfCheetahHard(MujocoEnv, EzPickle, WithReward):
+
+
+class WhiteBoxHalfCheetahHard(MujocoEnv, EzPickle, SettableWithReward):
     """White box HalfCheetah, with frameskip 1 and hard reward"""
     # same as gym except as noted
 
@@ -140,8 +160,15 @@ class WhiteBoxHalfCheetahHard(MujocoEnv, EzPickle, WithReward):
         self.set_state(qpos, qvel)
         return self._get_obs()
 
+    def set_state_from_ob(self, ob):
+        self.reset()
+        split = self.init_qpos.size
+        qpos = ob[:split].reshape(self.init_qpos.shape)
+        qvel = ob[split:].reshape(self.init_qvel.shape)
+        self.set_state(qpos, qvel)
 
-class WhiteBoxAntEnv(MujocoEnv, EzPickle, WithReward):
+
+class WhiteBoxAntEnv(MujocoEnv, EzPickle, SettableWithReward):
     """
     The ant environment, with extra observation values for calculating
     reward.
@@ -195,7 +222,9 @@ class WhiteBoxAntEnv(MujocoEnv, EzPickle, WithReward):
             # difference from gym: need torso x value for reward
             # also the cfrc_ext, an 84-length vector of I-don't-know-what
             self.get_body_com('torso')[:1],
-            self.model.data.qpos.flat[2:],
+            # difference from gym: need to add in qpos x value
+            # so that states are re-settable
+            self.model.data.qpos.flat,
             self.model.data.qvel.flat,
             np.clip(self.model.data.cfrc_ext, -1, 1).flat,
         ])
@@ -207,10 +236,18 @@ class WhiteBoxAntEnv(MujocoEnv, EzPickle, WithReward):
         self.set_state(qpos, qvel)
         return self._get_obs()
 
+    def set_state_from_ob(self, ob):
+        self.reset()
+        split = 1 + self.init_qpos.size
+        end = split + self.init_qvel.size
+        qpos = ob[1:split].reshape(self.init_qpos.shape)
+        qvel = ob[split:end].reshape(self.init_qvel.shape)
+        self.set_state(qpos, qvel)
 
-class WhiteBoxWalker2dEnv(MujocoEnv, EzPickle, WithReward):
+
+class WhiteBoxWalker2dEnv(MujocoEnv, EzPickle, SettableWithReward):
     """
-    The Walker2d environment [1], with extra observation values for cacluating
+    The Walker2d environment [1], with extra observation values for calcuating
     reward. Everything is copied from [1] unless otherwise noted.
 
     [1]: https://github.com/openai/gym/blob/master/gym/envs/mujoco/walker2d.py
@@ -290,3 +327,10 @@ class WhiteBoxWalker2dEnv(MujocoEnv, EzPickle, WithReward):
                 low=-.005, high=.005, size=self.model.nv)
         )
         return self._get_obs()
+
+    def set_state_from_ob(self, ob):
+        self.reset()
+        split = self.init_qpos.size
+        qpos = ob[:split].reshape(self.init_qpos.shape)
+        qvel = ob[split:].reshape(self.init_qvel.shape)
+        self.set_state(qpos, qvel)

@@ -3,15 +3,14 @@ A learner which uses DDPG: an off-policy RL algorithm based on
 policy-gradients.
 """
 
-
-import numpy as np
 import tensorflow as tf
 
 from learner import Learner
+from policy import Policy
 from ddpg.main import mkagent, train
 
 
-class DDPGLearner(Learner):
+class DDPGLearner(Learner, Policy):
     """
     Use a DDPG agent to learn.
     """
@@ -37,10 +36,9 @@ class DDPGLearner(Learner):
 
     def act(self, states_ns):
         self._init()
-        rws = np.zeros(len(states_ns))
         acs = self._agent.pi(states_ns, apply_noise=False, compute_Q=False)[0]
         acs *= self._env.action_space.high
-        return acs, rws
+        return acs, None, None
 
     def fit(self, data):
         """Fit the learner to the specified labels."""

@@ -8,11 +8,11 @@ machine learning problem.
 
 
 import tensorflow as tf
-import numpy as np
 
 from learner import Learner
-from utils import (build_mlp, get_ac_dim, get_ob_dim)
 from learner_flags import LearnerFlags
+from policy import Policy
+from utils import (build_mlp, get_ac_dim, get_ob_dim)
 
 
 class CloningLearnerFlags(LearnerFlags):
@@ -72,7 +72,7 @@ class CloningLearnerFlags(LearnerFlags):
         return CloningLearner(env, self)
 
 
-class CloningLearner(Learner):
+class CloningLearner(Learner, Policy):
     """
     Mimics the controller by optimizing for L2 loss on the predicted actions.
 
@@ -122,5 +122,4 @@ class CloningLearner(Learner):
     def act(self, states_ns):
         acs = tf.get_default_session().run(self._policy_action_na, feed_dict={
             self._input_state_ph_ns: states_ns})
-        rws = np.zeros(len(states_ns))
-        return acs, rws
+        return acs, None, None

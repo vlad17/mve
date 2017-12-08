@@ -14,14 +14,18 @@ class Path(object):
     """
     Store rewards and transitions from a single rollout with a maximum
     horizon length.
+
+    May also store planning information.
     """
 
-    def __init__(self, env, initial_obs, max_horizon):
+    def __init__(self, env, initial_obs, max_horizon, planning_horizon):
         self._obs = np.empty((max_horizon, get_ob_dim(env)))
         self._next_obs = np.empty((max_horizon, get_ob_dim(env)))
         self._acs = np.empty((max_horizon, get_ac_dim(env)))
         self._rewards = np.empty(max_horizon)
         self._predicted_rewards = np.empty(max_horizon)
+        self._planned_acs = np.empty(
+            (max_horizon, planning_horizon, get_ac_dim(env)))
         self._terminals = np.empty(max_horizon)
         self._idx = 0
         self._obs[0] = initial_obs
@@ -31,13 +35,17 @@ class Path(object):
         """Maximum path horizon"""
         return len(self._predicted_rewards)
 
-    def next(self, next_obs, reward, done, ac, pred_reward):
+    def next(self, next_obs, reward, done, ac, pred_reward, planned_acs):
         """Append a new transition to currently-stored ones"""
         assert self._idx < self.max_horizon, (self._idx, self.max_horizon)
         self._next_obs[self._idx] = next_obs
         self._rewards[self._idx] = reward
         self._acs[self._idx] = ac
         self._predicted_rewards[self._idx] = pred_reward
+        if planned_acs is not None:
+            self._planned_acs[self._idx] = planned_acs
+        else:
+            assert self._planned_acs.size == 0
         self._idx += 1
         done = done or self._idx == self.max_horizon
         self._terminals[self._idx - 1] = done
@@ -75,6 +83,11 @@ class Path(object):
         """All predicted rewards so far."""
         return self._predicted_rewards[:self._idx]
 
+    @property
+    def planned_acs(self):
+        """All planned actions so far."""
+        return self._planned_acs[:self._idx]
+
 
 class Dataset(object):
     """
@@ -86,9 +99,13 @@ class Dataset(object):
     a new state dataset.next_obs[i], etc.
 
     Stores up to maxlen transitions.
+
+    Note by default a dataset DOES NOT store plans. Change planning_horizon > 0
+    if you want it to do so.
     """
 
-    def __init__(self, ac_dim, ob_dim, max_horizon, maxlen):
+    def __init__(self, ac_dim, ob_dim, max_horizon, maxlen,
+                 planning_horizon=0):
         self.max_horizon = max_horizon
         self._obs = RingBuffer(maxlen, (ob_dim,))
         self._next_obs = RingBuffer(maxlen, (ob_dim,))
@@ -96,6 +113,7 @@ class Dataset(object):
         self._acs = RingBuffer(maxlen, (ac_dim,))
         self._terminals = RingBuffer(maxlen, tuple())
         self._predicted_rewards = RingBuffer(maxlen, tuple())
+        self._planned_acs = RingBuffer(maxlen, (planning_horizon, ac_dim))
 
     @staticmethod
     def from_env(env, max_horizon, maxlen):
@@ -143,6 +161,11 @@ class Dataset(object):
         """All predicted rewards so far."""
         return self._predicted_rewards.all_data()
 
+    @property
+    def planned_acs(self):
+        """All planned actions so far."""
+        return self._planned_acs.all_data()
+
     def add_paths(self, paths):
         """Aggregate data from a list of paths"""
         for path in paths:
@@ -154,6 +177,8 @@ class Dataset(object):
             self._acs.append_all(path.acs)
             self._terminals.append_all(path.terminals)
             self._predicted_rewards.append_all(path.predicted_rewards)
+            plan_horizon = self.planned_acs.shape[1]
+            self._planned_acs.append_all(path.planned_acs[:, :plan_horizon, :])
 
     def _check_not_full(self):
         # TODO: this requirement is necessary for this implementation
@@ -261,6 +286,8 @@ def one_shot_dataset(paths):
     tot_transitions = sum(len(path.rewards) for path in paths) + 1
     ac_dim = paths[0].acs.shape[1]
     ob_dim = paths[0].obs.shape[1]
-    dataset = Dataset(ac_dim, ob_dim, paths[0].max_horizon, tot_transitions)
+    plan_horizon = paths[0].planned_acs.shape[1]
+    dataset = Dataset(
+        ac_dim, ob_dim, paths[0].max_horizon, tot_transitions, plan_horizon)
     dataset.add_paths(paths)
     return dataset

@@ -20,7 +20,7 @@ import reporter
 from utils import seed_everything
 
 
-class ExperimentFlags(Flags):  # pylint: disable=too-many-instance-attributes
+class ExperimentFlags(Flags):
     """Flags common to all experiments."""
 
     @staticmethod

@@ -19,7 +19,8 @@ def sample_venv(venv, policy, max_horizon=1000):
     horizon: int
     """
     obs_n = venv.reset()
-    paths = [Path(venv, obs, max_horizon) for obs in obs_n]
+    paths = [Path(venv, obs, max_horizon, policy.planning_horizon())
+             for obs in obs_n]
     active_n = np.ones(len(obs_n), dtype=bool)
     policy.reset(len(active_n))
 
@@ -32,12 +33,14 @@ def sample_venv(venv, policy, max_horizon=1000):
         # If an environment is inactive, we can still ask the actor
         # to give us an action for it (the venv and actor will give garbage
         # but valid-size outputs).
-        acs_n, predicted_rewards_n = policy.act(obs_n)
+        acs_n, predicted_rewards_n, planned_acs_n = policy.act(obs_n)
         obs_n, reward_n, done_n, _ = venv.step(acs_n)
         for i in np.flatnonzero(active_n):
             done_n[i] |= paths[i].next(
                 obs_n[i], reward_n[i], done_n[i], acs_n[i],
-                predicted_rewards_n[i])
+                predicted_rewards_n[i] if predicted_rewards_n is not None
+                else None,
+                planned_acs_n[i] if planned_acs_n is not None else None)
             if done_n[i]:
                 active_n[i] = False
                 venv.mask(i)
@@ -50,15 +53,17 @@ def sample(env, policy, max_horizon=1000, render=False):
     steps, possibly rendering, with the given policy.
     """
     ob = env.reset()
-    path = Path(env, ob, max_horizon)
+    path = Path(env, ob, max_horizon, policy.planning_horizon)
     policy.reset(1)
 
     for _ in range(max_horizon):
         if render:
             env.render()
-        ac, pred_rew = policy.act(ob[np.newaxis, ...])
+        ac, pred_rew, plan = policy.act(ob[np.newaxis, ...])
         ob, reward, done, _ = env.step(ac[0])
-        path.next(ob, reward, done, ac[0], pred_rew[0])
+        path.next(ob, reward, done, ac[0],
+                  pred_rew is not None and pred_rew[0],
+                  plan is not None and plan[0])
         if done:
             break
     return path

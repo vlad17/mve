@@ -125,11 +125,15 @@ class _Reporter:
         self._latest_statistics = {}
 
     def add_summary(self, name, value):
-        """Add a known floating-point value summary"""
+        """
+        Add a known floating-point value summary.
+        """
         self._latest_summaries[name] = value
 
     def add_summary_statistics(self, name, values):
-        """Add a list of floating values, whose statistics are summarized"""
+        """
+        Add a list of floating values, whose statistics are summarized.
+        """
         self._latest_statistics[name] = values
 
     def advance_iteration(self):

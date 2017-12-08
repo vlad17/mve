@@ -4,6 +4,8 @@ import tensorflow as tf
 import numpy as np
 
 from flags import Flags
+from multiprocessing_env import make_venv
+import log
 import reporter
 from utils import build_mlp, get_ob_dim, get_ac_dim
 
@@ -55,6 +57,12 @@ class DynamicsFlags(Flags):
             help='re-calculate dynamics normalization statistics after every '
             'iteration'
         )
+        dynamics_nn.add_argument(
+            '--sample_percent',
+            default=0.1,
+            type=float,
+            help='sub-sample previous states by this ratio when evaluating '
+            'expensive dynamics metrics')
 
     @staticmethod
     def name():
@@ -67,6 +75,7 @@ class DynamicsFlags(Flags):
         self.dyn_epochs = args.dyn_epochs
         self.dyn_batch_size = args.dyn_batch_size
         self.renormalize = args.renormalize
+        self.subsample = args.sample_percent
 
 
 class _Statistics:
@@ -159,10 +168,10 @@ class _DeltaNormalizer:
         self._ac_tf_stats.update_statistics(stats.mean_ac, stats.std_ac)
 
 
-class NNDynamicsModel: # pylint: disable=too-many-instance-attributes
+class NNDynamicsModel:
     """Stationary neural-network-based dynamics model."""
 
-    def __init__(self, env, norm_data, dyn_flags, mpc_horizon):
+    def __init__(self, env, norm_data, dyn_flags, mpc_horizon, make_env):
         ob_dim, ac_dim = get_ob_dim(env), get_ac_dim(env)
         self._epochs = dyn_flags.dyn_epochs
         self._batch_size = dyn_flags.dyn_batch_size
@@ -194,7 +203,8 @@ class NNDynamicsModel: # pylint: disable=too-many-instance-attributes
         self._update_op = tf.train.AdamOptimizer(
             dyn_flags.dyn_learning_rate).minimize(train_mse)
         self._renormalize = dyn_flags.renormalize
-        self._metrics = _DynamicsMetrics(self, mpc_horizon, env)
+        self._metrics = _DynamicsMetrics(
+            self, mpc_horizon, env, make_env, dyn_flags.subsample)
 
     def fit(self, data):
         """Fit the dynamics to the given dataset of transitions"""
@@ -244,15 +254,10 @@ class NNDynamicsModel: # pylint: disable=too-many-instance-attributes
 
 class _DynamicsMetrics:
 
-    def __init__(self, dynamics, horizon, env):
-        num_intervals = 5
-        if horizon <= num_intervals:
-            self._prediction_steps = range(1, num_intervals + 1)
-        else:
-            # 5-way split, always including 1 and horizon.
-            self._prediction_steps = [1] + [
-                i * (horizon - 1) // (num_intervals - 1) + 1
-                for i in range(1, num_intervals)]
+    def __init__(self, dynamics, horizon, env, make_env, subsample):
+        self._make_env = make_env
+        self._subsample = subsample
+        self._prediction_steps = [1, horizon if horizon > 1 else 2]
 
         # n = batch size, h = prediction horizon (one of prediction_steps)
         # a = action dim, s = state dim
@@ -282,6 +287,44 @@ class _DynamicsMetrics:
         """
         Report H-step absolute and standardized dynamics accuracy.
         """
+        self._log_open_loop_prediction(data)
+        self._log_closed_loop_prediction(data)
+
+    def _log_open_loop_prediction(self, data):
+        if data.planned_acs.size == 0:
+            return
+
+        n = len(data.obs)
+        nsamples = max(int(n * self._subsample), 1)
+        sample = np.random.randint(0, n, size=nsamples)
+
+        prefix = 'dynamics/open loop/'
+        for h_step in self._prediction_steps:
+            acs_nha = data.planned_acs[sample, :h_step, :]
+            acs_hna = np.swapaxes(acs_nha, 0, 1)
+            obs_ns = data.obs[sample]
+            ending_obs = self._eval_open_loop(obs_ns, acs_hna)
+
+            absolute_mse, smse = tf.get_default_session().run(
+                [self._absolute_mse, self._smse], feed_dict={
+                    self._ob_ph_ns: obs_ns,
+                    self._ac_ph_hna: acs_hna,
+                    self._h_step_ob_ph_ns: ending_obs})
+
+            self._print_mse_prefix(prefix, absolute_mse, smse, h_step)
+
+    def _print_mse_prefix(self, prefix, absolute_mse, smse, h_step):
+        fmt = len(str(max(self._prediction_steps)))
+        fmt = '{:' + str(fmt) + 'd}'
+        absolute_str = 'absolute ' + fmt + '-step dynamics mse'
+        absolute_str = absolute_str.format(h_step)
+        smse_str = 'standardized ' + fmt + '-step dynamics mse'
+        smse_str = smse_str.format(h_step)
+        reporter.add_summary(prefix + absolute_str, absolute_mse)
+        reporter.add_summary(prefix + smse_str, smse)
+
+    def _log_closed_loop_prediction(self, data):
+        prefix = 'dynamics/closed loop/'
         acs, obs = data.episode_acs_obs()
         for h_step in self._prediction_steps:
             starting_obs = [ob[:-h_step] for ob in obs]
@@ -297,12 +340,22 @@ class _DynamicsMetrics:
                     self._ac_ph_hna: hacs,
                     self._h_step_ob_ph_ns: ending_obs})
 
-            fmt = len(str(max(self._prediction_steps)))
-            fmt = '{:' + str(fmt) + 'd}'
-            absolute_str = 'absolute ' + fmt + '-step dynamics mse'
-            reporter.add_summary(absolute_str.format(h_step), absolute_mse)
-            smse_str = 'standardized ' + fmt + '-step dynamics mse'
-            reporter.add_summary(smse_str.format(h_step), smse)
+            self._print_mse_prefix(prefix, absolute_mse, smse, h_step)
+
+    def _eval_open_loop(self, states_ns, acs_hna):
+        venv = make_venv(self._make_env, acs_hna.shape[1])
+        venv.set_state_from_obs(states_ns)
+        for acs_na in acs_hna:
+            states_ns, _, done_n, _ = venv.step(acs_na)
+            for i in np.flatnonzero(np.asarray(done_n)):
+                venv.mask(i)
+            ndone = np.sum(done_n)
+            if ndone > 0:
+                log.debug('WARNING: {} early termination(s) during open-loop'
+                          ' eval', ndone)
+        venv.close()
+        return states_ns
+
 
 def _wrap_diagonally(actions_na, horizon):
     # "wrap" an n-by-a array into a horizon-(n-horizon)-a array res,

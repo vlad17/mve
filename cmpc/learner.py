@@ -1,9 +1,6 @@
 """Base learner class."""
 
-from policy import Policy
-
-
-class Learner(Policy):
+class Learner:
     """
     A learner enables constrained model-predictive control by forcing MPC to
     only plan around trajectories near the learner in some way.

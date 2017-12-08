@@ -4,7 +4,6 @@ from ddpg_learner import DDPGLearner
 from learner_flags import LearnerFlags
 
 
-# pylint: disable=too-many-instance-attributes
 class DDPGLearnerFlags(LearnerFlags):
     """DDPGLearner flags."""
 

@@ -160,7 +160,9 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
         predicted_reward = tf.get_default_session().run(
             self._reified_reward, self._feed_dict())
         self._input_state = None
-        return self._actions_ha[:1], [predicted_reward]
+        return (self._actions_ha[:1],
+                [predicted_reward],
+                self._actions_ha[np.newaxis, ...])
 
     def _reward(self, reward_fn, states_hs, actions_ha):
         first_reward = reward_fn(
@@ -231,6 +233,9 @@ class Colocation(Policy):  # pylint: disable=too-many-instance-attributes
         msg += ' dyn-violations {:.5g} learn-violations {:.5g}'
         msg += ' dyn-dual {:.5g} learn-dual {:.5g}'
         log.debug(msg, *dbg_tensors[-4:])
+
+    def planning_horizon(self):
+        return self._mpc_horizon
 
 
 def _dummy_learner(env):
