@@ -252,6 +252,7 @@ class NNDynamicsModel:
         """
         self._metrics.log(data)
 
+
 class _DynamicsMetrics:
 
     def __init__(self, dynamics, horizon, env, make_env, subsample):
@@ -328,6 +329,10 @@ class _DynamicsMetrics:
         acs, obs = data.episode_acs_obs()
         for h_step in self._prediction_steps:
             starting_obs = [ob[:-h_step] for ob in obs]
+            if any(ob.shape[0] < h_step for ob in starting_obs):
+                log.debug('skipping closed-loop {}-step dynamics logging '
+                          '(episode too short)', h_step)
+                continue
             starting_obs = np.concatenate(starting_obs)
             hacs = [_wrap_diagonally(ac, h_step) for ac in acs]
             hacs = np.concatenate(hacs, axis=1)
