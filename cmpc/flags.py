@@ -144,6 +144,7 @@ def parse_args_with_subcmds(flags, subflags, cmdargs=None):
 class _FlagsMeta(Flags):
     def __init__(self, subcommand, cmdargs):
         cmdargs = cmdargs if cmdargs is not None else sys.argv
+        cmdargs = [sys.executable] + cmdargs[:]
         self.invocation = ' '.join(shlex.quote(s) for s in cmdargs)
         self.subcommand = subcommand
 
