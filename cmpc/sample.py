@@ -53,7 +53,7 @@ def sample(env, policy, max_horizon=1000, render=False):
     steps, possibly rendering, with the given policy.
     """
     ob = env.reset()
-    path = Path(env, ob, max_horizon, policy.planning_horizon)
+    path = Path(env, ob, max_horizon, policy.planning_horizon())
     policy.reset(1)
 
     for _ in range(max_horizon):
@@ -62,8 +62,8 @@ def sample(env, policy, max_horizon=1000, render=False):
         ac, pred_rew, plan = policy.act(ob[np.newaxis, ...])
         ob, reward, done, _ = env.step(ac[0])
         path.next(ob, reward, done, ac[0],
-                  pred_rew is not None and pred_rew[0],
-                  plan is not None and plan[0])
+                  None if pred_rew is None else pred_rew[0],
+                  None if plan is None else plan[0])
         if done:
             break
     return path

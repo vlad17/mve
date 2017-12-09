@@ -68,6 +68,7 @@ main() {
     cmds+=("python $main_random $random_flags --env_name hc-easy")
     # MPC
     cmds+=("python $main_cmpc none $rs_mpc_flags $warmup_flags")
+    cmds+=("python $main_cmpc none $rs_mpc_flags $warmup_flags --render_every 1")
     cmds+=("python $main_cmpc none $rs_mpc_flags --warmup_paths_random 2 --renormalize")
     cmds+=("python $main_cmpc none $rs_mpc_flags --warmup_paths_random 0 --renormalize")
     cmds+=("python $main_cmpc none $rs_mpc_flags $warmup_flags --env_name hc-easy")

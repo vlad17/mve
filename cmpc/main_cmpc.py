@@ -78,8 +78,9 @@ def train(args, learner_flags):
 
         reporter.advance_iteration()
 
-        if args.experiment.render_every > 0 and \
-           (itr + 1) % args.experiment.render_every == 0:
+        if args.experiment.render_every > 0 and (
+                (itr + 1) % args.experiment.render_every == 0 or
+                itr == 0):
             render_env = args.experiment.render_env(env, itr + 1)
             _ = sample(
                 render_env, controller, args.experiment.horizon, render=True)
