@@ -270,19 +270,10 @@ class _DynamicsMetrics:
 
         h_step_state_ns = tf.foldl(dynamics.predict_tf, self._ac_ph_hna,
                                    initializer=self._ob_ph_ns, back_prop=False)
-        self._absolute_mse = tf.losses.mean_squared_error(
+        self._mse = tf.losses.mean_squared_error(
             self._h_step_ob_ph_ns,
             h_step_state_ns,
             loss_collection=None)
-        mean_guess = tf.reduce_mean(
-            self._h_step_ob_ph_ns, axis=0, keep_dims=True)
-        n = tf.shape(self._h_step_ob_ph_ns)[0]
-        normalizer = tf.losses.mean_squared_error(
-            self._h_step_ob_ph_ns,
-            tf.tile(mean_guess, [n, 1]),
-            loss_collection=None)
-        self._absolute_mse = self._absolute_mse
-        self._smse = self._absolute_mse / normalizer
 
     def log(self, data):
         """
@@ -306,30 +297,27 @@ class _DynamicsMetrics:
             obs_ns = data.obs[sample]
             ending_obs = self._eval_open_loop(obs_ns, acs_hna)
 
-            absolute_mse, smse = tf.get_default_session().run(
-                [self._absolute_mse, self._smse], feed_dict={
+            mse = tf.get_default_session().run(
+                self._mse, feed_dict={
                     self._ob_ph_ns: obs_ns,
                     self._ac_ph_hna: acs_hna,
                     self._h_step_ob_ph_ns: ending_obs})
 
-            self._print_mse_prefix(prefix, absolute_mse, smse, h_step)
+            self._print_mse_prefix(prefix, mse, h_step)
 
-    def _print_mse_prefix(self, prefix, absolute_mse, smse, h_step):
+    def _print_mse_prefix(self, prefix, mse, h_step):
         fmt = len(str(max(self._prediction_steps)))
         fmt = '{:' + str(fmt) + 'd}'
-        absolute_str = 'absolute ' + fmt + '-step dynamics mse'
-        absolute_str = absolute_str.format(h_step)
-        smse_str = 'standardized ' + fmt + '-step dynamics mse'
-        smse_str = smse_str.format(h_step)
-        reporter.add_summary(prefix + absolute_str, absolute_mse)
-        reporter.add_summary(prefix + smse_str, smse)
+        fmt_str = prefix + fmt + '-step mse'
+        print_str = fmt_str.format(h_step)
+        reporter.add_summary(print_str, mse)
 
     def _log_closed_loop_prediction(self, data):
         prefix = 'dynamics/closed loop/'
         acs, obs = data.episode_acs_obs()
         for h_step in self._prediction_steps:
             starting_obs = [ob[:-h_step] for ob in obs]
-            if any(ob.shape[0] < h_step for ob in starting_obs):
+            if any(ob.shape[0] == 0 for ob in starting_obs):
                 log.debug('skipping closed-loop {}-step dynamics logging '
                           '(episode too short)', h_step)
                 continue
@@ -339,13 +327,13 @@ class _DynamicsMetrics:
             ending_obs = [ob[h_step:] for ob in obs]
             ending_obs = np.concatenate(ending_obs)
 
-            absolute_mse, smse = tf.get_default_session().run(
-                [self._absolute_mse, self._smse], feed_dict={
+            mse = tf.get_default_session().run(
+                self._mse, feed_dict={
                     self._ob_ph_ns: starting_obs,
                     self._ac_ph_hna: hacs,
                     self._h_step_ob_ph_ns: ending_obs})
 
-            self._print_mse_prefix(prefix, absolute_mse, smse, h_step)
+            self._print_mse_prefix(prefix, mse, h_step)
 
     def _eval_open_loop(self, states_ns, acs_hna):
         venv = make_venv(self._make_env, acs_hna.shape[1])
