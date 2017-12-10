@@ -3,7 +3,6 @@
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
-import numpy as np
 
 from cloning_learner import CloningLearnerFlags
 from dataset import Dataset, one_shot_dataset
@@ -57,11 +56,8 @@ def train(args, learner_flags):
 
         with timeit('gathering statistics'):
             most_recent = one_shot_dataset(paths)
+            most_recent.log_reward_bias(args.mpc.horizon)
             returns = most_recent.per_episode_rewards()
-            bias, _ = most_recent.reward_bias(args.mpc.horizon)
-            ave_bias = bias.mean()
-            ave_sqerr = np.square(bias).mean()
-            # TODO: bootstrap ave_bias ci, ave_sqerr ci
             if learner:
                 learner.log(most_recent)
                 # out-of-band learner evaluation
@@ -72,8 +68,6 @@ def train(args, learner_flags):
                     'learner reward', learner_returns)
 
             reporter.add_summary_statistics('reward', returns)
-            reporter.add_summary('reward bias', ave_bias)
-            reporter.add_summary('reward mse', ave_sqerr)
             dyn_model.log(most_recent)
 
         reporter.advance_iteration()

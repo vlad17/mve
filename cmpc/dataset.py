@@ -7,6 +7,7 @@ import mujoco_py  # pylint: disable=unused-import
 import numpy as np
 
 from ddpg.memory import RingBuffer
+import reporter
 from utils import get_ob_dim, get_ac_dim
 
 
@@ -197,7 +198,7 @@ class Dataset(object):
         assert sarr[-1].size == 0, sarr[-1].size
         return sarr[:-1]
 
-    def reward_bias(self, prediction_horizon):
+    def log_reward_bias(self, prediction_horizon):
         """
         Report observed prediction_horizon-step reward bias
         and the h-step reward
@@ -215,7 +216,13 @@ class Dataset(object):
                             for ep_predictions in pred_rewards]
         h_step_actual = np.concatenate(h_step_rews)
         h_step_pred = np.concatenate(pred_rewards)
-        return h_step_actual - h_step_pred, h_step_actual
+        bias = h_step_actual - h_step_pred
+        if bias.size == 0:
+            bias = [0]
+        ave_bias = np.mean(bias)
+        ave_sqerr = np.square(bias).mean()
+        reporter.add_summary('reward bias', ave_bias)
+        reporter.add_summary('reward mse', ave_sqerr)
 
     def per_episode_rewards(self):
         """Return a list with the total reward for each seen episode"""

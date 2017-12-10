@@ -10,6 +10,7 @@ import subprocess
 import time
 
 from gym import wrappers
+import numpy as np
 import tensorflow as tf
 
 from flags import Flags, convert_flags_to_json
@@ -190,6 +191,7 @@ def experiment_main(flags, experiment_fn, subflags=None):
     log.init(flags.experiment.verbose)
     logdir_name = flags.experiment.log_directory()
     logdir = _make_data_directory(logdir_name)
+    np.seterr(all='raise')
 
     all_seeds = flags.experiment.seed
     for seed in all_seeds:

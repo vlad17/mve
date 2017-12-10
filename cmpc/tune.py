@@ -154,6 +154,14 @@ def _search_hypers(all_hypers, tune):
         runner.step()
         print(runner.debug_string())
 
+    errored = []
+    for trial in runner.get_trials():
+        if trial.status == Trial.ERROR:
+            errored.append(trial.config)
+
+    if errored:
+        raise ValueError('tasks errored: {}'.format(errored))
+
 
 def _main(args):
     ray.init(redis_address=(args.tune.ray_addr))
