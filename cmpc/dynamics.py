@@ -295,7 +295,13 @@ class _DynamicsMetrics:
             acs_nha = data.planned_acs[sample, :h_step, :]
             acs_hna = np.swapaxes(acs_nha, 0, 1)
             obs_ns = data.obs[sample]
-            ending_obs = self._eval_open_loop(obs_ns, acs_hna)
+            ending_obs, mask = self._eval_open_loop(obs_ns, acs_hna)
+            if np.sum(mask) == 0:
+                log.debug('all open loop evaluations terminated early -- '
+                          'skipping {} step eval', h_step)
+            acs_hna = acs_hna[:, mask, :]
+            obs_ns = obs_ns[mask, :]
+            ending_obs = ending_obs[mask, :]
 
             mse = tf.get_default_session().run(
                 self._mse, feed_dict={
@@ -340,14 +346,15 @@ class _DynamicsMetrics:
         venv.set_state_from_obs(states_ns)
         for acs_na in acs_hna:
             states_ns, _, done_n, _ = venv.step(acs_na)
-            for i in np.flatnonzero(np.asarray(done_n)):
+            done_n = np.asarray(done_n)
+            for i in np.flatnonzero(done_n):
                 venv.mask(i)
-            ndone = np.sum(done_n)
-            if ndone > 0:
-                log.debug('WARNING: {} early termination(s) during open-loop'
-                          ' eval', ndone)
+        ndone = np.sum(done_n)
+        if ndone > 0:
+            log.debug('WARNING: {} early termination(s) during open-loop'
+                      ' eval', ndone)
         venv.close()
-        return states_ns
+        return np.asarray(states_ns), ~done_n
 
 
 def _wrap_diagonally(actions_na, horizon):
