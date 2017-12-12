@@ -13,7 +13,7 @@ from gym import wrappers
 import numpy as np
 import tensorflow as tf
 
-from flags import Flags, convert_flags_to_json
+from flags import Flags, ArgSpec
 from envs import (WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard,
                   WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
 import log
@@ -25,8 +25,10 @@ class ExperimentFlags(Flags):
     """Flags common to all experiments."""
 
     @staticmethod
-    def add_flags(parser):
-        """Adds flags to an argparse parser."""
+    def _generate_arguments():
+        yield ArgSpec(
+            name='exp_name', type=str, default='unnamed_experiment',
+            help='the name of the experiment')
         try:
             git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD'])
             # git_hash is a byte string; we want a string.
@@ -35,77 +37,47 @@ class ExperimentFlags(Flags):
             git_hash = git_hash.strip()
         except subprocess.CalledProcessError:
             git_hash = ""
-
-        experiment = parser.add_argument_group('experiment')
-        experiment.add_argument(
-            '--exp_name',
-            type=str,
-            default='unnamed_experiment',
-            help='the name of the experiment',
-        )
-        experiment.add_argument(
-            '--git_hash',
-            type=str,
-            default=git_hash,
-            help='the git hash of the code being used',
-        )
-        experiment.add_argument(
-            '--seed',
+        yield ArgSpec(
+            name='git_hash', type=str, default=git_hash,
+            help='the git hash of the code being used')
+        yield ArgSpec(
+            name='seed',
             type=int,
             default=[3],
             nargs='+',
-            help='seeds for each trial'
-        )
-        experiment.add_argument(
-            '--verbose',
+            help='seeds for each trial')
+        yield ArgSpec(
+            name='verbose',
             action='store_true',
-            help='print debugging statements'
-        )
-        experiment.add_argument(
-            '--env_name',
+            help='print debugging statements')
+        yield ArgSpec(
+            name='env_name',
             type=str,
             default='hc-hard',
-            help='environment to use',
-        )
-        experiment.add_argument(
-            '--frame_skip',
+            help='environment to use',)
+        yield ArgSpec(
+            name='frame_skip',
             type=int,
-            default=1,
-        )
-        experiment.add_argument(
-            '--horizon',
+            default=1,)
+        yield ArgSpec(
+            name='horizon',
             type=int,
             default=1000,
-            help='real rollout maximum horizon',
-        )
-        experiment.add_argument(
-            '--bufsize',
-            type=int,
-            default=int(1e6),
-            help='transition replay buffer maximum size',
-        )
-        experiment.add_argument(
-            '--render_every',
+            help='real rollout maximum horizon',)
+        yield ArgSpec(
+            name='bufsize',
+            type=int, default=int(1e6),
+            help='transition replay buffer maximum size',)
+        yield ArgSpec(
+            name='render_every',
             type=int,
             default=0,
             help='if possible, render an episode every render_every episodes. '
-            'If set to 0 then no rendering.'
-        )
+            'If set to 0 then no rendering.')
 
-    @staticmethod
-    def name():
-        return "experiment"
-
-    def __init__(self, args):
-        self.exp_name = args.exp_name
-        self.git_hash = args.git_hash
-        self.seed = args.seed
-        self.verbose = args.verbose
-        self.env_name = args.env_name
-        self.frame_skip = args.frame_skip
-        self.horizon = args.horizon
-        self.bufsize = args.bufsize
-        self.render_every = args.render_every
+    def __init__(self):
+        super().__init__('experiment', 'experiment governance',
+                         list(ExperimentFlags._generate_arguments()))
         self.render_directory = None  # set by experiment_main
 
     def make_env(self):
@@ -172,7 +144,7 @@ def _make_data_directory(name):
     return name
 
 
-def experiment_main(flags, experiment_fn, subflags=None):
+def experiment_main(flags, experiment_fn):
     """
     Given parsed arguments, this method does the high-level governance
     required for running an iterated experiment.
@@ -185,8 +157,7 @@ def experiment_main(flags, experiment_fn, subflags=None):
     seed, a new experiment is invoked on a fresh, seeded environment.
 
     experiment_fn(flags) is called, with the seed modified in args
-    to indicate which seed was used. If subflags is not None
-    then experiment_fn(flags, subflags) is called.
+    to indicate which seed was used.
     """
     log.init(flags.experiment.verbose)
     logdir_name = flags.experiment.log_directory()
@@ -200,8 +171,7 @@ def experiment_main(flags, experiment_fn, subflags=None):
         os.makedirs(logdir_seed)
         flags.experiment.seed = seed
         with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
-            flag_dict = convert_flags_to_json(flags)
-            json.dump(flag_dict, f, sort_keys=True, indent=4)
+            json.dump(flags.asdict(), f, sort_keys=True, indent=4)
 
         # Rendering directory
         rendir = os.path.join(logdir_seed, 'render')
@@ -212,7 +182,4 @@ def experiment_main(flags, experiment_fn, subflags=None):
         with g.as_default():
             with reporter.create(logdir_seed, flags.experiment.verbose):
                 seed_everything(seed)
-                if subflags is not None:
-                    experiment_fn(flags, subflags)
-                else:
-                    experiment_fn(flags)
+                experiment_fn(flags)

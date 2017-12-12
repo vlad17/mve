@@ -20,7 +20,7 @@ def mkagent(env, flags):
         desired_action_stddev=float(stddev))
 
     kwargs = {'critic_l2_reg': flags.critic_l2_reg,
-              'batch_size': flags.batch_size,
+              'batch_size': flags.learner_batch_size,
               'actor_lr': flags.actor_lr,
               'critic_lr': flags.critic_lr,
               'enable_popart': False,  # requires return normalization
@@ -28,8 +28,9 @@ def mkagent(env, flags):
               'clip_norm': None,
               'param_noise': param_noise,
               'action_noise': None}
-    critic = Critic(width=flags.width, depth=flags.depth)
-    actor = Actor(nb_actions, width=flags.width, depth=flags.depth)
+    critic = Critic(width=flags.learner_width, depth=flags.learner_depth)
+    actor = Actor(nb_actions, width=flags.learner_width,
+                  depth=flags.learner_depth)
     ddpg = DDPG(actor, critic, env.observation_space.shape,
                 env.action_space.shape, tau=0.01, **kwargs)
     return ddpg

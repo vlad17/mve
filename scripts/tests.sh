@@ -69,36 +69,36 @@ main() {
     cmds+=("python $main_random $random_flags --env_name walker2d")
     cmds+=("python $main_random $random_flags --env_name hc-easy")
     # MPC
-    cmds+=("python $main_cmpc none $rs_mpc_flags $warmup_flags")
-    cmds+=("python $main_cmpc none $short_mpc_flags $warmup_flags")
-    cmds+=("python $main_cmpc none $rs_mpc_flags $warmup_flags --render_every 1")
-    cmds+=("python $main_cmpc none $rs_mpc_flags --warmup_paths_random 2 --renormalize")
-    cmds+=("python $main_cmpc none $rs_mpc_flags --warmup_paths_random 0 --renormalize")
-    cmds+=("python $main_cmpc none $rs_mpc_flags $warmup_flags --env_name hc-easy")
-    cmds+=("python $main_cmpc none $rs_mpc_flags $warmup_flags --onpol_iters 3 --exp_name plotexp")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags $warmup_flags")
+    cmds+=("python $main_cmpc rs $short_mpc_flags $warmup_flags")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags $warmup_flags --render_every 1")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --warmup_paths_random 2 --renormalize")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --warmup_paths_random 0 --renormalize")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags $warmup_flags --env_name hc-easy")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags $warmup_flags --onpol_iters 3 --exp_name plotexp")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-3 --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-3 --episodes 2")
     # CMPC
-    cmds+=("python $main_cmpc cloner $rs_mpc_flags $nn_learner_flags $warmup_flags")
-    cmds+=("python $main_cmpc cloner $rs_mpc_flags $nn_learner_flags $warmup_flags")
-    cmds+=("python $main_cmpc ddpg $rs_mpc_flags $ddpg_flags $warmup_flags")
-    cmds+=("python $main_cmpc zero $rs_mpc_flags $warmup_flags")
-    shooter_flags="--planner shooter --opt_horizon 1"
-    cmds+=("python $main_cmpc zero $rs_mpc_flags $warmup_flags $shooter_flags")
-    colocation_flags="--planner colocation --coloc_primal_steps 2"
+    cmds+=("python $main_cmpc rs_cloning $rs_mpc_flags $nn_learner_flags $warmup_flags")
+    cmds+=("python $main_cmpc rs_cloning $rs_mpc_flags $nn_learner_flags $warmup_flags")
+    cmds+=("python $main_cmpc rs_ddpg $rs_mpc_flags $ddpg_flags $warmup_flags")
+    cmds+=("python $main_cmpc rs_zero $rs_mpc_flags $warmup_flags")
+    shooter_flags="--opt_horizon 1"
+    cmds+=("python $main_cmpc rs_zero $rs_mpc_flags $warmup_flags $shooter_flags")
+    colocation_flags="--coloc_primal_steps 2"
     colocation_flags="$colocation_flags --coloc_dual_steps 2 --coloc_primal_tol 1e-2"
     colocation_flags="$colocation_flags --coloc_primal_lr 1e-4 --coloc_dual_lr 1e-3"
     colocation_flags="$colocation_flags --onpol_paths 1"
-    cmds+=("python $main_cmpc zero $mpc_flags $warmup_flags $colocation_flags --coloc_opt_horizon 2")
-    cmds+=("python $main_cmpc none $mpc_flags $warmup_flags $colocation_flags")
+    cmds+=("python $main_cmpc colocation $mpc_flags $warmup_flags $colocation_flags --coloc_opt_horizon 2")
+    cmds+=("python $main_cmpc colocation $mpc_flags $warmup_flags $colocation_flags")
     # Check that warmup caching doesn't break anything. These commands should
     # create two new cache directories.
     rm -rf data/test_warmup_cache
-    cmds+=("python $main_cmpc none $rs_mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
-    cmds+=("python $main_cmpc none $rs_mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
-    cmds+=("python $main_cmpc none $rs_mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 4 --warmup_paths_mpc 2")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 3 --warmup_paths_mpc 2")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --warmup_cache_dir data/test_warmup_cache --warmup_paths_random 4 --warmup_paths_mpc 2")
 
     for cmd in "${cmds[@]}"; do
         box "$cmd"

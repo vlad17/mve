@@ -5,9 +5,10 @@ import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 
 from dataset import Dataset, one_shot_dataset
-from ddpg_learner_flags import DDPGLearnerFlags
+from ddpg_learner import DDPGLearner
 from experiment import ExperimentFlags, experiment_main
-from flags import (parse_args, Flags)
+from flags import (parse_args, Flags, ArgSpec)
+from learner import as_controller
 from multiprocessing_env import make_venv
 import reporter
 from sample import sample_venv
@@ -21,7 +22,7 @@ def _train(args):
     venv = make_venv(args.experiment.make_env, 1)
     sess = create_tf_session()
 
-    learner = args.ddpg.make_learner(env)
+    learner = args.run.make_ddpg(env)
 
     sess.__enter__()
     tf.global_variables_initializer().run()
@@ -33,7 +34,8 @@ def _train(args):
                 learner.fit(data)
 
         with timeit('sample learner'):
-            paths = sample_venv(venv, learner, args.experiment.horizon)
+            controller = as_controller(learner)
+            paths = sample_venv(venv, controller, args.experiment.horizon)
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
@@ -49,27 +51,21 @@ def _train(args):
 class RunFlags(Flags):
     """Flags relevant for running DDPG over multiple iterations."""
 
-    @staticmethod
-    def add_flags(parser, argument_group=None):
-        """Adds flags to an argparse parser."""
-        if argument_group is None:
-            argument_group = parser.add_argument_group('run')
-        argument_group.add_argument(
-            '--episodes',
-            type=int,
-            default=300,
-            help='number episodes to train on',
-        )
+    def __init__(self):
+        arguments = [
+            ArgSpec(
+                name='episodes',
+                type=int,
+                default=300,
+                help='number episodes to train on')]
+        arguments += DDPGLearner.FLAGS
+        super().__init__('run', 'run flags for ddpg', arguments)
 
-    @staticmethod
-    def name():
-        return "run"
-
-    def __init__(self, args):
-        self.episodes = args.episodes
-
+    def make_ddpg(self, env):
+        """Create a DDPGLearner with the specifications from this invocation"""
+        return DDPGLearner(env, self)
 
 if __name__ == "__main__":
-    flags = [ExperimentFlags, RunFlags, DDPGLearnerFlags]
+    flags = [ExperimentFlags(), RunFlags()]
     _args = parse_args(flags)
     experiment_main(_args, _train)

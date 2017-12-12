@@ -5,7 +5,7 @@ import mujoco_py  # pylint: disable=unused-import
 
 from dataset import one_shot_dataset
 from experiment import ExperimentFlags, experiment_main
-from flags import (Flags, parse_args)
+from flags import (Flags, parse_args, ArgSpec)
 from multiprocessing_env import make_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
@@ -15,24 +15,10 @@ import reporter
 class RandomPolicyFlags(Flags):
     """Random policy flags."""
 
-    @staticmethod
-    def add_flags(parser):
-        """Adds flags to an argparse parser."""
-        random = parser.add_argument_group('random')
-        random.add_argument(
-            '--num_paths',
-            type=int,
-            default=100,
-            help='number of paths',
-        )
-
-    @staticmethod
-    def name():
-        return "random"
-
-    def __init__(self, args):
-        self.num_paths = args.num_paths
-
+    def __init__(self):
+        super().__init__('random', 'random policy evaluation flags',
+                         [ArgSpec(name='num_paths', type=int, default=100,
+                                  help='number of paths to evaluate')])
 
 def _train(args):
     venv = make_venv(args.experiment.make_env, args.random.num_paths)
@@ -44,5 +30,5 @@ def _train(args):
     reporter.advance_iteration()
 
 if __name__ == "__main__":
-    _args = parse_args([ExperimentFlags, RandomPolicyFlags])
+    _args = parse_args([ExperimentFlags(), RandomPolicyFlags()])
     experiment_main(_args, _train)

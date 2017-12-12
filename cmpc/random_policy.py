@@ -2,9 +2,9 @@
 
 import numpy as np
 
-from policy import Policy
+from controller import Controller
 
-class RandomPolicy(Policy):
+class RandomPolicy(Controller):
     """A policy that acts uniformly randomly in the action space."""
 
     def __init__(self, env):
@@ -19,3 +19,6 @@ class RandomPolicy(Policy):
             low=self.ac_space.low,
             high=self.ac_space.high,
             size=(n,) + self.ac_space.shape)
+
+    def planning_horizon(self):
+        return 0

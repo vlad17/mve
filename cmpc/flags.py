@@ -1,153 +1,198 @@
 """
-Ever wonder what it looks like when a grenade goes off in a hyperparameter
-factory? Tranining a (potentially constrained) on-policy MPC controller
-involves a _lot_ of hyperparameters that we'd like to toggle from the command
-line. This file helps do that without going crazy:
+This file defines the general interface to adding flags for configuration
+and processing the generated flags.
 
-    import flags
-    all_flags = flags.get_all_flags()
+A Flags instance should correspond to a logically grouped set of options
+for a program.
+
+If a program has multiple disjoint sets of behavior, it can specify a set
+of SubFlags.
+
+All Flags instances are shared between invocations of the program, but
+only one of the corresponding SubFlags instances is selected.
+
+To create a set of flags that should always be specified, construct
+a class as follows inheriting from Flags:
+
+class MyFlags(Flags):
+    def __init__(self, ...):
+        super().__init__('myflags', 'my flags pretty name', arguments)
+
+The constructor can take whatever arguments it pleases, but the super class
+requires a name (which should be unique across the whole program and
+should be a valid python variable name), a pretty name that can be any string,
+and a list of arguments, each of which is an ArgSpec.
+
+In the main file, invoke parse_args(flags) with the list of flags to be
+parsed from sys.argv. The returned object will be an instance x, where
+x.myflags will be the MyFlags instance, which will AUTOMATICALLY have
+attributes corresponding to the names of its arguments.
+
+If one of the arguments is named 'arg1', then it should be
+correspondingly invoked in the command line as:
+
+python main.py --arg1
 """
 
 import argparse
-import collections
 import shlex
 import sys
 
-
-def convert_flags_to_json(flags):
+class ArgSpec:
     """
-    Returns a "jsonnable" dict representation of Flags iterable. For example,
+    Specification for a single flag.
+    The name should be a valid python variable name.
 
-    Parameters
-    ----------
-    flags: Flags iterable
-
-    Returns
-    -------
-    dict
+    All the keywords should correspond to argparse argument-creation
+    keywords.
     """
-    params = dict()
-    for flag in flags:
-        params[flag.name()] = vars(flag)
-    return params
 
+    def __init__(self, name='', **kwargs):
+        self.name = name
+        self.kwargs = kwargs
 
 class Flags(object):
-    """A group of logically related flags."""
-
-    def __str__(self):
-        xs = vars(self)
-        return "\n".join(["--{} {}".format(x, v) for (x, v) in xs.items()])
-
-    def __repr__(self):
-        return str(self)
-
-    def name(self):
-        """Flag group name"""
-        return self.__class__.__name__.replace('Flags', '').lower()
-
-
-def parse_args(flags):
     """
-    Imagine we had the following Flags:
+    A group of logically related flags. Extend this class to create
+    a set of flags that is automatically parsed.
 
-        class A(Flags):
-            @staticmethod
-            def add_flags(parser):
-                a = parser.add_argument_group('a')
-                a.add_argument('--a')
+    The Flags class shouldn't be used directly externally otherwise.
 
-            @staticmethod
-            def name():
-                return "A"
+    A Flags instance corresponds to an argparse argument group.
+    """
 
-            def __init__(self, args):
-                self.a = args.a
+    def __init__(self, name, pretty_name, arguments):
+        self.name = name
+        self._pretty_name = pretty_name
+        self._args = arguments
 
-        class B(Flags):
-            @staticmethod
-            def add_flags(parser):
-                b = parser.add_argument_group('b')
-                b.add_argument('--b')
+    def add_to_parser(self, parser):
+        """
+        Adds own arguments (prefixed by Flags name) to parser
+        in its own argument group.
+        """
+        arg_grp = parser.add_argument_group(self._pretty_name)
+        for arg in self._args:
+            arg_grp.add_argument(
+                '--' + arg.name,
+                **arg.kwargs)
 
-            @staticmethod
-            def name():
-                return "B"
+    def set_from_parsed(self, parsed_args):
+        """
+        Given parsed arguments, set own corresponding attributes
+        appropriately.
+        """
+        for arg in self._args:
+            argval = getattr(parsed_args, arg.name)
+            setattr(self, arg.name, argval)
 
-            def __init__(self, args):
-                self.b = args.b
+    def values(self):
+        """
+        Returns a dictionary of the presumed-set values.
+        """
+        return {arg.name: getattr(self, arg.name) for arg in self._args}
 
-    `parse_args([A, B])` parses all the flags registered by `A.add_flags` and
-    `B.add_flags`. It then returns a namedtuple `{"A": A(args), "B": B(args)}`
-    where `args` are the parsed flags.
+def parse_args(flags, subflags=None, cmdargs=None):
+    """
+    Please see the module documentation.
 
-        args = parse_args([A, B])
-        print(args.A.a)
-        print(args.B.b)
+    If cmdargs is not None, then this list is used for parsing arguments
+    instead of sys.argv.
+
+    In the case of subflags being None, all Flags instances in the
+    flags list are parsed from the current command-line arguments or filled
+    with their defaults.
+
+    A top-level flags object is returned, with attributes corresponding
+    to flag names. Consider the following example:
+
+    class A(Flags):
+        def __init__(self):
+            super().__init__('a', 'a', [ArgSpec('arga', int, 0, 'help')])
+
+    class B(Flags):
+        def __init__(self):
+            super().__init__('b', 'b', [ArgSpec('argb', int, 0, 'help')])
+
+    x = parse_args([A(), B()])
+
+    These flags can be set with
+
+        python main.py --arga 1 --argb 3
+
+    And in the code they may be accessed as x.a.arga or x.b.argb. It's up
+    to the user to make sure the names 'a' and 'b' don't clash, and that
+    the argument names 'arga' and 'argb' don't clash.
+
+    SubFlags allow for disjoint specifications. A parse call like:
+
+        x = parse_args([], [A(), B()])
+
+    Would be expecting the user to invoke the program like one of the
+    following:
+
+        python main.py a --arga 3
+        python main.py b --argb 2
+        python main.py b # use default
+
+    Something like:
+
+        python main.py a --arga 3 --argb 2
+
+    Would be a parser error because only A's flags may be specified. The flag
+    instance chosen by the user in the invocation (in the example, one of
+    A() or B()) is available in x.subflag.
+
+    Note that if B() had an argument --arga, but was only used as a subflag
+    disjointly with A(), then the name clash would not be an issue.
     """
     formatter_class = argparse.ArgumentDefaultsHelpFormatter
     parser = argparse.ArgumentParser(formatter_class=formatter_class)
-    for flag in flags:
-        flag.add_flags(parser)
-
-    args = parser.parse_args()
-    kwargs = {flag.name(): flag(args) for flag in flags}
-    namedtuple = collections.namedtuple("Args", kwargs.keys())
-    return namedtuple(**kwargs)
-
-
-def parse_args_with_subcmds(flags, subflags, cmdargs=None):
-    """
-    Look at the documentation for parse_args. Consider the same Flags classes A
-    and B. Imagine we have similar one named C. `parse_args_with_subcmds([A],
-    [B, C])` will create a command line parser which has `B` and `C` as
-    subcommands. The `B` subcommand will take the A and B flags; the `C`
-    subcommand will take the A and C subcommands:
-
-        python prog.py B --a --b     # ok
-        python prog.py C --a --c     # ok
-        python prog.py B --a --b --c # not ok; no flag c for subcommand B
-
-    `parse_args_with_subcmds` will return a tuple (args, subflag) where `args`
-    is a namedtuple of all the flags (as returned by `parse_args`) and
-    `subflag` is the subflag object that corresponds to the chosen subcommand.
-
-        python prog.py B --a --b # returns (args, B(args))
-        python prog.py C --a --c # returns (args, C(args))
-    """
-    formatter_class = argparse.ArgumentDefaultsHelpFormatter
-    parser = argparse.ArgumentParser(formatter_class=formatter_class)
-    subparsers = parser.add_subparsers(dest="subcommand")
-
-    for subflag in subflags:
-        subparser = subparsers.add_parser(subflag.name(),
-                                          formatter_class=formatter_class)
+    if subflags:
+        subparsers = parser.add_subparsers(dest='subflag')
+        for subflag in subflags:
+            subparser = subparsers.add_parser(
+                subflag.name, formatter_class=formatter_class)
+            for flag in flags:
+                flag.add_to_parser(subparser)
+            subflag.add_to_parser(subparser)
+    else:
         for flag in flags:
-            flag.add_flags(subparser)
-        subflag.add_flags(subparser)
+            flag.add_to_parser(parser)
 
     args = parser.parse_args(args=cmdargs)
-    subflags_by_name = {subflag.name(): subflag for subflag in subflags}
-    if args.subcommand is None:
-        names = list(subflags_by_name.keys())
-        msg = "No subcommand chosen. Choose one of {}.".format(names)
-        raise ValueError(msg)
-    chosen_subflag = subflags_by_name[args.subcommand]
-    kwargs = {flag.name(): flag(args) for flag in flags + [chosen_subflag]}
-    meta = _FlagsMeta(args.subcommand, cmdargs)
-    kwargs[meta.name()] = meta
-    namedtuple = collections.namedtuple("Args", kwargs.keys())
-    t = namedtuple(**kwargs)
-    return t, t._asdict()[args.subcommand]
+    for flag in flags:
+        flag.set_from_parsed(args)
 
+    if subflags:
+        subflags_by_name = {subflag.name: subflag for subflag in subflags}
+        subflag = subflags_by_name[args.subflag]
+        subflag.set_from_parsed(args)
+    else:
+        subflag = None
 
-class _FlagsMeta(Flags):
-    def __init__(self, subcommand, cmdargs):
-        cmdargs = cmdargs if cmdargs is not None else sys.argv
-        cmdargs = [sys.executable] + cmdargs[:]
-        self.invocation = ' '.join(shlex.quote(s) for s in cmdargs)
-        self.subcommand = subcommand
+    cmdargs = cmdargs if cmdargs is not None else sys.argv
+    cmdargs = [sys.executable] + cmdargs[:]
+    invocation = ' '.join(shlex.quote(s) for s in cmdargs)
 
-    @staticmethod
-    def name():
-        return 'flags_meta'
+    return _TopLevelFlags(flags, invocation, subflag)
+
+class _TopLevelFlags:
+    def __init__(self, flags, cmd, subflag):
+        self._cmd = cmd
+        self._flags = flags
+        self.subflag = subflag
+        for flag in flags:
+            setattr(self, flag.name, flag)
+
+    def asdict(self):
+        """
+        A serializable dictionary version of the invoked flags.
+        """
+        all_flags = {}
+        for flag in self._flags:
+            all_flags[flag.name] = flag.values()
+        all_flags['invocation'] = self._cmd
+        all_flags['subflag'] = self.subflag and {
+            self.subflag.name: self.subflag.values()}
+        return all_flags

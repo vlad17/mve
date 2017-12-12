@@ -19,7 +19,7 @@ from ray.tune.trial import (Trial, Resources)
 from ray.tune.trial_runner import TrialRunner
 
 from experiment import experiment_main
-from flags import (Flags, parse_args, parse_args_with_subcmds)
+from flags import (ArgSpec, Flags, parse_args)
 from main_cmpc import train as cmpc_train
 from main_cmpc import flags_to_parse as cmpc_flags
 import reporter
@@ -31,42 +31,33 @@ class TuneFlags(Flags):
     """
 
     @staticmethod
-    def add_flags(parser):
+    def _generate_arguments():
         """Adds flags to an argparse parser."""
-        tuner = parser.add_argument_group('tune')
-        tuner.add_argument(
-            '--ray_addr',
+        yield ArgSpec(
+            name='ray_addr',
             type=str,
             default='',
             required=True,
-            help='ray head node redis ip:port address'
-        )
-        tuner.add_argument(
-            '--tunefile',
+            help='ray head node redis ip:port address')
+        yield ArgSpec(
+            name='tunefile',
             type=str,
             required=True,
-            help='json file with grid to search over'
-        )
-        tuner.add_argument(
-            '--env_name',
+            help='json file with grid to search over')
+        yield ArgSpec(
+            name='env_name',
             type=str,
             default='hc-hard',
             help='environment name for testing')
-        tuner.add_argument(
-            '--result_dir',
+        yield ArgSpec(
+            name='result_dir',
             type=str,
             default='data',
             help='directory to store results in')
 
-    @staticmethod
-    def name():
-        return 'tune'
-
-    def __init__(self, args):
-        self.ray_addr = args.ray_addr
-        self.tunefile = args.tunefile
-        self.env_name = args.env_name
-        self.result_dir = args.result_dir
+    def __init__(self):
+        super().__init__('tune', 'ray tuning',
+                         list(TuneFlags._generate_arguments()))
 
 
 def train(config, status_reporter):
@@ -106,8 +97,7 @@ def train(config, status_reporter):
     args += ['--exp_name', exp_name, '--seed', '7']
 
     flags, subflags = cmpc_flags()
-    parsed_flags, parsed_subflags = parse_args_with_subcmds(
-        flags, subflags, args)
+    parsed_flags = parse_args(flags, subflags, args)
 
     ctr = 0
     historical_returns = collections.deque()
@@ -125,7 +115,7 @@ def train(config, status_reporter):
         ctr += 1
 
     with reporter.report_hook(_report_hook):
-        experiment_main(parsed_flags, cmpc_train, parsed_subflags)
+        experiment_main(parsed_flags, cmpc_train)
 
 
 def _search_hypers(all_hypers, tune):
@@ -136,7 +126,7 @@ def _search_hypers(all_hypers, tune):
             'script_file_path': os.path.abspath(__file__),
             'script_min_iter_time_s': 0,
             'smoothing': hyp['smoothing'],
-            'cmpc_type': 'ddpg',
+            'cmpc_type': 'rs_ddpg',
         }
         del hyp['smoothing']
         config['hypers'] = hyp
@@ -172,5 +162,5 @@ def _main(args):
 
 
 if __name__ == "__main__":
-    _args = parse_args([TuneFlags])
+    _args = parse_args([TuneFlags()])
     _main(_args)

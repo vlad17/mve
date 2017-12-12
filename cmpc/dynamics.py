@@ -3,7 +3,7 @@
 import tensorflow as tf
 import numpy as np
 
-from flags import Flags
+from flags import Flags, ArgSpec
 from multiprocessing_env import make_venv
 import log
 import reporter
@@ -17,66 +17,52 @@ class DynamicsFlags(Flags):
     """
 
     @staticmethod
-    def add_flags(parser):
-        """Adds flags to an argparse parser."""
-        dynamics_nn = parser.add_argument_group('dynamics')
-        dynamics_nn.add_argument(
-            '--dyn_depth',
+    def _generate_arguments():
+        yield ArgSpec(
+            name='dyn_depth',
             type=int,
             default=2,
-            help='dynamics NN depth',
-        )
-        dynamics_nn.add_argument(
-            '--dyn_width',
+            help='dynamics NN depth',)
+        yield ArgSpec(
+            name='dyn_width',
             type=int,
             default=500,
-            help='dynamics NN width',
-        )
-        dynamics_nn.add_argument(
-            '--dyn_learning_rate',
+            help='dynamics NN width',)
+        yield ArgSpec(
+            name='dyn_learning_rate',
             type=float,
             default=1e-3,
-            help='dynamics NN learning rate',
-        )
-        dynamics_nn.add_argument(
-            '--dyn_epochs',
+            help='dynamics NN learning rate',)
+        yield ArgSpec(
+            name='dyn_epochs',
             type=int,
             default=60,
-            help='dynamics NN epochs',
-        )
-        dynamics_nn.add_argument(
-            '--dyn_batch_size',
+            help='dynamics NN epochs',)
+        yield ArgSpec(
+            name='dyn_batch_size',
             type=int,
             default=512,
-            help='dynamics NN batch size',
-        )
-        dynamics_nn.add_argument(
-            '--renormalize',
+            help='dynamics NN batch size',)
+        yield ArgSpec(
+            name='renormalize',
             default=False,
             action='store_true',
             help='re-calculate dynamics normalization statistics after every '
-            'iteration'
-        )
-        dynamics_nn.add_argument(
-            '--sample_percent',
+            'iteration')
+        yield ArgSpec(
+            name='sample_percent',
             default=0.1,
             type=float,
             help='sub-sample previous states by this ratio when evaluating '
             'expensive dynamics metrics')
 
-    @staticmethod
-    def name():
-        return 'dynamics'
+    def __init__(self):
+        super().__init__('dynamics', 'learned dynamics',
+                         list(DynamicsFlags._generate_arguments()))
 
-    def __init__(self, args):
-        self.dyn_depth = args.dyn_depth
-        self.dyn_width = args.dyn_width
-        self.dyn_learning_rate = args.dyn_learning_rate
-        self.dyn_epochs = args.dyn_epochs
-        self.dyn_batch_size = args.dyn_batch_size
-        self.renormalize = args.renormalize
-        self.subsample = args.sample_percent
-
+    @property
+    def subsample(self): # pylint: disable=missing-docstring
+        return self.sample_percent
 
 class _Statistics:
     def __init__(self, data):

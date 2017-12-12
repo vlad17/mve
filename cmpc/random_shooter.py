@@ -1,16 +1,18 @@
 """
-Optimize the planning problem by randomly sampling in the support
-of the constrained space.
+Optimize the planning problem by randomly sampling.
 """
 
 import numpy as np
 import tensorflow as tf
 
-from policy import Policy
+from controller import Controller
+from dataset import one_shot_dataset
+from learner import as_controller
+from sample import sample
+import reporter
 from utils import (create_random_tf_action, get_ac_dim, get_ob_dim)
 
-
-class RandomShooter(Policy):
+class RandomShooter(Controller):
     """
     Random-shooter based optimization of the planning objective
     looking mpc_horizon steps ahead.
@@ -31,7 +33,7 @@ class RandomShooter(Policy):
         else:
             exploit = create_random_tf_action(env.action_space)
         assert mpc_horizon > 0, mpc_horizon
-
+        self._env = env
         self._ac_dim = get_ac_dim(env)
         self._sims_per_state = flags.simulated_paths
 
@@ -75,6 +77,7 @@ class RandomShooter(Policy):
             lambda t, _, __: t < mpc_horizon, _body,
             loop_vars, back_prop=False)
         self._mpc_horizon = mpc_horizon
+        self._learner = learner
 
     def _act(self, states):
         nstates = len(states)
@@ -113,3 +116,19 @@ class RandomShooter(Policy):
 
     def planning_horizon(self):
         return self._mpc_horizon
+
+    def fit(self, data):
+        if self._learner:
+            self._learner.fit(data)
+
+    def log(self, most_recent):
+        if self._learner:
+            self._learner.log(most_recent)
+            # out-of-band learner evaluation
+            learner = as_controller(self._learner)
+            learner_path = sample(
+                self._env, learner, most_recent.max_horizon)
+            learner_data = one_shot_dataset([learner_path])
+            learner_returns = learner_data.per_episode_rewards()
+            reporter.add_summary(
+                'learner reward', learner_returns[0])

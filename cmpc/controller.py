@@ -1,10 +1,15 @@
-"""Base policy class."""
+"""
+The controller class trains off of previous runs and may rely on a
+dynamics model to plan its actions.
 
+As such, it has a model for its predicted reward and state, which may
+be evaluated for its accuracy.
+"""
 
-class Policy(object):
+class Controller:
     """
-    A Policy is an interfaces that represents a possibly stateful agent,
-    which offers a mapping from states to actions.
+    A Controller is an interfaces that represents a possibly stateful,
+    planning agent, which offers a mapping from states to actions.
 
     This policy is naturally vectorizable. If the agent is making decisions
     for n instances of an environment at the same time, then the agent may
@@ -13,7 +18,6 @@ class Policy(object):
 
     To refresh the state across all indices, and indicate what n is,
     the reset() method should be called.
-
     """
 
     def act(self, states_ns):
@@ -33,6 +37,19 @@ class Policy(object):
         """
         raise NotImplementedError
 
+    def fit(self, data):
+        """
+        If the controller relies on a learning component from its data,
+        then it might be fitted here.
+        """
+        pass
+
+    def log(self, most_recent):
+        """
+        A controller might gather relevant statistics and report them here.
+        """
+        pass
+
     def reset(self, n):
         """
         Indicate that the agent should reset to n fresh internal states,
@@ -46,4 +63,4 @@ class Policy(object):
         """
         If this agent uses a planner, this returns the planning horizon.
         """
-        return 0
+        raise NotImplementedError
