@@ -11,10 +11,10 @@ from flags import parse_args
 from mpc_flags import SharedMPCFlags
 from colocation_flags import ColocationFlags
 from random_shooter_flags import RandomShooterFlags
+import tfnode
 from multiprocessing_env import make_venv
 from sample import sample_venv, sample
-from utils import (timeit, create_tf_session)
-from warmup import add_warmup_data, WarmupFlags
+from utils import timeit
 import reporter
 
 
@@ -25,10 +25,7 @@ def train(args):
     env = args.experiment.make_env()
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
-    with timeit('gathering warmup data'):
-        add_warmup_data(args, data)
     venv = make_venv(args.experiment.make_env, args.mpc.onpol_paths)
-    sess = create_tf_session()
     controller_flags = args.subflag
 
     dyn_model = NNDynamicsModel(
@@ -36,9 +33,10 @@ def train(args):
         args.experiment.make_env)
     controller = controller_flags.make_mpc(
         env, dyn_model, args.mpc.mpc_horizon)
-    sess.__enter__()
+
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
+    tfnode.restore_all()
 
     for itr in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
@@ -56,27 +54,24 @@ def train(args):
         with timeit('gathering statistics'):
             most_recent = one_shot_dataset(paths)
             most_recent.log_reward_bias(args.mpc.mpc_horizon)
-            returns = most_recent.per_episode_rewards()
-            reporter.add_summary_statistics('reward', returns)
+            most_recent.log_rewards()
             dyn_model.log(most_recent)
             controller.log(most_recent)
 
         reporter.advance_iteration()
 
-        if args.experiment.render_every > 0 and (
-                (itr + 1) % args.experiment.render_every == 0 or
-                itr == 0):
+        if args.experiment.should_render(itr):
             render_env = args.experiment.render_env(env, itr + 1)
             _ = sample(
                 render_env, controller, args.experiment.horizon, render=True)
 
-    sess.__exit__(None, None, None)
+        if args.experiment.should_save(itr):
+            tfnode.save_all(itr + 1)
 
 
 def flags_to_parse():
     """Flags that BMPC should parse"""
-    flags = [ExperimentFlags(), SharedMPCFlags(), DynamicsFlags(),
-             WarmupFlags()]
+    flags = [ExperimentFlags(), SharedMPCFlags(), DynamicsFlags()]
     subflags = RandomShooterFlags.all_subflags()
     subflags.append(ColocationFlags())
     return flags, subflags

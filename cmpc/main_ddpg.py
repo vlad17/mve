@@ -12,7 +12,7 @@ from learner import as_controller
 from multiprocessing_env import make_venv
 import reporter
 from sample import sample_venv
-from utils import (timeit, create_tf_session)
+from utils import timeit
 
 
 def _train(args):
@@ -20,11 +20,8 @@ def _train(args):
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
     venv = make_venv(args.experiment.make_env, 1)
-    sess = create_tf_session()
-
     learner = args.run.make_ddpg(env)
 
-    sess.__enter__()
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
 
@@ -40,12 +37,9 @@ def _train(args):
 
         with timeit('gathering statistics'):
             most_recent = one_shot_dataset(paths)
-            returns = most_recent.per_episode_rewards()
+            most_recent.log_rewards()
 
-        reporter.add_summary_statistics('return', returns)
         reporter.advance_iteration()
-
-    sess.__exit__(None, None, None)
 
 
 class RunFlags(Flags):
@@ -64,6 +58,7 @@ class RunFlags(Flags):
     def make_ddpg(self, env):
         """Create a DDPGLearner with the specifications from this invocation"""
         return DDPGLearner(env, self)
+
 
 if __name__ == "__main__":
     flags = [ExperimentFlags(), RunFlags()]

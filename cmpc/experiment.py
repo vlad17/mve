@@ -18,7 +18,7 @@ from envs import (WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard,
                   WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
 import log
 import reporter
-from utils import seed_everything
+from utils import seed_everything, create_tf_session
 
 
 class ExperimentFlags(Flags):
@@ -74,11 +74,16 @@ class ExperimentFlags(Flags):
             default=0,
             help='if possible, render an episode every render_every episodes. '
             'If set to 0 then no rendering.')
+        yield ArgSpec(
+            name='save_every',
+            type=int,
+            default=100,
+            help='save all persistable TF variables ever save_every episodes. '
+            'Don not save if set to 0')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',
                          list(ExperimentFlags._generate_arguments()))
-        self.render_directory = None  # set by experiment_main
 
     def make_env(self):
         """Generates an unvectorized env."""
@@ -96,7 +101,8 @@ class ExperimentFlags(Flags):
     def render_env(self, env, uid):
         """Take a regular env and make it render-able."""
         limited_env = wrappers.TimeLimit(env, max_episode_steps=self.horizon)
-        directory = os.path.join(self.render_directory, str(uid))
+        render_directory = reporter.logging_directory()
+        directory = os.path.join(render_directory, str(uid))
         render_env = wrappers.Monitor(limited_env, directory)
         return render_env
 
@@ -105,6 +111,22 @@ class ExperimentFlags(Flags):
         exp_name = self.exp_name
         env_name = self.env_name
         return "{}_{}".format(exp_name, env_name)
+
+    def should_render(self, iteration):
+        """Given a 0-indexed iteration, should we render it?"""
+        if self.render_every == 0:
+            return False
+        if iteration == 0:
+            return True
+        return (iteration + 1) % self.render_every == 0
+
+    def should_save(self, iteration):
+        """Given a 0-indexed iteration, should we save it?"""
+        if self.save_every == 0:
+            return False
+        if iteration == 0:
+            return True
+        return (iteration + 1) % self.save_every == 0
 
 
 def _make_data_directory(name):
@@ -147,7 +169,8 @@ def _make_data_directory(name):
 def experiment_main(flags, experiment_fn):
     """
     Given parsed arguments, this method does the high-level governance
-    required for running an iterated experiment.
+    required for running an iterated experiment (including graph
+    construction and session management)
 
     In particular, for every seed s0, ..., sn, this creates
     a directory in data/${exp_name}_${env_name}/si for each i.
@@ -173,13 +196,11 @@ def experiment_main(flags, experiment_fn):
         with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
             json.dump(flags.asdict(), f, sort_keys=True, indent=4)
 
-        # Rendering directory
-        rendir = os.path.join(logdir_seed, 'render')
-        flags.experiment.render_directory = rendir
-
         # Run experiment.
         g = tf.Graph()
         with g.as_default():
             with reporter.create(logdir_seed, flags.experiment.verbose):
                 seed_everything(seed)
-                experiment_fn(flags)
+                with create_tf_session() as sess:
+                    with sess.as_default():
+                        experiment_fn(flags)

@@ -38,6 +38,7 @@ import argparse
 import shlex
 import sys
 
+
 class ArgSpec:
     """
     Specification for a single flag.
@@ -50,6 +51,7 @@ class ArgSpec:
     def __init__(self, name='', **kwargs):
         self.name = name
         self.kwargs = kwargs
+
 
 class Flags(object):
     """
@@ -79,7 +81,7 @@ class Flags(object):
 
     def set_from_parsed(self, parsed_args):
         """
-        Given parsed arguments, set own corresponding attributes
+        Given (all) parsed arguments, set own corresponding attributes
         appropriately.
         """
         for arg in self._args:
@@ -91,6 +93,7 @@ class Flags(object):
         Returns a dictionary of the presumed-set values.
         """
         return {arg.name: getattr(self, arg.name) for arg in self._args}
+
 
 def parse_args(flags, subflags=None, cmdargs=None):
     """
@@ -176,6 +179,7 @@ def parse_args(flags, subflags=None, cmdargs=None):
     invocation = ' '.join(shlex.quote(s) for s in cmdargs)
 
     return _TopLevelFlags(flags, invocation, subflag)
+
 
 class _TopLevelFlags:
     def __init__(self, flags, cmd, subflag):

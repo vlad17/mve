@@ -20,14 +20,15 @@ class RandomPolicyFlags(Flags):
                          [ArgSpec(name='num_paths', type=int, default=100,
                                   help='number of paths to evaluate')])
 
+
 def _train(args):
     venv = make_venv(args.experiment.make_env, args.random.num_paths)
     random_policy = RandomPolicy(venv)
     paths = sample_venv(venv, random_policy, args.experiment.horizon)
     data = one_shot_dataset(paths)
-    returns = data.per_episode_rewards()
-    reporter.add_summary_statistics('return', returns)
+    data.log_rewards()
     reporter.advance_iteration()
+
 
 if __name__ == "__main__":
     _args = parse_args([ExperimentFlags(), RandomPolicyFlags()])

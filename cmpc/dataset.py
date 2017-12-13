@@ -224,10 +224,11 @@ class Dataset(object):
         reporter.add_summary('reward bias', ave_bias)
         reporter.add_summary('reward mse', ave_sqerr)
 
-    def per_episode_rewards(self):
-        """Return a list with the total reward for each seen episode"""
+    def log_rewards(self, name='reward'):
+        """Report the reward for each episode in this dataset"""
         all_rewards = self._split_array(self.rewards)
-        return [r.sum() for r in all_rewards]
+        rsums = [r.sum() for r in all_rewards]
+        reporter.add_summary_statistics(name, rsums)
 
     def episode_acs_obs(self):
         """

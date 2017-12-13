@@ -9,8 +9,8 @@ from controller import Controller
 from dataset import one_shot_dataset
 from learner import as_controller
 from sample import sample
-import reporter
 from utils import (create_random_tf_action, get_ac_dim, get_ob_dim)
+
 
 class RandomShooter(Controller):
     """
@@ -129,6 +129,4 @@ class RandomShooter(Controller):
             learner_path = sample(
                 self._env, learner, most_recent.max_horizon)
             learner_data = one_shot_dataset([learner_path])
-            learner_returns = learner_data.per_episode_rewards()
-            reporter.add_summary(
-                'learner reward', learner_returns[0])
+            learner_data.log_rewards('learner reward')

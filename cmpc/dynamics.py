@@ -7,6 +7,7 @@ from flags import Flags, ArgSpec
 from multiprocessing_env import make_venv
 import log
 import reporter
+from tfnode import TFNode
 from utils import build_mlp, get_ob_dim, get_ac_dim
 
 
@@ -44,25 +45,25 @@ class DynamicsFlags(Flags):
             default=512,
             help='dynamics NN batch size',)
         yield ArgSpec(
-            name='renormalize',
-            default=False,
-            action='store_true',
-            help='re-calculate dynamics normalization statistics after every '
-            'iteration')
-        yield ArgSpec(
             name='sample_percent',
             default=0.1,
             type=float,
             help='sub-sample previous states by this ratio when evaluating '
             'expensive dynamics metrics')
+        yield ArgSpec(
+            name='restore_dynamics',
+            default=None,
+            type=str,
+            help='restore dynamics from the given path')
 
     def __init__(self):
         super().__init__('dynamics', 'learned dynamics',
                          list(DynamicsFlags._generate_arguments()))
 
     @property
-    def subsample(self): # pylint: disable=missing-docstring
+    def subsample(self):  # pylint: disable=missing-docstring
         return self.sample_percent
+
 
 class _Statistics:
     def __init__(self, data):
@@ -88,12 +89,12 @@ class _AssignableStatistic:
     # stats through a feed_dict every time we want to use the
     # dynamics.
     def __init__(self, suffix, initial_mean, initial_std):
-        self._mean_var = tf.Variable(
-            initial_value=initial_mean, dtype=tf.float32,
-            name='mean_' + suffix, trainable=False)
-        self._std_var = tf.Variable(
-            initial_value=initial_std, dtype=tf.float32,
-            name='std_' + suffix, trainable=False)
+        self._mean_var = tf.get_variable(
+            name='mean_' + suffix, trainable=False,
+            initializer=initial_mean.astype('float32'))
+        self._std_var = tf.get_variable(
+            name='std_' + suffix, trainable=False,
+            initializer=initial_std.astype('float32'))
         self._mean_ph = tf.placeholder(tf.float32, initial_mean.shape)
         self._std_ph = tf.placeholder(tf.float32, initial_std.shape)
         self._assign_both = tf.group(
@@ -154,7 +155,7 @@ class _DeltaNormalizer:
         self._ac_tf_stats.update_statistics(stats.mean_ac, stats.std_ac)
 
 
-class NNDynamicsModel:
+class NNDynamicsModel(TFNode):
     """Stationary neural-network-based dynamics model."""
 
     def __init__(self, env, norm_data, dyn_flags, mpc_horizon, make_env):
@@ -169,8 +170,8 @@ class NNDynamicsModel:
         self._next_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], 'true_next_state_diff')
 
-        self._norm = _DeltaNormalizer(norm_data)
-
+        with tf.variable_scope('dynamics', reuse=False):
+            self._norm = _DeltaNormalizer(norm_data)
         self._mlp_kwargs = {
             'output_size': ob_dim,
             'scope': 'dynamics',
@@ -179,7 +180,6 @@ class NNDynamicsModel:
             'size': dyn_flags.dyn_width,
             'activation': tf.nn.relu,
             'output_activation': None}
-
         _, deltas_ns = self._predict_tf(
             self._input_state_ph_ns, self._input_action_ph_na)
         true_deltas_ns = self._norm.norm_delta(
@@ -188,14 +188,14 @@ class NNDynamicsModel:
             true_deltas_ns, deltas_ns)
         self._update_op = tf.train.AdamOptimizer(
             dyn_flags.dyn_learning_rate).minimize(train_mse)
-        self._renormalize = dyn_flags.renormalize
         self._metrics = _DynamicsMetrics(
             self, mpc_horizon, env, make_env, dyn_flags.subsample)
 
+        super().__init__('dynamics', dyn_flags.restore_dynamics)
+
     def fit(self, data):
         """Fit the dynamics to the given dataset of transitions"""
-        if self._renormalize:
-            self._norm.update_stats(data)
+        self._norm.update_stats(data)
 
         # I actually tried out the tf.contrib.train.Dataset API, and
         # it was *slower* than this feed_dict method. I figure that the
