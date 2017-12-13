@@ -285,6 +285,7 @@ class _DynamicsMetrics:
             if np.sum(mask) == 0:
                 log.debug('all open loop evaluations terminated early -- '
                           'skipping {} step eval', h_step)
+                continue
             acs_hna = acs_hna[:, mask, :]
             obs_ns = obs_ns[mask, :]
             ending_obs = ending_obs[mask, :]
