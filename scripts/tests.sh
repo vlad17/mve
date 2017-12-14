@@ -36,19 +36,28 @@ main() {
     function note_failure {
         box "$cmd"
         ray stop
+        cd ..
+        rm -rf _test
     }
     trap note_failure EXIT
+
+    tune_params_json='[{"smoothing": 3, "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}, {"smoothing": 3, "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}]'
+    
+    if [ -d _test ] ; then
+        rm -rf _test
+    fi
+    mkdir _test
+    cd _test
 
     ray start --head --num-gpus=1 2>&1 | tee ray-init.txt
     ray_addr="$(cat ray-init.txt | awk '/ray start --redis-address/ { print $4 }')"
     rm ray-init.txt
 
-    tune_params_json='[{"smoothing": 3, "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}, {"smoothing": 3, "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dyn_epochs": 1}]'
-
-    main_random="cmpc/main_random_policy.py"
-    main_cmpc="cmpc/main_cmpc.py"
-    main_ddpg="cmpc/main_ddpg.py"
-    tune="cmpc/tune.py"
+    main_random="../cmpc/main_random_policy.py"
+    main_cmpc="../cmpc/main_cmpc.py"
+    main_ddpg="../cmpc/main_ddpg.py"
+    tune="../cmpc/tune.py"
+    cmpc_plot="../cmpc/plot.py"
 
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8"
@@ -101,18 +110,20 @@ main() {
     done
 
     # Tune
-    cmd="echo '$tune_params_json' > /tmp/params.json && python $tune $tune_flags --tunefile /tmp/params.json"
-    hermetic_file /tmp/params.json "$cmd"
+    cmd="echo '$tune_params_json' > params.json && python $tune $tune_flags --tunefile params.json"
+    hermetic_file params.json "$cmd"
 
     instance="data/plotexp_hc-hard:reward mse:x"
-    cmd="python cmpc/plot.py \"$instance\" --outfile /tmp/x.pdf --yaxis x --notex"
-    hermetic_file "/tmp/x.pdf" "$cmd"
+    cmd="python $cmpc_plot \"$instance\" --outfile x.pdf --yaxis x --notex"
+    hermetic_file "x.pdf" "$cmd"
 
     instance="data/plotexp_hc-hard:reward mean:x"
     hlines="data/plotexp_hc-hard:reward mse:yy"
-    cmd="python cmpc/plot.py \"$instance\" --outfile /tmp/y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
-    hermetic_file "/tmp/y.pdf" "$cmd"
+    cmd="python $cmpc_plot \"$instance\" --outfile y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
+    hermetic_file "y.pdf" "$cmd"
 
+    cd ..
+    rm -rf _test
     ray stop
     trap '' EXIT
 }
