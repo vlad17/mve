@@ -5,6 +5,7 @@ the random shooter MPC.
 
 from controller import Controller
 
+
 class Learner:
     """
     A learner enables constrained model-predictive control by forcing MPC to
@@ -36,12 +37,6 @@ class Learner:
         """Return the actions to play in the given states."""
         raise NotImplementedError
 
-    def log(self, most_recent_rollouts):
-        """
-        A learner might log statistics about the most recent
-        rollouts (performed by the MPC controller) here.
-        """
-        pass
 
 def as_controller(learner):
     """
@@ -49,10 +44,13 @@ def as_controller(learner):
     """
     return _LearnerAsController(learner)
 
+
 class _LearnerAsController(Controller):
     def __init__(self, learner):
         self._learner = learner
+
     def act(self, states_ns):
         return self._learner.act(states_ns), None, None
+
     def planning_horizon(self):
         return 0

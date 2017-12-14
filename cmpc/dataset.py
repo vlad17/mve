@@ -1,13 +1,10 @@
 """Implementation of a transition dataset (aka replay buffer)"""
 
-import pickle
-
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 import numpy as np
 
 from ddpg.memory import RingBuffer
-import reporter
 from utils import get_ob_dim, get_ac_dim
 
 
@@ -181,64 +178,6 @@ class Dataset(object):
             plan_horizon = self.planned_acs.shape[1]
             self._planned_acs.append_all(path.planned_acs[:, :plan_horizon, :])
 
-    def _check_not_full(self):
-        # TODO: this requirement is necessary for this implementation
-        # but it's not actually that critical in general: if an episode
-        # got chopped off by the ring buffer we could just drop it
-        # in _split_array. But that'd require an unnecessarily complex
-        # implementation, since we only ever call _split_array
-        # on small buffers.
-        assert self._rewards.length < self._rewards.maxlen, \
-            'dataset buffer may have already dropped data'
-
-    def _split_array(self, arr):
-        self._check_not_full()
-        terminal_locs = np.flatnonzero(self.terminals) + 1
-        sarr = np.split(arr, terminal_locs)
-        assert sarr[-1].size == 0, sarr[-1].size
-        return sarr[:-1]
-
-    def log_reward_bias(self, prediction_horizon):
-        """
-        Report observed prediction_horizon-step reward bias
-        and the h-step reward
-        """
-        eps_rewards = self._split_array(self.rewards)
-        pred_rewards = self._split_array(self.predicted_rewards)
-        agg_rewards = [np.cumsum(ep_rewards) for ep_rewards in eps_rewards]
-        h_step_rews = []
-        for ep_agg_rew in agg_rewards:
-            h_step_rew = ep_agg_rew[prediction_horizon - 1:]
-            h_step_rew[1:] -= ep_agg_rew[:-prediction_horizon]
-            h_step_rews.append(h_step_rew)
-        if prediction_horizon > 1:
-            pred_rewards = [ep_predictions[:-(prediction_horizon - 1)]
-                            for ep_predictions in pred_rewards]
-        h_step_actual = np.concatenate(h_step_rews)
-        h_step_pred = np.concatenate(pred_rewards)
-        bias = h_step_actual - h_step_pred
-        if bias.size == 0:
-            bias = [0]
-        ave_bias = np.mean(bias)
-        ave_sqerr = np.square(bias).mean()
-        reporter.add_summary('reward bias', ave_bias)
-        reporter.add_summary('reward mse', ave_sqerr)
-
-    def log_rewards(self, name='reward'):
-        """Report the reward for each episode in this dataset"""
-        all_rewards = self._split_array(self.rewards)
-        rsums = [r.sum() for r in all_rewards]
-        reporter.add_summary_statistics(name, rsums)
-
-    def episode_acs_obs(self):
-        """
-        Return a pair of lists, the first for all actions in an episode, and
-        the second for all observations.
-        """
-        acs = self._split_array(self.acs)
-        obs = self._split_array(self.obs)
-        return acs, obs
-
     def batches_per_epoch(self, batch_size):
         """
         Given a fixed batch size, returns the number of batches necessary
@@ -262,40 +201,3 @@ class Dataset(object):
         for batch_idx in batch_idxs:
             yield [transition_item[batch_idx] for transition_item
                    in transitions]
-
-    def clone(self, that):
-        """Clone that into self."""
-        # pylint: disable=protected-access
-        self.max_horizon = that.max_horizon
-        self._obs = that._obs
-        self._next_obs = that._next_obs
-        self._rewards = that._rewards
-        self._acs = that._acs
-        self._terminals = that._terminals
-        self._predicted_rewards = that._predicted_rewards
-
-    def dump(self, filename):
-        """Dump a Dataset to a file."""
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-
-    @staticmethod
-    def load(filename):
-        """Load a Dataset from a file."""
-        with open(filename, "rb") as f:
-            return pickle.load(f)
-
-
-def one_shot_dataset(paths):
-    """Create a Dataset just big enough for the parameter paths"""
-    # add an extra slot so that Dataset._check_not_full isn't worried about
-    # using a full buffer, which it conservatively interprets as a buffer
-    # where part of an episode may have been dropped.
-    tot_transitions = sum(len(path.rewards) for path in paths) + 1
-    ac_dim = paths[0].acs.shape[1]
-    ob_dim = paths[0].obs.shape[1]
-    plan_horizon = paths[0].planned_acs.shape[1]
-    dataset = Dataset(
-        ac_dim, ob_dim, paths[0].max_horizon, tot_transitions, plan_horizon)
-    dataset.add_paths(paths)
-    return dataset

@@ -4,7 +4,7 @@
 import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 
-from dataset import Dataset, one_shot_dataset
+from dataset import Dataset
 from ddpg_learner import DDPGLearner
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags, ArgSpec)
@@ -36,8 +36,8 @@ def _train(args):
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
-            most_recent = one_shot_dataset(paths)
-            most_recent.log_rewards()
+            rewards = [path.rewards.sum() for path in paths]
+            reporter.add_summary_statistics('reward', rewards)
 
         reporter.advance_iteration()
 

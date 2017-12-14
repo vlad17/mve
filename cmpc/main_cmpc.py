@@ -4,9 +4,10 @@
 import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 
-from dataset import Dataset, one_shot_dataset
+from dataset import Dataset
 from dynamics import DynamicsFlags, NNDynamicsModel
 from experiment import experiment_main, ExperimentFlags
+from immutable_dataset import ImmutableDataset
 from flags import parse_args
 from mpc_flags import SharedMPCFlags
 from colocation_flags import ColocationFlags
@@ -52,9 +53,9 @@ def train(args):
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
-            most_recent = one_shot_dataset(paths)
+            most_recent = ImmutableDataset(paths)
+            most_recent.log_reward()
             most_recent.log_reward_bias(args.mpc.mpc_horizon)
-            most_recent.log_rewards()
             dyn_model.log(most_recent)
             controller.log(most_recent)
 

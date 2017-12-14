@@ -3,7 +3,6 @@
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 
-from dataset import one_shot_dataset
 from experiment import ExperimentFlags, experiment_main
 from flags import (Flags, parse_args, ArgSpec)
 from multiprocessing_env import make_venv
@@ -25,8 +24,8 @@ def _train(args):
     venv = make_venv(args.experiment.make_env, args.random.num_paths)
     random_policy = RandomPolicy(venv)
     paths = sample_venv(venv, random_policy, args.experiment.horizon)
-    data = one_shot_dataset(paths)
-    data.log_rewards()
+    rewards = [path.rewards.sum() for path in paths]
+    reporter.add_summary_statistics('reward', rewards)
     reporter.advance_iteration()
 
 

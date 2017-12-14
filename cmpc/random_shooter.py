@@ -6,8 +6,8 @@ import numpy as np
 import tensorflow as tf
 
 from controller import Controller
-from dataset import one_shot_dataset
 from learner import as_controller
+import reporter
 from sample import sample
 from utils import (create_random_tf_action, get_ac_dim, get_ob_dim)
 
@@ -123,10 +123,8 @@ class RandomShooter(Controller):
 
     def log(self, most_recent):
         if self._learner:
-            self._learner.log(most_recent)
             # out-of-band learner evaluation
             learner = as_controller(self._learner)
             learner_path = sample(
                 self._env, learner, most_recent.max_horizon)
-            learner_data = one_shot_dataset([learner_path])
-            learner_data.log_rewards('learner reward')
+            reporter.add_summary('learner reward', learner_path.rewards.sum())

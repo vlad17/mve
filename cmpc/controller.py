@@ -6,6 +6,7 @@ As such, it has a model for its predicted reward and state, which may
 be evaluated for its accuracy.
 """
 
+
 class Controller:
     """
     A Controller is an interfaces that represents a possibly stateful,
@@ -59,7 +60,7 @@ class Controller:
         """
         pass
 
-    def planning_horizon(self): # pylint: disable=no-self-use
+    def planning_horizon(self):  # pylint: disable=no-self-use
         """
         If this agent uses a planner, this returns the planning horizon.
         """
