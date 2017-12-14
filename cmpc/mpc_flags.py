@@ -2,6 +2,7 @@
 
 from flags import Flags, ArgSpec
 
+
 class SharedMPCFlags(Flags):
     """
     Top-level MPC flags, used regardless of the planner for managing
@@ -18,7 +19,7 @@ class SharedMPCFlags(Flags):
             ArgSpec(
                 name='onpol_paths',
                 type=int,
-                default=10,
+                default=1,
                 help='number of rollouts per on policy iteration',),
             ArgSpec(
                 name='mpc_horizon',
@@ -27,6 +28,7 @@ class SharedMPCFlags(Flags):
                 help='horizon of simulated MPC rollouts')]
         pretty_name = 'common model-predictive control settings'
         super().__init__('mpc', pretty_name, arguments)
+
 
 class MPCFlags(Flags):
     """

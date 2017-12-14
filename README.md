@@ -34,6 +34,7 @@ All scripts are available in `scripts/`, and should be run from the repo root.
 | `ubuntu-install.sh` | installs all deps except MuJoCo/python on Ubuntu 14.04 or Ubuntu 16.04 |
 | `tests.sh` | runs tests |
 | `mkparams.py` | generate parameters for grid search |
+| `fake-display.sh` | create a dummy X11 display (to render on a server) |
 
 ## Recreating the Report
 

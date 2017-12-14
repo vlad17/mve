@@ -22,12 +22,12 @@ class DynamicsFlags(Flags):
         yield ArgSpec(
             name='dyn_depth',
             type=int,
-            default=2,
+            default=8,
             help='dynamics NN depth',)
         yield ArgSpec(
             name='dyn_width',
             type=int,
-            default=500,
+            default=128,
             help='dynamics NN width',)
         yield ArgSpec(
             name='dyn_learning_rate',
@@ -37,7 +37,7 @@ class DynamicsFlags(Flags):
         yield ArgSpec(
             name='dyn_epochs',
             type=int,
-            default=60,
+            default=6,
             help='dynamics NN epochs',)
         yield ArgSpec(
             name='dyn_batch_size',
