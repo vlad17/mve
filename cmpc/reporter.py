@@ -35,9 +35,13 @@ def create(logdir, verbose):
     reporter.close()
 
 
-def add_summary(name, value):
-    """Add a known floating-point value summary to the current reporter"""
-    _reporter().add_summary(name, value)
+def add_summary(name, value, hide=False):
+    """
+    Add a known floating-point value summary to the current reporter.
+    If hide is set to true, this summary is not printed during
+    advance_iteration().
+    """
+    _reporter().add_summary(name, value, hide)
 
 
 def add_summary_statistics(name, values):
@@ -144,12 +148,17 @@ class _Reporter:
         self._latest_summaries = {}
         self._latest_statistics = {}
         self.logdir = logdir
+        self._hidden = set()
 
-    def add_summary(self, name, value):
+    def add_summary(self, name, value, hide):
         """
-        Add a known floating-point value summary.
+        Add a known floating-point value summary. Optionally, choose to hide
+        the summary, preventing it from being printed during
+        advance_iteration().
         """
         self._latest_summaries[name] = value
+        if hide:
+            self._hidden.add(name)
 
     def add_summary_statistics(self, name, values):
         """
@@ -169,11 +178,14 @@ class _Reporter:
         self._global_step += 1
         self._latest_summaries = {}
         self._latest_statistics = {}
+        self._hidden = set()
 
     def _print_table(self):
         data = [['summary', 'value', 'min', 'mean', 'max', 'std']]
         data.append(['iteration', self._global_step, '', '', '', ''])
         for name, value in sorted(self._latest_summaries.items()):
+            if name in self._hidden:
+                continue
             data.append([name, _floatprint(value), '', '', '', ''])
         for name, values in sorted(self._latest_statistics.items()):
             values = [statistic(values) for statistic in

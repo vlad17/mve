@@ -34,7 +34,8 @@ hermetic_file() {
 main() {
     cmd=""
     function note_failure {
-        box "$cmd"
+        relative="../cmpc"
+        box "${cmd/$relative/cmpc}"
         ray stop
         cd ..
         rm -rf _test
@@ -82,6 +83,7 @@ main() {
     cmds+=("python $main_cmpc rs $rs_mpc_flags --render_every 1")
     cmds+=("python $main_cmpc rs $rs_mpc_flags --env_name hc-easy")
     cmds+=("python $main_cmpc rs $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --sample_percent 0.9")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-3 --episodes 2")

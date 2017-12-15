@@ -6,6 +6,7 @@ import tensorflow as tf
 
 from dataset import Dataset
 from dynamics import DynamicsFlags, NNDynamicsModel
+from dynamics_metrics import DynamicsMetricsFlags, DynamicsMetrics
 from experiment import experiment_main, ExperimentFlags
 from immutable_dataset import ImmutableDataset
 from flags import parse_args
@@ -29,9 +30,10 @@ def train(args):
     venv = make_venv(args.experiment.make_env, args.mpc.onpol_paths)
     controller_flags = args.subflag
 
-    dyn_model = NNDynamicsModel(
-        env, data, args.dynamics, args.mpc.mpc_horizon,
-        args.experiment.make_env)
+    dyn_model = NNDynamicsModel(env, data, args.dynamics)
+    dyn_metrics = DynamicsMetrics(
+        dyn_model, args.mpc.mpc_horizon, env,
+        args.experiment.make_env, args.dynamics_metrics)
     controller = controller_flags.make_mpc(
         env, dyn_model, args.mpc.mpc_horizon)
 
@@ -56,7 +58,7 @@ def train(args):
             most_recent = ImmutableDataset(paths)
             most_recent.log_reward()
             most_recent.log_reward_bias(args.mpc.mpc_horizon)
-            dyn_model.log(most_recent)
+            dyn_metrics.log(most_recent)
             controller.log(most_recent)
 
         reporter.advance_iteration()
@@ -72,7 +74,8 @@ def train(args):
 
 def flags_to_parse():
     """Flags that BMPC should parse"""
-    flags = [ExperimentFlags(), SharedMPCFlags(), DynamicsFlags()]
+    flags = [ExperimentFlags(), SharedMPCFlags(), DynamicsFlags(),
+             DynamicsMetricsFlags()]
     subflags = RandomShooterFlags.all_subflags()
     subflags.append(ColocationFlags())
     return flags, subflags
