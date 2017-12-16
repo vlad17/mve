@@ -50,7 +50,7 @@ class _LearnerAsController(Controller):
         self._learner = learner
 
     def act(self, states_ns):
-        return self._learner.act(states_ns), None, None
+        return self._learner.act(states_ns), None, None, None
 
     def planning_horizon(self):
         return 0

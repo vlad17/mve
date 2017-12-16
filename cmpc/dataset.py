@@ -24,6 +24,8 @@ class Path(object):
         self._predicted_rewards = np.empty(max_horizon)
         self._planned_acs = np.empty(
             (max_horizon, planning_horizon, get_ac_dim(env)))
+        self._planned_obs = np.empty(
+            (max_horizon, planning_horizon, get_ob_dim(env)))
         self._terminals = np.empty(max_horizon)
         self._idx = 0
         self._obs[0] = initial_obs
@@ -33,7 +35,8 @@ class Path(object):
         """Maximum path horizon"""
         return len(self._predicted_rewards)
 
-    def next(self, next_obs, reward, done, ac, pred_reward, planned_acs):
+    def next(self, next_obs, reward, done, ac,
+             pred_reward, planned_acs, planned_obs):
         """Append a new transition to currently-stored ones"""
         assert self._idx < self.max_horizon, (self._idx, self.max_horizon)
         self._next_obs[self._idx] = next_obs
@@ -43,6 +46,12 @@ class Path(object):
         if planned_acs is not None:
             self._planned_acs[self._idx] = planned_acs
         else:
+            assert self._planned_acs.size == 0
+            assert self._planned_obs.size == 0
+        if planned_obs is not None:
+            self._planned_obs[self._idx] = planned_obs
+        else:
+            assert self._planned_obs.size == 0
             assert self._planned_acs.size == 0
         self._idx += 1
         done = done or self._idx == self.max_horizon
@@ -86,6 +95,11 @@ class Path(object):
         """All planned actions so far."""
         return self._planned_acs[:self._idx]
 
+    @property
+    def planned_obs(self):
+        """All planned observations so far."""
+        return self._planned_obs[:self._idx]
+
 
 class Dataset(object):
     """
@@ -112,6 +126,7 @@ class Dataset(object):
         self._terminals = RingBuffer(maxlen, tuple())
         self._predicted_rewards = RingBuffer(maxlen, tuple())
         self._planned_acs = RingBuffer(maxlen, (planning_horizon, ac_dim))
+        self._planned_obs = RingBuffer(maxlen, (planning_horizon, ob_dim))
 
     @staticmethod
     def from_env(env, max_horizon, maxlen):
@@ -131,38 +146,43 @@ class Dataset(object):
 
     @property
     def obs(self):
-        """All observed states so far."""
+        """All observed states."""
         return self._obs.all_data()
 
     @property
     def acs(self):
-        """All actions so far."""
+        """All actions."""
         return self._acs.all_data()
 
     @property
     def rewards(self):
-        """All rewards so far."""
+        """All rewards."""
         return self._rewards.all_data()
 
     @property
     def terminals(self):
-        """All booleans for whether a state was terminal so far."""
+        """All booleans for whether a state was terminal."""
         return self._terminals.all_data()
 
     @property
     def next_obs(self):
-        """All states transitioned into so far."""
+        """All states transitioned into."""
         return self._next_obs.all_data()
 
     @property
     def predicted_rewards(self):
-        """All predicted rewards so far."""
+        """All predicted rewards."""
         return self._predicted_rewards.all_data()
 
     @property
     def planned_acs(self):
-        """All planned actions so far."""
+        """All planned actions."""
         return self._planned_acs.all_data()
+
+    @property
+    def planned_obs(self):
+        """All planned observations."""
+        return self._planned_obs.all_data()
 
     def add_paths(self, paths):
         """Aggregate data from a list of paths"""
@@ -177,6 +197,7 @@ class Dataset(object):
             self._predicted_rewards.append_all(path.predicted_rewards)
             plan_horizon = self.planned_acs.shape[1]
             self._planned_acs.append_all(path.planned_acs[:, :plan_horizon, :])
+            self._planned_obs.append_all(path.planned_obs[:, :plan_horizon, :])
 
     def batches_per_epoch(self, batch_size):
         """

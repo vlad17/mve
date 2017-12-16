@@ -70,14 +70,15 @@ class ImmutableDataset:
         reporter.add_summary('reward bias', ave_bias)
         reporter.add_summary('reward mse', ave_sqerr)
 
-    def episode_acs_obs(self):
+    def episode_obs_planned_obs(self):
         """
-        Return a pair of lists, the first for all actions in an episode, and
-        the second for all observations.
+        Return a pair of lists, the first for all observations in an episode,
+        and the second for all observations expected to come after it
+        by the planner.
         """
-        acs = self._split_array(self._dataset.acs)
         obs = self._split_array(self._dataset.obs)
-        return acs, obs
+        pobs = self._split_array(self._dataset.planned_obs)
+        return obs, pobs
 
     @property
     def obs(self):
@@ -93,3 +94,8 @@ class ImmutableDataset:
     def max_horizon(self):
         """Environment maximum horizon"""
         return self._dataset.max_horizon
+
+    @property
+    def planned_obs(self):
+        """All planned observations."""
+        return self._dataset.planned_obs

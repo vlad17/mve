@@ -1,5 +1,7 @@
 """Generate possibly constrained MPC rollouts."""
 
+from contextlib import closing
+
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
@@ -24,16 +26,20 @@ def train(args):
     """
     Train constrained MPC with the specified flags and subflags.
     """
-    env = args.experiment.make_env()
-    data = Dataset.from_env(env, args.experiment.horizon,
-                            args.experiment.bufsize)
-    venv = make_venv(args.experiment.make_env, args.mpc.onpol_paths)
-    controller_flags = args.subflag
+    with closing(args.experiment.make_env()) as env, \
+        closing(make_venv(args.experiment.make_env, args.mpc.onpol_paths)) \
+        as venv, \
+        closing(DynamicsMetrics(
+            args.mpc.mpc_horizon, args.experiment.make_env,
+            args.dynamics_metrics)) as dyn_metrics:
+        _train(args, env, venv, dyn_metrics)
 
+
+def _train(args, env, venv, dyn_metrics):
+    data = Dataset.from_env(
+        env, args.experiment.horizon, args.experiment.bufsize)
+    controller_flags = args.subflag
     dyn_model = NNDynamicsModel(env, data, args.dynamics)
-    dyn_metrics = DynamicsMetrics(
-        dyn_model, args.mpc.mpc_horizon, env,
-        args.experiment.make_env, args.dynamics_metrics)
     controller = controller_flags.make_mpc(
         env, dyn_model, args.mpc.mpc_horizon)
 
@@ -65,7 +71,7 @@ def train(args):
 
         if args.experiment.should_render(itr):
             render_env = args.experiment.render_env(env, itr + 1)
-            _ = sample(
+            sample(
                 render_env, controller, args.experiment.horizon, render=True)
 
         if args.experiment.should_save(itr):

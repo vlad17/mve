@@ -162,7 +162,8 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
         self._input_state = None
         return (self._actions_ha[:1],
                 [predicted_reward],
-                self._actions_ha[np.newaxis, ...])
+                self._actions_ha[np.newaxis, ...],
+                self._states_hs[np.newaxis, ...])
 
     def _reward(self, reward_fn, states_hs, actions_ha):
         first_reward = reward_fn(

@@ -23,7 +23,7 @@ class Controller:
 
     def act(self, states_ns):
         """
-        This method returns a tuple of three items.
+        This method returns a tuple of four items.
 
         The first is the action for every state in states_ns, where the batch
         size is n and the state shape is s.
@@ -32,9 +32,15 @@ class Controller:
         if the agent does not have this information, or equivalently None).
 
         The third is a list of planned actions, as an array of dimensions
-        n by h by s, where h is the agent's planning horizon. This may be None
+        n by h by a, where h is the agent's planning horizon. This may be None
         if the agent is not planning anything, which is interpretted as an
-        empty array (with h = 0).
+        empty array (with h = 0). a is the action dimension.
+
+        The fourth is a corresponding list of states that the agent expects
+        to be in according to its dynamics model for the planned actions.
+        This should be an array of dimensions (n by h by s). Again, this
+        may be None, which is interpetted again as the empty array with
+        dimensions (n by 0 by s).
         """
         raise NotImplementedError
 

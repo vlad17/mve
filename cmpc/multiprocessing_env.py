@@ -109,6 +109,14 @@ class _Worker(object):
         """notify parent of step finish"""
         return self._parent_recv()
 
+    def multi_step_start(self, actions_hma):
+        """actions_hma: the batch of actions for several steps for worker"""
+        self._parent_send(('multi_step', actions_hma))
+
+    def multi_step_finish(self):
+        """notify parent of multi step finish"""
+        return self._parent_recv()
+
     def mask_start(self, i):
         """Mask an env from being stepped"""
         self._parent_send(('mask', i))
@@ -138,7 +146,7 @@ class _Worker(object):
             self.child_conn.send((rendered, None))
             return
 
-    def do_run(self): # pylint: disable=too-many-branches
+    def do_run(self):  # pylint: disable=too-many-branches
         """receive loop called in separate process"""
         # Child only!
         self.parent_conn.close()
@@ -158,6 +166,10 @@ class _Worker(object):
                 action_m = body
                 observation_m, reward_m, done_m, info = self.step_m(action_m)
                 self._child_send((observation_m, reward_m, done_m, info))
+            elif method == 'multi_step':
+                actions_hma = body
+                states_hma, done_m = self.multi_step_m(actions_hma)
+                self._child_send((states_hma, done_m))
             elif method == 'mask':
                 i = body
                 self.mask[i] = False
@@ -202,6 +214,24 @@ class _Worker(object):
             info['m'].append(info_i)
         return observation_m, reward_m, done_m, info
 
+    def multi_step_m(self, actions_hma):
+        """Perform multiple steps server-side"""
+        if not self.env_m:
+            return None, None
+        env = self.env_m[0]
+        state_shape = env.observation_space.low.shape
+        states_hms = np.zeros(actions_hma.shape[:2] + state_shape)
+        dones_m = np.zeros(actions_hma.shape[1], dtype=bool)
+        for i, actions_ma in enumerate(actions_hma):
+            obs_m, _, done_m, _ = self.step_m(actions_ma)
+            for j, obs in enumerate(obs_m):
+                states_hms[i][j] = obs
+            for j, done in enumerate(done_m):
+                dones_m[j] |= done
+                if done:
+                    self.mask[j] = False
+        return states_hms, dones_m
+
 
 def _step_n(worker_n, action_n):
     accumulated = 0
@@ -224,6 +254,26 @@ def _step_n(worker_n, action_n):
     return observation_n, reward_n, done_n, info
 
 
+def _multi_step_n(worker_n, action_hna):
+    accumulated = 0
+    for worker in worker_n:
+        action_hma = action_hna[:, accumulated:accumulated + worker.m, :]
+        worker.multi_step_start(action_hma)
+        accumulated += worker.m
+
+    states, dones = [], []
+    accumulated = 0
+    for worker in worker_n:
+        states_hma, done_m = worker.multi_step_finish()
+        if states_hma is None:
+            continue
+        accumulated += worker.m
+        states.append(states_hma)
+        dones.append(done_m)
+
+    return np.concatenate(states, axis=1), np.concatenate(dones)
+
+
 def _reset_n(worker_n):
     for worker in worker_n:
         worker.reset_start()
@@ -242,12 +292,14 @@ def _seed_n(worker_n, seeds):
         worker.seed_start(seed_m)
         accumulated += worker.m
 
+
 def _set_state_from_obs(worker_n, obs):
     accumulated = 0
     for worker in worker_n:
         obs_m = obs[accumulated:accumulated + worker.m]
         worker.set_state_from_obs(obs_m)
         accumulated += worker.m
+
 
 def _mask(worker_n, i):
     accumulated = 0
@@ -313,8 +365,20 @@ class MultiprocessingEnv(gym.Env):
             self.worker_n.append(_Worker(envs, i))
 
     def set_state_from_obs(self, obs):
-        """Set the state for each sub-environment with the given obs"""
+        """
+        Set the state for each sub - environment with the given obs.
+        If len(obs) < n, where n is the number of environments this is
+        vectorizing over, then this gracefully only applies the state-setting
+        to the first len(obs) environments
+        """
         _set_state_from_obs(self.worker_n, obs)
+
+    def multi_step(self, acs_hna):
+        """
+        Evaluate a set of open - loop actions. Handles the fewer-actions
+        than environments case gracefully as set_state_from_obs does.
+        """
+        return _multi_step_n(self.worker_n, acs_hna)
 
     def _seed(self, seed=None):
         _seed_n(self.worker_n, seed)

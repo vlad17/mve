@@ -64,8 +64,9 @@ main() {
     random_flags="$experiment_flags --num_paths 8"
     dynamics_flags="--dyn_epochs 1 --dyn_depth 1 --dyn_width 8"
     mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 3"
+    mpc_flags="$mpc_flags --evaluation_envs 10"
     short_mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 6"
-    short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2"
+    short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2 --evaluation_envs 10"
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
     nn_learner_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2"
     ddpg_flags="$experiment_flags $nn_learner_flags"
@@ -83,7 +84,7 @@ main() {
     cmds+=("python $main_cmpc rs $rs_mpc_flags --render_every 1")
     cmds+=("python $main_cmpc rs $rs_mpc_flags --env_name hc-easy")
     cmds+=("python $main_cmpc rs $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --sample_percent 0.9")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --evaluation_envs 2")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-3 --episodes 2")
