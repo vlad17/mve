@@ -50,7 +50,7 @@ main() {
     mkdir _test
     cd _test
 
-    ray start --head --num-gpus=1 2>&1 | tee ray-init.txt
+    ray start --head --num-gpus=1 --no-ui --node-ip-address 127.0.0.1 2>&1 | tee ray-init.txt
     ray_addr="$(cat ray-init.txt | awk '/ray start --redis-address/ { print $4 }')"
     rm ray-init.txt
 
