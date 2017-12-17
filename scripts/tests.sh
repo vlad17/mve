@@ -83,7 +83,6 @@ main() {
     cmds+=("python $main_cmpc rs $short_mpc_flags")
     cmds+=("python $main_cmpc rs $rs_mpc_flags --render_every 1")
     cmds+=("python $main_cmpc rs $rs_mpc_flags --env_name hc-easy")
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
     cmds+=("python $main_cmpc rs $rs_mpc_flags --evaluation_envs 2")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
@@ -106,7 +105,10 @@ main() {
     cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name saved --save_every 2")
     expected_save="data/saved_hc-hard/3/checkpoints/dynamics.ckpt-00000002"
     cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name restored --restore_dynamics $expected_save")
+    
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
 
+    
     for cmd in "${cmds[@]}"; do
         box "$cmd"
         $cmd
@@ -116,12 +118,12 @@ main() {
     cmd="echo '$tune_params_json' > params.json && python $tune $tune_flags --tunefile params.json"
     hermetic_file params.json "$cmd"
 
-    instance="data/plotexp_hc-hard:reward mse:x"
+    instance="data/plotexp_hc-hard:reward mean:x"
     cmd="python $cmpc_plot \"$instance\" --outfile x.pdf --yaxis x --notex"
     hermetic_file "x.pdf" "$cmd"
 
     instance="data/plotexp_hc-hard:reward mean:x"
-    hlines="data/plotexp_hc-hard:reward mse:yy"
+    hlines="data/plotexp_hc-hard:reward mean:yy"
     cmd="python $cmpc_plot \"$instance\" --outfile y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
     hermetic_file "y.pdf" "$cmd"
 

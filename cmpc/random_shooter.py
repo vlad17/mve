@@ -76,8 +76,8 @@ class RandomShooter(Controller):
             next_state_ns = dyn_model.predict_tf(state_ns, action_na)
             save_state_op = tf.scatter_update(
                 self._states_hns, t, next_state_ns)
-            next_rewards = reward_fn(
-                state_ns, action_na, next_state_ns, rewards)
+            next_rewards = rewards + reward_fn(
+                state_ns, action_na, next_state_ns)
             with tf.control_dependencies([save_action_op, save_state_op]):
                 return [t + 1, next_state_ns, next_rewards]
 
@@ -115,12 +115,10 @@ class RandomShooter(Controller):
             :, np.arange(nstates), best_ac_ix_i, :]
         best_ob_his = state_hips[
             :, np.arange(nstates), best_ac_ix_i, :]
-        best_rewards_i = per_state_simulation_rewards_ip[
-            np.arange(nstates), best_ac_ix_i]
 
         best_ac_iha = np.swapaxes(best_ac_hia, 0, 1)
         best_ob_ihs = np.swapaxes(best_ob_his, 0, 1)
-        return best_ac_hia[0], best_rewards_i, best_ac_iha, best_ob_ihs
+        return best_ac_hia[0], best_ac_iha, best_ob_ihs
 
     def act(self, states_ns):
         # This batch size is specific to HalfCheetah and my setup.

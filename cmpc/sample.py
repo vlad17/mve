@@ -27,13 +27,12 @@ def sample_venv(venv, controller, max_horizon=1000):
         # If an environment is inactive, we can still ask the actor
         # to give us an action for it (the venv and actor will give garbage
         # but valid-size outputs).
-        acs_n, planned_rewards_n, planned_acs_n, planned_obs_n = (
+        acs_n, planned_acs_n, planned_obs_n = (
             controller.act(obs_n))
         obs_n, reward_n, done_n, _ = venv.step(acs_n)
         for i in np.flatnonzero(active_n):
             done_n[i] |= paths[i].next(
                 obs_n[i], reward_n[i], done_n[i], acs_n[i],
-                None if planned_rewards_n is None else planned_rewards_n[i],
                 None if planned_acs_n is None else planned_acs_n[i],
                 None if planned_obs_n is None else planned_obs_n[i])
             if done_n[i]:
@@ -54,10 +53,9 @@ def sample(env, controller, max_horizon=1000, render=False):
     for _ in range(max_horizon):
         if render:
             env.render()
-        ac, plan_rew, plan_ac, plan_ob = controller.act(ob[np.newaxis, ...])
+        ac, plan_ac, plan_ob = controller.act(ob[np.newaxis, ...])
         ob, reward, done, _ = env.step(ac[0])
         path.next(ob, reward, done, ac[0],
-                  None if plan_rew is None else plan_rew[0],
                   None if plan_ac is None else plan_ac[0],
                   None if plan_ob is None else plan_ob[0])
         if done:

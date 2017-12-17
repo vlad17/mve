@@ -26,12 +26,17 @@ class SettableWithReward:
     MDP.
     """
 
-    def tf_reward(self, state, action, next_state, curr_reward):
+    def tf_reward(self, state, action, next_state):
         """
         Given tensors (with the 0th dimension as the batch dimension) for a
-        transition during a rollout, and the current reward up to the point in
-        time where the transitions passed as arguments have occurred, this
-        returns the resulting reward for the trajectories after the transition.
+        transition during a rollout, this returns the corresponding reward
+        as a rank-1 tensor.
+        """
+        raise NotImplementedError
+
+    def np_reward(self, state, action, next_state):
+        """
+        Same as tf_reward, but the numpy version.
         """
         raise NotImplementedError
 
@@ -63,13 +68,14 @@ class WhiteBoxHalfCheetahEasy(MujocoEnv, EzPickle, SettableWithReward):
         reward += (next_state[:, 0] - state[:, 0]) / self.dt
         return reward
 
-    def _np_incremental_reward(self, state, action, next_state):
+    def np_reward(self, state, action, next_state):
         reward = 0
         reward = self._incremental_reward(state, action, next_state, reward,
                                           lambda x: x.astype(np.float32))
         return reward
 
-    def tf_reward(self, state, action, next_state, curr_reward):
+    def tf_reward(self, state, action, next_state):
+        curr_reward = tf.zeros([tf.shape(state)[0]])
         return self._incremental_reward(
             state, action, next_state, curr_reward,
             lambda x: tf.cast(x, tf.float32))
@@ -78,7 +84,7 @@ class WhiteBoxHalfCheetahEasy(MujocoEnv, EzPickle, SettableWithReward):
         state_before = self._get_obs()
         self.do_simulation(action, self.frame_skip)
         state_after = self._get_obs()
-        reward = self._np_incremental_reward(
+        reward = self.np_reward(
             state_before[np.newaxis, ...],
             action[np.newaxis, ...],
             state_after[np.newaxis, ...])
@@ -107,7 +113,6 @@ class WhiteBoxHalfCheetahEasy(MujocoEnv, EzPickle, SettableWithReward):
         self.set_state(qpos, qvel)
 
 
-
 class WhiteBoxHalfCheetahHard(MujocoEnv, EzPickle, SettableWithReward):
     """White box HalfCheetah, with frameskip 1 and hard reward"""
     # same as gym except as noted
@@ -124,13 +129,14 @@ class WhiteBoxHalfCheetahHard(MujocoEnv, EzPickle, SettableWithReward):
         reward += (next_state[:, 0] - state[:, 0]) / self.unwrapped.dt
         return reward
 
-    def _np_incremental_reward(self, state, action, next_state):
+    def np_reward(self, state, action, next_state):
         reward = 0
         reward = self._incremental_reward(state, action, next_state, reward,
                                           lambda x: np.sum(x, axis=1))
         return reward
 
-    def tf_reward(self, state, action, next_state, curr_reward):
+    def tf_reward(self, state, action, next_state):
+        curr_reward = tf.zeros([tf.shape(state)[0]])
         return self._incremental_reward(
             state, action, next_state, curr_reward,
             lambda x: tf.reduce_sum(x, axis=1))
@@ -139,7 +145,7 @@ class WhiteBoxHalfCheetahHard(MujocoEnv, EzPickle, SettableWithReward):
         state_before = self._get_obs()
         self.do_simulation(action, self.frame_skip)
         state_after = self._get_obs()
-        reward = self._np_incremental_reward(
+        reward = self.np_reward(
             state_before[np.newaxis, ...],
             action[np.newaxis, ...],
             state_after[np.newaxis, ...])
@@ -192,13 +198,14 @@ class WhiteBoxAntEnv(MujocoEnv, EzPickle, SettableWithReward):
         reward += forward_reward - ctrl_cost - contact_cost + survive_reward
         return reward
 
-    def _np_incremental_reward(self, state, action, next_state):
+    def np_reward(self, state, action, next_state):
         reward = 0
         reward = self._incremental_reward(state, action, next_state, reward,
                                           lambda x: np.square(x).sum(axis=1))
         return reward
 
-    def tf_reward(self, state, action, next_state, curr_reward):
+    def tf_reward(self, state, action, next_state):
+        curr_reward = tf.zeros([tf.shape(state)[0]])
         return self._incremental_reward(
             state, action, next_state, curr_reward,
             lambda x: tf.reduce_sum(tf.square(x), axis=1))
@@ -207,7 +214,7 @@ class WhiteBoxAntEnv(MujocoEnv, EzPickle, SettableWithReward):
         state_before = self._get_obs()
         self.do_simulation(action, self.frame_skip)
         state_after = self._get_obs()
-        reward = self._np_incremental_reward(
+        reward = self.np_reward(
             state_before[np.newaxis, ...],
             action[np.newaxis, ...],
             state_after[np.newaxis, ...])
@@ -252,6 +259,7 @@ class WhiteBoxWalker2dEnv(MujocoEnv, EzPickle, SettableWithReward):
 
     [1]: https://github.com/openai/gym/blob/master/gym/envs/mujoco/walker2d.py
     """
+
     def __init__(self, frame_skip):
         MujocoEnv.__init__(self, "walker2d.xml", frame_skip)
         EzPickle.__init__(self)
@@ -269,13 +277,14 @@ class WhiteBoxWalker2dEnv(MujocoEnv, EzPickle, SettableWithReward):
         reward += new_reward
         return reward
 
-    def _np_incremental_reward(self, state, action, next_state):
+    def np_reward(self, state, action, next_state):
         reward = 0
         reward = self._incremental_reward(state, action, next_state, reward,
                                           lambda x: np.square(x).sum(axis=1))
         return reward
 
-    def tf_reward(self, state, action, next_state, curr_reward):
+    def tf_reward(self, state, action, next_state):
+        curr_reward = tf.zeros([tf.shape(state)[0]])
         return self._incremental_reward(
             state, action, next_state, curr_reward,
             lambda x: tf.reduce_sum(tf.square(x), axis=1))
@@ -298,7 +307,7 @@ class WhiteBoxWalker2dEnv(MujocoEnv, EzPickle, SettableWithReward):
         state_before = self._get_obs()
         self.do_simulation(action, self.frame_skip)
         state_after = self._get_obs()
-        reward = self._np_incremental_reward(
+        reward = self.np_reward(
             state_before[np.newaxis, ...],
             action[np.newaxis, ...],
             state_after[np.newaxis, ...])

@@ -63,7 +63,6 @@ def _train(args, env, venv, dyn_metrics):
         with timeit('gathering statistics'):
             most_recent = ImmutableDataset(paths)
             most_recent.log_reward()
-            most_recent.log_reward_bias(args.mpc.mpc_horizon)
             dyn_metrics.log(most_recent)
             controller.log(most_recent)
 

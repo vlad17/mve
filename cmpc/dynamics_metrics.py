@@ -54,10 +54,17 @@ class DynamicsMetrics:
     starting at t_i^0 = s_i, we get the "true planned states"
     t_i^{j+1} = M(t_i^j, a_i^j). Then compute the corresponding h-step
     prediction MSE between t_i^j and s_i^j.
+
+    Finally, we can also measure, to some extent, the nature of the error
+    between t_i^j and s_i^j by evaluating the H-step reward according
+    to the planner (i.e., from trajectory s_i^0 to s_i^H) versus
+    what would have really happened (from t_i^0 to t_i^H). This
+    gives a measure of the planner over-optimism or pessimism.
     """
 
     def __init__(self, planning_horizon, make_env, flags):
         self._venv = make_venv(make_env, flags.evaluation_envs)
+        self._env = make_env()
         self._num_envs = flags.evaluation_envs
         self._horizon = planning_horizon
 
@@ -91,13 +98,43 @@ class DynamicsMetrics:
         obs_ns = obs_ns[mask]
         planned_obs_nhs = data.planned_obs[mask]
 
-        try:
-            mse_h = self._mse_h(obs_nhs, planned_obs_nhs)
-        except FloatingPointError as e:
-            log.debug('error during open-loop dynamics evaluation: {}', e)
-            return
+        mse_h = self._mse_h(obs_nhs, planned_obs_nhs)
         prefix = 'dynamics/open loop/'
         self._print_mse_prefix(prefix, mse_h)
+
+        obs_n1s = obs_ns[:, np.newaxis, :]
+        prev_obs_nhs = np.concatenate([obs_n1s, obs_nhs[:, :-1]], axis=1)
+        prev_planned_obs_nhs = np.concatenate(
+            [obs_n1s, planned_obs_nhs[:, :-1]], axis=1)
+        rew_n = self._rewards_from_transitions(prev_obs_nhs, acs_nha, obs_nhs)
+        planned_rew_n = self._rewards_from_transitions(
+            prev_planned_obs_nhs, acs_nha, planned_obs_nhs)
+        rew_bias = (rew_n - planned_rew_n).mean()
+        rew_mse = np.square(rew_n - planned_rew_n).mean()
+        reporter.add_summary('reward bias', rew_bias)
+        reporter.add_summary('reward mse', rew_mse)
+
+    def _rewards_from_transitions(self, prev_states_nhs, acs_nha, states_nhs):
+        # define N = n * h
+        prev_states_Ns = self._merge_axes(prev_states_nhs)
+        acs_Ns = self._merge_axes(acs_nha)
+        states_Ns = self._merge_axes(states_nhs)
+        rew_N = self._env.np_reward(prev_states_Ns, acs_Ns, states_Ns)
+        rew_nh = self._split_axes(rew_N)
+        return rew_nh.sum(axis=1)
+
+    def _merge_axes(self, arr):
+        assert arr.ndim == 3, arr.ndim
+        a, b, c = arr.shape
+        assert b == self._horizon, (b, self._horizon)
+        return arr.reshape(a * b, c)
+
+    def _split_axes(self, arr):
+        assert arr.ndim == 1, arr.ndim
+        a = arr.shape[0]
+        assert a % self._horizon == 0, (a, self._horizon)
+        b, c = a // self._horizon, self._horizon
+        return arr.reshape(b, c)
 
     def _print_mse_prefix(self, prefix, mse_h):
         fmt = len(str(self._horizon))
@@ -110,7 +147,7 @@ class DynamicsMetrics:
             reporter.add_summary(print_str, mse, hide)
 
     def _log_closed_loop_prediction(self, data):
-        obs, planned_obs = data.episode_obs_planned_obs()
+        obs, planned_obs = data.episode_plans()
         mask = [ob.shape[0] > self._horizon for ob in obs]
         if not all(mask):
             log.debug('WARNING: {} early terminations during closed-loop'
@@ -156,6 +193,7 @@ class DynamicsMetrics:
     def close(self):
         """Close the internal simulation environment"""
         self._venv.close()
+        self._env.close()
 
 
 def _wrap_diagonally(actions_na, horizon):

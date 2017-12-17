@@ -88,8 +88,6 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
         self._reified_debug_tensors = self._debug_tensors(
             reward_fn, dyn_model, learner, self._states_ph_hs,
             self._actions_ph_ha,)
-        self._reified_reward = self._reward(
-            reward_fn, self._states_ph_hs, self._actions_ph_ha)
         self._step = None
         self._input_state = None
 
@@ -157,21 +155,17 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
             self._dual_step()
             self._debug_print(' after')
 
-        predicted_reward = tf.get_default_session().run(
-            self._reified_reward, self._feed_dict())
         self._input_state = None
         return (self._actions_ha[:1],
-                [predicted_reward],
                 self._actions_ha[np.newaxis, ...],
                 self._states_hs[np.newaxis, ...])
 
     def _reward(self, reward_fn, states_hs, actions_ha):
         first_reward = reward_fn(
             tf.expand_dims(self._input_state_ph_s, axis=0),
-            actions_ha[:1], states_hs[:1], tf.zeros([1]))[0]
+            actions_ha[:1], states_hs[:1])[0]
         rest_rewards = reward_fn(
-            states_hs[:-1], actions_ha[1:],
-            states_hs[1:], tf.zeros([self._mpc_horizon - 1]))
+            states_hs[:-1], actions_ha[1:], states_hs[1:])
         return first_reward + tf.reduce_sum(rest_rewards)
 
     def _dyn_violations_h(self, dyn_model, states_hs, actions_ha):

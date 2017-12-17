@@ -44,37 +44,11 @@ class ImmutableDataset:
         rewards = [rew.sum() for rew in eps_rewards]
         reporter.add_summary_statistics('reward', rewards)
 
-    def log_reward_bias(self, prediction_horizon):
+    def episode_plans(self):
         """
-        Report observed prediction_horizon-step reward bias
-        and the h-step reward
-        """
-        eps_rewards = self._split_array(self._dataset.rewards)
-        pred_rewards = self._split_array(self._dataset.predicted_rewards)
-        agg_rewards = [np.cumsum(ep_rewards) for ep_rewards in eps_rewards]
-        h_step_rews = []
-        for ep_agg_rew in agg_rewards:
-            h_step_rew = ep_agg_rew[prediction_horizon - 1:]
-            h_step_rew[1:] -= ep_agg_rew[:-prediction_horizon]
-            h_step_rews.append(h_step_rew)
-        if prediction_horizon > 1:
-            pred_rewards = [ep_predictions[:-(prediction_horizon - 1)]
-                            for ep_predictions in pred_rewards]
-        h_step_actual = np.concatenate(h_step_rews)
-        h_step_pred = np.concatenate(pred_rewards)
-        bias = h_step_actual - h_step_pred
-        if bias.size == 0:
-            bias = [0]
-        ave_bias = np.mean(bias)
-        ave_sqerr = np.square(bias).mean()
-        reporter.add_summary('reward bias', ave_bias)
-        reporter.add_summary('reward mse', ave_sqerr)
-
-    def episode_obs_planned_obs(self):
-        """
-        Return a pair of lists, the first for all observations in an episode,
-        and the second for all observations expected to come after it
-        by the planner.
+        Return a pair lists, the first for all observations in an episode,
+        and the second for all observations expected to come from planned
+        actions.
         """
         obs = self._split_array(self._dataset.obs)
         pobs = self._split_array(self._dataset.planned_obs)

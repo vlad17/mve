@@ -21,7 +21,6 @@ class Path(object):
         self._next_obs = np.empty((max_horizon, get_ob_dim(env)))
         self._acs = np.empty((max_horizon, get_ac_dim(env)))
         self._rewards = np.empty(max_horizon)
-        self._predicted_rewards = np.empty(max_horizon)
         self._planned_acs = np.empty(
             (max_horizon, planning_horizon, get_ac_dim(env)))
         self._planned_obs = np.empty(
@@ -33,16 +32,14 @@ class Path(object):
     @property
     def max_horizon(self):
         """Maximum path horizon"""
-        return len(self._predicted_rewards)
+        return len(self._rewards)
 
-    def next(self, next_obs, reward, done, ac,
-             pred_reward, planned_acs, planned_obs):
+    def next(self, next_obs, reward, done, ac, planned_acs, planned_obs):
         """Append a new transition to currently-stored ones"""
         assert self._idx < self.max_horizon, (self._idx, self.max_horizon)
         self._next_obs[self._idx] = next_obs
         self._rewards[self._idx] = reward
         self._acs[self._idx] = ac
-        self._predicted_rewards[self._idx] = pred_reward
         if planned_acs is not None:
             self._planned_acs[self._idx] = planned_acs
         else:
@@ -86,11 +83,6 @@ class Path(object):
         return self._next_obs[:self._idx]
 
     @property
-    def predicted_rewards(self):
-        """All predicted rewards so far."""
-        return self._predicted_rewards[:self._idx]
-
-    @property
     def planned_acs(self):
         """All planned actions so far."""
         return self._planned_acs[:self._idx]
@@ -124,7 +116,6 @@ class Dataset(object):
         self._rewards = RingBuffer(maxlen, tuple())
         self._acs = RingBuffer(maxlen, (ac_dim,))
         self._terminals = RingBuffer(maxlen, tuple())
-        self._predicted_rewards = RingBuffer(maxlen, tuple())
         self._planned_acs = RingBuffer(maxlen, (planning_horizon, ac_dim))
         self._planned_obs = RingBuffer(maxlen, (planning_horizon, ob_dim))
 
@@ -170,11 +161,6 @@ class Dataset(object):
         return self._next_obs.all_data()
 
     @property
-    def predicted_rewards(self):
-        """All predicted rewards."""
-        return self._predicted_rewards.all_data()
-
-    @property
     def planned_acs(self):
         """All planned actions."""
         return self._planned_acs.all_data()
@@ -194,7 +180,6 @@ class Dataset(object):
             self._rewards.append_all(path.rewards)
             self._acs.append_all(path.acs)
             self._terminals.append_all(path.terminals)
-            self._predicted_rewards.append_all(path.predicted_rewards)
             plan_horizon = self.planned_acs.shape[1]
             self._planned_acs.append_all(path.planned_acs[:, :plan_horizon, :])
             self._planned_obs.append_all(path.planned_obs[:, :plan_horizon, :])

@@ -13,7 +13,7 @@ class RandomPolicy(Controller):
 
     def act(self, states_ns):
         nstates = len(states_ns)
-        return self._sample_n(nstates), None, None, None
+        return self._sample_n(nstates), None, None
 
     def _sample_n(self, n):
         return np.random.uniform(
