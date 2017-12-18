@@ -111,6 +111,7 @@ class Dataset(object):
     def __init__(self, ac_dim, ob_dim, max_horizon, maxlen,
                  planning_horizon=0):
         self.max_horizon = max_horizon
+        self.maxlen = maxlen
         self._obs = RingBuffer(maxlen, (ob_dim,))
         self._next_obs = RingBuffer(maxlen, (ob_dim,))
         self._rewards = RingBuffer(maxlen, tuple())
@@ -184,6 +185,20 @@ class Dataset(object):
             self._planned_acs.append_all(path.planned_acs[:, :plan_horizon, :])
             self._planned_obs.append_all(path.planned_obs[:, :plan_horizon, :])
 
+    def set_state(self, dictionary):
+        """
+        Set the internal ringbuffers to contain the values in the dictionary
+        (which should be keyed to the corresponding property).
+        """
+        for attr, arr in dictionary.items():
+            # technically, we should wipe what the ringbuffer currently
+            # contains to "really" set the state. We don't have to do this
+            # if the ringbuffer is currently empty, which we assume
+            # is the case always
+            rb = getattr(self, '_' + attr)
+            assert rb.length == 0, len(rb)
+            rb.append_all(arr)
+
     def batches_per_epoch(self, batch_size):
         """
         Given a fixed batch size, returns the number of batches necessary
@@ -193,7 +208,7 @@ class Dataset(object):
 
     def sample_many(self, nbatches, batch_size):
         """
-        Generates nbatches worth of batches, iid-sampled from the internal
+        Generates nbatches worth of batches, iid - sampled from the internal
         buffers.
 
         Values returned are transitions, which are tuples of:

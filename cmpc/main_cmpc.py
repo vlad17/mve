@@ -13,6 +13,8 @@ from experiment import experiment_main, ExperimentFlags
 from immutable_dataset import ImmutableDataset
 from flags import parse_args
 from mpc_flags import SharedMPCFlags
+from persistable_dataset import (
+    add_dataset_to_persistance_registry, PersistableDatasetFlags)
 from colocation_flags import ColocationFlags
 from random_shooter_flags import RandomShooterFlags
 import tfnode
@@ -42,6 +44,7 @@ def _train(args, env, venv, dyn_metrics):
     dyn_model = NNDynamicsModel(env, data, args.dynamics)
     controller = controller_flags.make_mpc(
         env, dyn_model, args.mpc.mpc_horizon)
+    add_dataset_to_persistance_registry(data, args.persistable_dataset)
 
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
@@ -80,7 +83,7 @@ def _train(args, env, venv, dyn_metrics):
 def flags_to_parse():
     """Flags that BMPC should parse"""
     flags = [ExperimentFlags(), SharedMPCFlags(), DynamicsFlags(),
-             DynamicsMetricsFlags()]
+             DynamicsMetricsFlags(), PersistableDatasetFlags()]
     subflags = RandomShooterFlags.all_subflags()
     subflags.append(ColocationFlags())
     return flags, subflags

@@ -102,10 +102,12 @@ main() {
     colocation_flags="$colocation_flags --onpol_paths 1"
     cmds+=("python $main_cmpc colocation $mpc_flags $colocation_flags --coloc_opt_horizon 2")
     cmds+=("python $main_cmpc colocation $mpc_flags $colocation_flags")
-    # Test dynamics recovery
+    # Test recovery
     cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name saved --save_every 2")
-    expected_save="data/saved_hc-hard/3/checkpoints/dynamics.ckpt-00000002"
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name restored --restore_dynamics $expected_save")
+    expected_dyn_save="data/saved_hc-hard/3/checkpoints/dynamics.ckpt-00000002"
+    expected_rb_save="data/saved_hc-hard/3/checkpoints/persistable_dataset.ckpt-00000002"
+    restore="--restore_dynamics $expected_dyn_save --restore_buffer $expected_rb_save"
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name restored $restore")
     # Plot tests
     cmds+=("python $main_cmpc rs $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
 
