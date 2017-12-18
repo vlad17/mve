@@ -59,6 +59,7 @@ main() {
     main_ddpg="../cmpc/main_ddpg.py"
     tune="../cmpc/tune.py"
     cmpc_plot="../cmpc/plot.py"
+    cmpc_plot_dyn="../cmpc/plot_dynamics.py"
 
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8"
@@ -105,7 +106,7 @@ main() {
     cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name saved --save_every 2")
     expected_save="data/saved_hc-hard/3/checkpoints/dynamics.ckpt-00000002"
     cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name restored --restore_dynamics $expected_save")
-    
+    # Plot tests
     cmds+=("python $main_cmpc rs $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
 
     
@@ -126,6 +127,13 @@ main() {
     hlines="data/plotexp_hc-hard:reward mean:yy"
     cmd="python $cmpc_plot \"$instance\" --outfile y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
     hermetic_file "y.pdf" "$cmd"
+
+    instance="data/plotexp_hc-hard:label1 data/plotexp_hc-hard:label2"
+    cmd="python $cmpc_plot_dyn $instance --outfile z.pdf --notex --smoothing 2 --hsteps 1 2 3"
+    hermetic_file "z.pdf" "$cmd"
+    
+    cmd="python $cmpc_plot_dyn $instance --outfile z.pdf --notex --yrange 0 1 --time 1 --hsteps 2"
+    hermetic_file "z.pdf" "$cmd"
 
     cd ..
     rm -rf _test

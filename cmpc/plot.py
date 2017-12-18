@@ -48,7 +48,10 @@ import tensorflow as tf
 import seaborn as sns
 
 
-def _plot_data(data, value, outfile, hlines, yrange):
+def plot_data(data, value, outfile, hlines, yrange):
+    """
+    Prints a sns tsplot to the outfile in PDF form
+    """
     sns.set(style='darkgrid', font_scale=1.5)
     sns.tsplot(data=data, time='iteration', value=value,
                unit='Unit', condition='Condition')
@@ -63,7 +66,20 @@ def _plot_data(data, value, outfile, hlines, yrange):
     plt.clf()
 
 
-def _get_datasets(fpath, column, label, yaxis, smoothing):
+def get_datasets(fpath, column, label, yaxis, smoothing):
+    """
+    For a top-level directory containing multiple runs across several seeds,
+    this gathers a pandas dataset with columns:
+
+    iteration, Unit, Condition, yaxis
+
+    Where iteration is the global training step for each run, the Unit
+    is a unique index corresponding to a run with a single seed,
+    the Condition is a constant column with value <label>, and
+    the yaxis column contains the value in question (which is identified with
+    the tag <column>)
+    """
+
     unit = 0
     datasets = []
     for root, _, files in os.walk(fpath):
@@ -86,9 +102,26 @@ def _get_datasets(fpath, column, label, yaxis, smoothing):
             break
     return datasets
 
-def main():
-    """Entry point for plot.py"""
 
+def gather_data(args, yaxis, smoothing, drop_iterations):
+    """
+    Applies get_datasets to each argument in args, which should be a
+    triplet (fpath, column, label), after appending the same yaxis
+    and smoothing value.
+
+    Then concatenates the resulting datasets, drops the specified
+    number of initial iterations, and returns the final union-ed
+    dataframe.
+    """
+    data = []
+    for logdir, value, label in args:
+        data += get_datasets(logdir, value, label, yaxis, smoothing)
+    data = pd.concat(data, ignore_index=True)
+    data = data[data['iteration'] >= drop_iterations]
+    return data
+
+
+def _main():
     parser = argparse.ArgumentParser(
         description=sys.modules[__name__].__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -106,27 +139,22 @@ def main():
     if not args.notex:
         matplotlib.rcParams['text.usetex'] = True
 
-    data = []
-    for column in args.columns:
-        print(column)
-        logdir, value, label = column.split(':')
-        data += _get_datasets(logdir, value, label, args.yaxis, args.smoothing)
+    columns = [column.split(':') for column in args.columns]
+    data = gather_data(columns, args.yaxis, args.smoothing,
+                       args.drop_iterations)
 
     hlines = []
     for column in args.hlines:
-        print(column)
         logdir, value, label = column.split(':')
-        dfs = _get_datasets(logdir, value, label, 'value', args.smoothing)
+        dfs = get_datasets(logdir, value, label, 'value', args.smoothing)
         values = []
         for df in dfs:
             top = df.loc[df['iteration'].idxmax()]
             values.append(top['value'])
         hlines.append([np.mean(values), label])
 
-    data = pd.concat(data, ignore_index=True)
-    data = data[data['iteration'] >= args.drop_iterations]
-    _plot_data(data, args.yaxis, args.outfile, hlines, args.yrange)
+    plot_data(data, args.yaxis, args.outfile, hlines, args.yrange)
 
 
 if __name__ == "__main__":
-    main()
+    _main()
