@@ -32,7 +32,8 @@ class DynamicsMetrics:
     Closed-loop evaluation is easy. Suppose we just had a rollout with states
     s_1, ..., s_T, and the controller, for every i in [T], predicted the
     next states s_i^j for j in [H] where H is the planning horizon.
-    Then an observation for our h-step prediction MSE is (s_i^h-s_{i+h})^2.
+    Then an observation for our h-step prediction (dimension-normalized) MSE
+    is (s_i^h-s_{i+h})^2/D where s is in R^d.
     We average over all i and possibly several episodes.
 
     Since actions in the rollout are taken with respect to the closed-loop
@@ -71,7 +72,7 @@ class DynamicsMetrics:
     @staticmethod
     def _mse_h(true_obs_nhs, pred_obs_nhs):
         # n = batch size, h = horizon, s = state dim
-        return np.square(true_obs_nhs - pred_obs_nhs).sum(axis=2).mean(axis=0)
+        return np.square(true_obs_nhs - pred_obs_nhs).mean(axis=2).mean(axis=0)
 
     def log(self, data):
         """

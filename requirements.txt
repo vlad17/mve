@@ -3,9 +3,9 @@ scipy
 pandas
 seaborn
 # CPU
-tensorflow
+tensorflow>=1.4
 # GPU
-# tensorflow-gpu
+# tensorflow-gpu>=1.4
 mujoco-py == 0.5.7
 gym[all]
 ray==0.2.2

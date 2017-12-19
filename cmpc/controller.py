@@ -38,6 +38,14 @@ class Controller:
         This should be an array of dimensions (n by h by s). Again, this
         may be None, which is interpetted again as the empty array with
         dimensions (n by 0 by s).
+
+        Be careful about off-by-one errors here. If the first array
+        of actions is acs_na, the second array of planned actions is acs_hna
+        and the third array of planned observations is obs_hns then the
+        following should hold:
+
+            * acs_hna[0] == acs_na
+            * obs_hns[i] is the state RESULTING FROM action acs_hns[i]
         """
         raise NotImplementedError
 

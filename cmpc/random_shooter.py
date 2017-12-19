@@ -45,7 +45,8 @@ class RandomShooter(Controller):
         # i = number of states in batch for act
         self._input_state_ph_is = tf.placeholder(
             tf.float32, [None, self._ob_dim])
-        state_ns = tf.tile(self._input_state_ph_is, (flags.simulated_paths, 1))
+        initial_state_ns = tf.tile(
+            self._input_state_ph_is, (flags.simulated_paths, 1))
 
         # policy shooter samples from
         def _policy(t, states_ns):
@@ -55,7 +56,7 @@ class RandomShooter(Controller):
                            lambda: exploit(states_ns))
 
         # h = horizon
-        n = tf.shape(state_ns)[0]
+        n = tf.shape(initial_state_ns)[0]
         # to create a matrix of actions, we need to know n, but we won't know
         # it until runtime, so we can't globally initialize the action matrix
         # instead, we initialize it to the right size at every act() call.
@@ -81,7 +82,7 @@ class RandomShooter(Controller):
             with tf.control_dependencies([save_action_op, save_state_op]):
                 return [t + 1, next_state_ns, next_rewards]
 
-        loop_vars = [0, state_ns, tf.zeros((n,))]
+        loop_vars = [0, initial_state_ns, tf.zeros((n,))]
         _, _, self._final_rewards_n = tf.while_loop(
             lambda t, _, __: t < mpc_horizon, _body,
             loop_vars, back_prop=False)
