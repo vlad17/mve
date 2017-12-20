@@ -66,13 +66,12 @@ def _main():
         ixs[name] = mu.index
         mu = mu[yaxis]
         mus[name] = mu
-        sd = df.groupby('step').std()[yaxis]
-        tops[name] = mu + sd * 2
-        bots[name] = mu - sd * 2
+        tops[name] = df.groupby('step').quantile(0.95)[yaxis]
+        bots[name] = df.groupby('step').quantile(0.05)[yaxis]
 
     for name in runs:
         plt.plot(ixs[name], mus[name], label=name)
-        plt.fill_between(ixs[name], bots[name], tops[name])
+        plt.fill_between(ixs[name], bots[name], tops[name], alpha=0.3)
 
     if args.yrange:
         lo, hi = args.yrange
