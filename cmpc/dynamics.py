@@ -32,11 +32,6 @@ class DynamicsFlags(Flags):
             default=1e-3,
             help='dynamics NN learning rate',)
         yield ArgSpec(
-            name='dyn_epochs',
-            type=int,
-            default=6,
-            help='dynamics NN epochs',)
-        yield ArgSpec(
             name='dyn_batch_size',
             type=int,
             default=512,
@@ -46,6 +41,11 @@ class DynamicsFlags(Flags):
             default=None,
             type=str,
             help='restore dynamics from the given path')
+        yield ArgSpec(
+            name='dynamics_nbatches',
+            type=int,
+            default=4000,
+            help='number of mini-batches to train dynamics on every round',)
 
     def __init__(self):
         super().__init__('dynamics', 'learned dynamics',
@@ -147,7 +147,7 @@ class NNDynamicsModel(TFNode):
 
     def __init__(self, env, norm_data, dyn_flags):
         ob_dim, ac_dim = get_ob_dim(env), get_ac_dim(env)
-        self._epochs = dyn_flags.dyn_epochs
+        self._nbatches = dyn_flags.dynamics_nbatches
         self._batch_size = dyn_flags.dyn_batch_size
 
         self._input_state_ph_ns = tf.placeholder(
@@ -187,8 +187,7 @@ class NNDynamicsModel(TFNode):
         # data throughput per batch is small enough (since the data is so
         # simple) that up-front shuffling as performed here is probably
         # saving us more time.
-        nbatches = data.batches_per_epoch(self._batch_size) * self._epochs
-        for batch in data.sample_many(nbatches, self._batch_size):
+        for batch in data.sample_many(self._nbatches, self._batch_size):
             obs, next_obs, _, acs, _ = batch
             self._update_op.run(feed_dict={
                 self._input_state_ph_ns: obs,
