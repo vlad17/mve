@@ -20,7 +20,7 @@ def _train(args):
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
     venv = make_venv(args.experiment.make_env, 1)
-    learner = args.run.make_ddpg(env)
+    learner = args.run.make_ddpg(env, args.experiment.discount)
 
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
@@ -54,9 +54,11 @@ class RunFlags(Flags):
                 help='number episodes to train on')]
         arguments += DDPGLearner.FLAGS
         super().__init__('run', 'run flags for ddpg', arguments)
+        self.discount = None
 
-    def make_ddpg(self, env):
+    def make_ddpg(self, env, discount):
         """Create a DDPGLearner with the specifications from this invocation"""
+        self.discount = discount
         return DDPGLearner(env, self)
 
 

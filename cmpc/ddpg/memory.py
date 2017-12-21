@@ -74,24 +74,3 @@ class RingBuffer(object):
         vs = vs[to_fill:]
         self.data[:len(vs)] = vs
         self.start = len(self.vs)
-
-
-def _array_min2d(x):
-    x = np.array(x)
-    if x.ndim >= 2:
-        return x
-    return x.reshape(-1, 1)
-
-
-def openai_batch(obs, next_obs, rewards, acs, terminals):
-    """
-    Converts a regular batch of data into the format openai's DDPG
-    class expects.
-    """
-    return {
-        'obs0': _array_min2d(obs),
-        'obs1': _array_min2d(next_obs),
-        'rewards': _array_min2d(rewards),
-        'actions': _array_min2d(acs),
-        'terminals1': _array_min2d(terminals),
-    }

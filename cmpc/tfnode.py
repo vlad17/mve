@@ -29,7 +29,7 @@ class TFNode:
 
     class A(TFNode):
         def __init__(self, restore_path):
-            tf.variable_scope('scope_A', reuse=False):
+            tf.variable_scope('scope_A'):
                 self._var = tf.get_variable('var_to_save', [3])
             super().__init__('scope_A', restore_path)
 

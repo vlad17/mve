@@ -5,7 +5,7 @@ import numpy as np
 
 from flags import Flags, ArgSpec
 from tfnode import TFNode
-from utils import build_mlp, get_ob_dim, get_ac_dim
+from utils import build_mlp, get_ob_dim, get_ac_dim, AssignableStatistic
 
 
 class DynamicsFlags(Flags):
@@ -71,50 +71,15 @@ class _Statistics:
             self.std_ac = np.std(data.acs, axis=0)
 
 
-class _AssignableStatistic:
-    # Need stateful statistics so we don't have to feed
-    # stats through a feed_dict every time we want to use the
-    # dynamics.
-    def __init__(self, suffix, initial_mean, initial_std):
-        self._mean_var = tf.get_variable(
-            name='mean_' + suffix, trainable=False,
-            initializer=initial_mean.astype('float32'))
-        self._std_var = tf.get_variable(
-            name='std_' + suffix, trainable=False,
-            initializer=initial_std.astype('float32'))
-        self._mean_ph = tf.placeholder(tf.float32, initial_mean.shape)
-        self._std_ph = tf.placeholder(tf.float32, initial_std.shape)
-        self._assign_both = tf.group(
-            tf.assign(self._mean_var, self._mean_ph),
-            tf.assign(self._std_var, self._std_ph))
-
-    def update_statistics(self, mean, std):
-        """
-        Update the stateful statistics using the default session.
-        """
-        tf.get_default_session().run(
-            self._assign_both, feed_dict={
-                self._mean_ph: mean,
-                self._std_ph: std})
-
-    def tf_normalize(self, x):
-        """Normalize a value according to these statistics"""
-        return (x - self._mean_var) / (self._std_var + 1e-6)
-
-    def tf_denormalize(self, x):
-        """Denormalize a value according to these statistics"""
-        return x * (self._std_var + 1e-6) + self._mean_var
-
-
 class _DeltaNormalizer:
     def __init__(self, data, eps=1e-6):
         self._eps = eps
         stats = _Statistics(data)
-        self._ob_tf_stats = _AssignableStatistic(
+        self._ob_tf_stats = AssignableStatistic(
             'ob', stats.mean_ob, stats.std_ob)
-        self._delta_tf_stats = _AssignableStatistic(
+        self._delta_tf_stats = AssignableStatistic(
             'delta', stats.mean_delta, stats.std_delta)
-        self._ac_tf_stats = _AssignableStatistic(
+        self._ac_tf_stats = AssignableStatistic(
             'ac', stats.mean_ac, stats.std_ac)
 
     def norm_obs(self, obs):
@@ -157,7 +122,7 @@ class NNDynamicsModel(TFNode):
         self._next_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], 'true_next_state_diff')
 
-        with tf.variable_scope('dynamics', reuse=False):
+        with tf.variable_scope('dynamics'):
             self._norm = _DeltaNormalizer(norm_data)
         self._mlp_kwargs = {
             'output_size': ob_dim,
@@ -165,8 +130,7 @@ class NNDynamicsModel(TFNode):
             'reuse': tf.AUTO_REUSE,
             'n_layers': dyn_flags.dyn_depth,
             'size': dyn_flags.dyn_width,
-            'activation': tf.nn.relu,
-            'output_activation': None}
+            'activation': tf.nn.relu}
         _, deltas_ns = self._predict_tf(
             self._input_state_ph_ns, self._input_action_ph_na)
         true_deltas_ns = self._norm.norm_delta(
