@@ -58,7 +58,7 @@ class DDPGLearner(Learner, TFNode):
             help='decay rate for target network'),
         ArgSpec(
             name='explore_stddev',
-            default=0.2,
+            default=0.05,
             type=float,
             help='goal action standard deviation for exploration'),
         ArgSpec(

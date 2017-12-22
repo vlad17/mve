@@ -19,7 +19,7 @@ def _layer_norm(x):
     return tf.contrib.layers.layer_norm(x, center=True, scale=True)
 
 
-def _global_vars(parent_scope, child_scope):
+def _trainable_vars(parent_scope, child_scope):
     with tf.variable_scope(parent_scope):
         with tf.variable_scope(child_scope):
             scope = tf.get_variable_scope().name
@@ -28,8 +28,8 @@ def _global_vars(parent_scope, child_scope):
 
 
 def _target_updates(parent_scope, current_scope, target_scope, decay):
-    current_vars = _global_vars(parent_scope, current_scope)
-    target_vars = _global_vars(parent_scope, target_scope)
+    current_vars = _trainable_vars(parent_scope, current_scope)
+    target_vars = _trainable_vars(parent_scope, target_scope)
     assert len(current_vars) == len(target_vars), (current_vars, target_vars)
     # variables should have been created the same way, so they'll
     # be ordered correctly.
@@ -44,8 +44,8 @@ def _target_updates(parent_scope, current_scope, target_scope, decay):
 
 
 def _perturb_update(parent_scope, current_scope, perturb_scope, noise):
-    current_vars = _global_vars(parent_scope, current_scope)
-    perturb_vars = _global_vars(parent_scope, perturb_scope)
+    current_vars = _trainable_vars(parent_scope, current_scope)
+    perturb_vars = _trainable_vars(parent_scope, perturb_scope)
     assert len(current_vars) == len(perturb_vars), (current_vars, perturb_vars)
     updates = []
     for current_var, perturb_var in zip(current_vars, perturb_vars):
@@ -85,7 +85,7 @@ class Actor:
         self.tf_target_action(self._states_ph_ns)
         self._acs_na = self.tf_perturbed_action(self._states_ph_ns)
 
-        self.variables = _global_vars(self._scope, 'actor')
+        self.variables = _trainable_vars(self._scope, 'actor')
 
     def tf_target_update(self, decay):
         """Create and return an op to do target updates"""
@@ -97,7 +97,7 @@ class Actor:
         Create an op that updates the perturbed actor network with a
         perturbed version of the current actor network.
         """
-        return _perturb_update(self._scope, 'actor', 'pertubed_actor', noise)
+        return _perturb_update(self._scope, 'actor', 'perturbed_actor', noise)
 
     def act(self, states_ns):
         """
@@ -155,7 +155,7 @@ class Critic:
         self.tf_critic(states_ph_ns, acs_ph_ns)
         self.tf_target_critic(states_ph_ns, acs_ph_ns)
 
-        self.variables = _global_vars(self._scope, 'critic')
+        self.variables = _trainable_vars(self._scope, 'critic')
 
     def tf_target_update(self, decay):
         """Create and return an op to do target updates"""

@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 
 from log import debug
-from utils import get_ob_dim, get_ac_dim
+from utils import get_ob_dim, get_ac_dim, scale_from_box
 
 
 def _flatgrad_norms(opt, loss, variables):
@@ -99,17 +99,23 @@ class DDPG:
         # a perturbation stddev for actor network weights that hits the target
         # action stddev
         def _get_current_action_noise():
-            return tf.sqrt(tf.reduce_mean(tf.square(
-                actor.tf_action(self.obs0_ph_ns) -
-                actor.tf_perturbed_action(self.obs0_ph_ns))))
+            mean_ac = scale_from_box(
+                env.action_space, actor.tf_action(self.obs0_ph_ns))
+            perturb_ac = scale_from_box(
+                env.action_space, actor.tf_perturbed_action(self.obs0_ph_ns))
+            return tf.sqrt(tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
         with tf.variable_scope(scope):
             adaptive_noise = tf.get_variable(
                 'adaptive_noise', trainable=False, initializer=explore_stddev)
         self._debug_scalar('adaptive param noise', adaptive_noise)
         self._sampled_action_noise = _get_current_action_noise()
         self._debug_scalar('action noise', self._sampled_action_noise)
+        # this implementation adjusts the param noise after every gradient step
+        # this isn't absolutely necessary but doesn't seem to be a bottleneck
         with tf.control_dependencies([optimize_actor_op]):
-            curr_noise = _get_current_action_noise()
+            re_perturb = actor.tf_perturb_update(adaptive_noise)
+            with tf.control_dependencies([re_perturb]):
+                curr_noise = _get_current_action_noise()
             multiplier = tf.cond(curr_noise < explore_stddev,
                                  lambda: 1.01, lambda: 1 / 1.01)
             update_noise = tf.assign(
