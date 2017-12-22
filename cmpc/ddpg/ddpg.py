@@ -25,9 +25,11 @@ class DDPG:
 
     def __init__(
             self, env, actor, critic, discount=0.99, scope='ddpg',
-            actor_lr=1e-4, critic_lr=1e-3, decay=0.99, explore_stddev=0.2):
+            actor_lr=1e-4, critic_lr=1e-3, decay=0.99, explore_stddev=0.2,
+            nbatches=1):
 
         self._debugs = []
+        self._nbatches = nbatches
 
         self.obs0_ph_ns = tf.placeholder(
             tf.float32, shape=[None, get_ob_dim(env)])
@@ -95,33 +97,42 @@ class DDPG:
             actor.tf_target_update(0),
             critic.tf_target_update(0))
 
-        # parameter-noise exploration: "train" a noise variable to learn
+        # Parameter-noise exploration: "train" a noise variable to learn
         # a perturbation stddev for actor network weights that hits the target
-        # action stddev
-        def _get_current_action_noise():
-            mean_ac = scale_from_box(
-                env.action_space, actor.tf_action(self.obs0_ph_ns))
-            perturb_ac = scale_from_box(
-                env.action_space, actor.tf_perturbed_action(self.obs0_ph_ns))
-            return tf.sqrt(tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
+        # action stddev. After every gradient step sample how far our current
+        # parameter space noise puts our actions from mean.
         with tf.variable_scope(scope):
             adaptive_noise = tf.get_variable(
                 'adaptive_noise', trainable=False, initializer=explore_stddev)
+            # average action noise we've seen in the current training iteration
+            self._observed_noise = tf.get_variable(
+                'observed_noise', trainable=False, initializer=0.)
         self._debug_scalar('adaptive param noise', adaptive_noise)
-        self._sampled_action_noise = _get_current_action_noise()
-        self._debug_scalar('action noise', self._sampled_action_noise)
-        # this implementation adjusts the param noise after every gradient step
-        # this isn't absolutely necessary but doesn't seem to be a bottleneck
+        self._debug_scalar('action noise', self._observed_noise)
+        # This implementation observes the param noise after every gradient
+        # step this isn't absolutely necessary but doesn't seem to be a
+        # bottleneck.
+        #
+        # We then adjust parameter noise by the adaption coefficient
+        # once every iteration.
         with tf.control_dependencies([optimize_actor_op]):
             re_perturb = actor.tf_perturb_update(adaptive_noise)
             with tf.control_dependencies([re_perturb]):
-                curr_noise = _get_current_action_noise()
-            multiplier = tf.cond(curr_noise < explore_stddev,
-                                 lambda: 1.01, lambda: 1 / 1.01)
-            update_noise = tf.assign(
-                adaptive_noise, adaptive_noise * multiplier)
+                mean_ac = scale_from_box(
+                    env.action_space, actor.tf_action(self.obs0_ph_ns))
+                perturb_ac = scale_from_box(
+                    env.action_space, actor.tf_perturbed_action(
+                        self.obs0_ph_ns))
+                batch_observed_noise = tf.sqrt(
+                    tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
+                save_noise = tf.assign_add(
+                    self._observed_noise, batch_observed_noise)
 
-        self._optimize = tf.group(update_targets, update_noise)
+        self._optimize = tf.group(update_targets, save_noise)
+        multiplier = tf.cond(self._observed_noise < explore_stddev * nbatches,
+                             lambda: 1.01, lambda: 1 / 1.01)
+        self._update_adapative_noise_op = tf.assign(
+            adaptive_noise, adaptive_noise * multiplier)
 
     def initialize_targets(self):
         """
@@ -144,11 +155,15 @@ class DDPG:
         self._debugs.append((name + ' l2', '{:.5g}', [grad_l2]))
         self._debugs.append((name + ' linf', '{:.5g}', [grad_linf]))
 
-    def train(self, data, nbatches, batch_size):
+    def train(self, data, batch_size):
         """Run nbatches training iterations of DDPG"""
         nprints = 5
+        nbatches = self._nbatches
         period = max(nbatches // nprints, 1)
         feed_dict = None
+
+        tf.get_default_session().run(self._observed_noise.initializer)
+
         for itr, batch in enumerate(data.sample_many(
                 nbatches, batch_size)):
             obs, next_obs, rewards, acs, terminals = batch
@@ -167,8 +182,10 @@ class DDPG:
                 fmt += ' action noise {:.5g}'
                 critic_loss, actor_loss, noise = tf.get_default_session().run(
                     [self._critic_loss, self._actor_loss,
-                     self._sampled_action_noise], feed_dict)
-                debug(fmt, itr + 1, critic_loss, actor_loss, noise)
+                     self._observed_noise], feed_dict)
+                debug(fmt, itr + 1, critic_loss, actor_loss, noise / (itr + 1))
+
+        tf.get_default_session().run(self._update_adapative_noise_op)
 
         if feed_dict is not None:
             self._debug_print(feed_dict)

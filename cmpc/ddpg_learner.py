@@ -68,7 +68,6 @@ class DDPGLearner(Learner, TFNode):
             help='restore ddpg from the given path')]
 
     def __init__(self, env, flags):
-        self._nbatches = flags.learner_nbatches
         self._batch_size = flags.learner_batch_size
         self._actor = Actor(
             env, width=flags.learner_width, depth=flags.learner_depth,
@@ -79,6 +78,7 @@ class DDPGLearner(Learner, TFNode):
         self._ddpg = DDPG(env, self._actor, self._critic, flags.discount,
                           actor_lr=flags.actor_lr, critic_lr=flags.critic_lr,
                           decay=flags.target_decay,
+                          nbatches=flags.learner_nbatches,
                           explore_stddev=flags.explore_stddev)
         TFNode.__init__(self, 'ddpg', flags.restore_ddpg)
 
@@ -92,4 +92,4 @@ class DDPGLearner(Learner, TFNode):
         return self._actor.act(states_ns)
 
     def fit(self, data):
-        self._ddpg.train(data, self._nbatches, self._batch_size)
+        self._ddpg.train(data, self._batch_size)
