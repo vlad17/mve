@@ -25,7 +25,7 @@ class DDPG:
 
     def __init__(
             self, env, actor, critic, discount=0.99, scope='ddpg',
-            actor_lr=1e-4, critic_lr=1e-3):
+            actor_lr=1e-4, critic_lr=1e-3, decay=0.99):
 
         self._debugs = []
 
@@ -85,20 +85,31 @@ class DDPG:
                         self._critic_loss, var_list=critic.variables)
             with tf.control_dependencies([optimize_critic_op]):
                 self._optimize = tf.group(
-                    actor.tf_target_update(),
-                    critic.tf_target_update())
+                    actor.tf_target_update(decay),
+                    critic.tf_target_update(decay))
 
         for v in actor.variables + critic.variables:
             self._debug_stats(v.name, v)
+
+        self._copy_targets = tf.group(
+            actor.tf_target_update(0),
+            critic.tf_target_update(0))
+
+    def initialize_targets(self):
+        """
+        New targets are initialized randomly, but they should be initially
+        set to equal the initialization of the starting networks.
+        """
+        tf.get_default_session().run(self._copy_targets)
 
     def _debug_stats(self, name, tensor):
         flat = tf.reshape(tensor, [-1])
         mu, var = tf.nn.moments(flat, axes=0)
         std = tf.cond(var > 0, lambda: tf.sqrt(var), lambda: 0.)
-        self._debugs.append((name, '{:.5g} {:.5g}', [mu, std]))
+        self._debugs.append((name, 'mean {:+.5g} std {:+.5g}', [mu, std]))
 
     def _debug_scalar(self, name, tensor):
-        self._debugs.append((name, '{:.5g}', [tensor]))
+        self._debugs.append((name, '{:+.5g}', [tensor]))
 
     def _debug_grads(self, name, opt, loss, variables):
         grad_l2, grad_linf = _flatgrad_norms(opt, loss, variables)
@@ -138,7 +149,7 @@ class DDPG:
         names, fmts, tensors = zip(*self._debugs)
         evaluated_tensors = tf.get_default_session().run(tensors, feed_dict)
         namefmt = '{: <' + str(max(len(name) for name in names)) + '}'
-        lines = [(namefmt + ' ' + fmt).format(name, *evaluated)
+        lines = [('\n  ' + namefmt + ' ' + fmt).format(name, *evaluated)
                  for name, fmt, evaluated
                  in zip(names, fmts, evaluated_tensors)]
-        debug('last-batch DDPG stats' + '\n'.join(lines))
+        debug('last-batch DDPG stats' + ''.join(lines))

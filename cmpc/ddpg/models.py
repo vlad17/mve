@@ -49,10 +49,9 @@ class Actor:
     for optimizable variables.
     """
 
-    def __init__(self, env, scope='ddpg', depth=2, width=64, decay=0.99):
+    def __init__(self, env, scope='ddpg', depth=2, width=64):
         self._ac_space = env.action_space
         self._ob_space = env.observation_space
-        self._decay = decay
         self._common_mlp_kwargs = {
             'output_size': get_ac_dim(env),
             'n_layers': depth,
@@ -72,10 +71,10 @@ class Actor:
 
         self.variables = _global_vars(self._scope, 'actor')
 
-    def tf_target_update(self):
+    def tf_target_update(self, decay):
         """Create and return an op to do target updates"""
         return _target_updates(
-            self._scope, 'actor', 'target_actor', self._decay)
+            self._scope, 'actor', 'target_actor', decay)
 
     def act(self, states_ns):
         """Return a numpy array with the current actor's actions."""
@@ -104,11 +103,9 @@ class Critic:
     optimizable variables.
     """
 
-    def __init__(self, env, scope='ddpg', width=64, depth=2, decay=0.99,
-                 l2reg=0):
+    def __init__(self, env, scope='ddpg', width=64, depth=2, l2reg=0):
         self._ac_space = env.action_space
         self._ob_space = env.observation_space
-        self._decay = decay
         self._common_mlp_kwargs = {
             'output_size': 1,
             'size': width,
@@ -131,10 +128,10 @@ class Critic:
 
         self.variables = _global_vars(self._scope, 'critic')
 
-    def tf_target_update(self):
+    def tf_target_update(self, decay):
         """Create and return an op to do target updates"""
         return _target_updates(
-            self._scope, 'critic', 'target_critic', self._decay)
+            self._scope, 'critic', 'target_critic', decay)
 
     def _tf_critic(self, states_ns, acs_na, scope):
         states_ns = scale_from_box(self._ob_space, states_ns)

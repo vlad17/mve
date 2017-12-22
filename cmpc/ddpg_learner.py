@@ -61,13 +61,17 @@ class DDPGLearner(Learner, TFNode):
         self._batch_size = flags.learner_batch_size
         self._actor = Actor(
             env, width=flags.learner_width, depth=flags.learner_depth,
-            decay=flags.target_decay, scope='ddpg')
+            scope='ddpg')
         self._critic = Critic(
             env, width=flags.learner_width, depth=flags.learner_depth,
-            decay=flags.target_decay, scope='ddpg', l2reg=flags.critic_l2_reg)
+            scope='ddpg', l2reg=flags.critic_l2_reg)
         self._ddpg = DDPG(env, self._actor, self._critic, flags.discount,
-                          actor_lr=flags.actor_lr, critic_lr=flags.critic_lr)
+                          actor_lr=flags.actor_lr, critic_lr=flags.critic_lr,
+                          decay=flags.target_decay)
         TFNode.__init__(self, 'ddpg')
+
+    def custom_init(self):
+        self._ddpg.initialize_targets()
 
     def tf_action(self, states_ns):
         return self._actor.tf_action(states_ns)

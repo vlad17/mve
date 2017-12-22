@@ -67,10 +67,23 @@ class TFNode:
         self._restore = restore_path
         self._scope = scope
 
+    def custom_init(self):
+        """
+        This method is automatically invoked by the base class in the case
+        that the TFNode was not restored. While all global variables have
+        been default-initialized by this point, a subclass of TFNode might
+        have a custom initialization procedure that it might invoke here.
+
+        By default, no additional custom intialization is assumed.
+        """
+        pass
+
     def restore(self):
         """Restore TFNode variables from the given restore path."""
         if self._saver and self._restore is not None:
             self._saver.restore(tf.get_default_session(), self._restore)
+        else:
+            self.custom_init()
 
     def save(self, step):
         """
