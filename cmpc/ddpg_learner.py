@@ -21,11 +21,11 @@ class DDPGLearner(Learner, TFNode):
         ArgSpec(
             name='actor_lr',
             type=float,
-            default=1e-4, help='actor network learning rate'),
+            default=1e-3, help='actor network learning rate'),
         ArgSpec(
             name='critic_lr',
             type=float,
-            default=1e-4, help='critic network learning rate'),
+            default=1e-3, help='critic network learning rate'),
         ArgSpec(
             name='critic_l2_reg',
             type=float,
@@ -43,7 +43,7 @@ class DDPGLearner(Learner, TFNode):
             help='width for both actor and critic networks'),
         ArgSpec(
             name='learner_nbatches',
-            default=None,
+            default=4000,
             type=int,
             help='number of minibatches to train on per iteration'),
         ArgSpec(
@@ -78,7 +78,8 @@ class DDPGLearner(Learner, TFNode):
             scope='ddpg', l2reg=flags.critic_l2_reg)
         self._ddpg = DDPG(env, self._actor, self._critic, flags.discount,
                           actor_lr=flags.actor_lr, critic_lr=flags.critic_lr,
-                          decay=flags.target_decay)
+                          decay=flags.target_decay,
+                          explore_stddev=flags.explore_stddev)
         TFNode.__init__(self, 'ddpg', flags.restore_ddpg)
 
     def custom_init(self):
