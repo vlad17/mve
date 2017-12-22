@@ -104,11 +104,12 @@ class DDPG:
         with tf.variable_scope(scope):
             adaptive_noise = tf.get_variable(
                 'adaptive_noise', trainable=False, initializer=explore_stddev)
-            # average action noise we've seen in the current training iteration
-            self._observed_noise = tf.get_variable(
-                'observed_noise', trainable=False, initializer=0.)
+            # sum of action noise we've seen in the current training iteration
+            # (summed across mini-batches)
+            self._observed_noise_sum = tf.get_variable(
+                'observed_noise_sum', trainable=False, initializer=0.)
         self._debug_scalar('adaptive param noise', adaptive_noise)
-        self._debug_scalar('action noise', self._observed_noise)
+        self._debug_scalar('action noise', self._observed_noise_sum / nbatches)
         # This implementation observes the param noise after every gradient
         # step this isn't absolutely necessary but doesn't seem to be a
         # bottleneck.
@@ -126,11 +127,12 @@ class DDPG:
                 batch_observed_noise = tf.sqrt(
                     tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
                 save_noise = tf.assign_add(
-                    self._observed_noise, batch_observed_noise)
+                    self._observed_noise_sum, batch_observed_noise)
 
         self._optimize = tf.group(update_targets, save_noise)
-        multiplier = tf.cond(self._observed_noise < explore_stddev * nbatches,
-                             lambda: 1.01, lambda: 1 / 1.01)
+        multiplier = tf.cond(
+            self._observed_noise_sum < explore_stddev * nbatches,
+            lambda: 1.01, lambda: 1 / 1.01)
         self._update_adapative_noise_op = tf.assign(
             adaptive_noise, adaptive_noise * multiplier)
 
@@ -162,7 +164,7 @@ class DDPG:
         period = max(nbatches // nprints, 1)
         feed_dict = None
 
-        tf.get_default_session().run(self._observed_noise.initializer)
+        tf.get_default_session().run(self._observed_noise_sum.initializer)
 
         for itr, batch in enumerate(data.sample_many(
                 nbatches, batch_size)):
@@ -180,10 +182,12 @@ class DDPG:
             if itr == 0 or itr + 1 == batch_size or (itr + 1) % period == 0:
                 fmt = 'itr {: 6d} critic loss {:7.3f} actor loss {:7.3f}'
                 fmt += ' action noise {:.5g}'
-                critic_loss, actor_loss, noise = tf.get_default_session().run(
+                sess = tf.get_default_session()
+                critic_loss, actor_loss, noise_sum = sess.run(
                     [self._critic_loss, self._actor_loss,
-                     self._observed_noise], feed_dict)
-                debug(fmt, itr + 1, critic_loss, actor_loss, noise / (itr + 1))
+                     self._observed_noise_sum], feed_dict)
+                debug(fmt, itr + 1, critic_loss, actor_loss,
+                      noise_sum / (itr + 1))
 
         tf.get_default_session().run(self._update_adapative_noise_op)
 
