@@ -12,7 +12,9 @@ from ddpg.models import Actor, Critic
 
 class DDPGLearner(Learner, TFNode):
     """
-    Use a DDPG agent to learn.
+    Use a DDPG agent to learn. The learner's tf_action
+    gives its mean actor policy, but when the learner acts it uses
+    parameter-space exploration.
     """
 
     FLAGS = [
@@ -53,8 +55,17 @@ class DDPGLearner(Learner, TFNode):
             name='target_decay',
             default=0.99,
             type=float,
-            help='decay rate for target network')]
-    # TODO: --recover_ddpg
+            help='decay rate for target network'),
+        ArgSpec(
+            name='explore_stddev',
+            default=0.2,
+            type=float,
+            help='goal action standard deviation for exploration'),
+        ArgSpec(
+            name='restore_ddpg',
+            default=None,
+            type=str,
+            help='restore ddpg from the given path')]
 
     def __init__(self, env, flags):
         self._nbatches = flags.learner_nbatches
@@ -68,7 +79,7 @@ class DDPGLearner(Learner, TFNode):
         self._ddpg = DDPG(env, self._actor, self._critic, flags.discount,
                           actor_lr=flags.actor_lr, critic_lr=flags.critic_lr,
                           decay=flags.target_decay)
-        TFNode.__init__(self, 'ddpg')
+        TFNode.__init__(self, 'ddpg', flags.restore_ddpg)
 
     def custom_init(self):
         self._ddpg.initialize_targets()

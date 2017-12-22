@@ -25,7 +25,7 @@ class DDPG:
 
     def __init__(
             self, env, actor, critic, discount=0.99, scope='ddpg',
-            actor_lr=1e-4, critic_lr=1e-3, decay=0.99):
+            actor_lr=1e-4, critic_lr=1e-3, decay=0.99, explore_stddev=0.2):
 
         self._debugs = []
 
@@ -84,7 +84,7 @@ class DDPG:
                     optimize_critic_op = opt.minimize(
                         self._critic_loss, var_list=critic.variables)
             with tf.control_dependencies([optimize_critic_op]):
-                self._optimize = tf.group(
+                update_targets = tf.group(
                     actor.tf_target_update(decay),
                     critic.tf_target_update(decay))
 
@@ -94,6 +94,28 @@ class DDPG:
         self._copy_targets = tf.group(
             actor.tf_target_update(0),
             critic.tf_target_update(0))
+
+        # parameter-noise exploration: "train" a noise variable to learn
+        # a perturbation stddev for actor network weights that hits the target
+        # action stddev
+        def _get_current_action_noise():
+            return tf.sqrt(tf.reduce_mean(tf.square(
+                actor.tf_action(self.obs0_ph_ns) -
+                actor.tf_perturbed_action(self.obs0_ph_ns))))
+        with tf.variable_scope(scope):
+            adaptive_noise = tf.get_variable(
+                'adaptive_noise', trainable=False, initializer=explore_stddev)
+        self._debug_scalar('adaptive param noise', adaptive_noise)
+        self._sampled_action_noise = _get_current_action_noise()
+        self._debug_scalar('action noise', self._sampled_action_noise)
+        with tf.control_dependencies([optimize_actor_op]):
+            curr_noise = _get_current_action_noise()
+            multiplier = tf.cond(curr_noise < explore_stddev,
+                                 lambda: 1.01, lambda: 1 / 1.01)
+            update_noise = tf.assign(
+                adaptive_noise, adaptive_noise * multiplier)
+
+        self._optimize = tf.group(update_targets, update_noise)
 
     def initialize_targets(self):
         """
@@ -118,8 +140,6 @@ class DDPG:
 
     def train(self, data, nbatches, batch_size):
         """Run nbatches training iterations of DDPG"""
-        # TODO: prints should be report_incremental and finer-grained
-
         nprints = 5
         period = max(nbatches // nprints, 1)
         feed_dict = None
@@ -137,10 +157,12 @@ class DDPG:
             tf.get_default_session().run(self._optimize, feed_dict)
 
             if itr == 0 or itr + 1 == batch_size or (itr + 1) % period == 0:
-                fmt = 'itr {: 6d} critic loss {:7.3f} actor loss {:7.3f} '
-                critic_loss, actor_loss = tf.get_default_session().run(
-                    [self._critic_loss, self._actor_loss], feed_dict)
-                debug(fmt, itr + 1, critic_loss, actor_loss)
+                fmt = 'itr {: 6d} critic loss {:7.3f} actor loss {:7.3f}'
+                fmt += ' action noise {:.5g}'
+                critic_loss, actor_loss, noise = tf.get_default_session().run(
+                    [self._critic_loss, self._actor_loss,
+                     self._sampled_action_noise], feed_dict)
+                debug(fmt, itr + 1, critic_loss, actor_loss, noise)
 
         if feed_dict is not None:
             self._debug_print(feed_dict)

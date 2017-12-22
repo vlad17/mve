@@ -43,10 +43,26 @@ def _target_updates(parent_scope, current_scope, target_scope, decay):
     return tf.group(*updates)
 
 
+def _perturb_update(parent_scope, current_scope, perturb_scope, noise):
+    current_vars = _global_vars(parent_scope, current_scope)
+    perturb_vars = _global_vars(parent_scope, perturb_scope)
+    assert len(current_vars) == len(perturb_vars), (current_vars, perturb_vars)
+    updates = []
+    for current_var, perturb_var in zip(current_vars, perturb_vars):
+        updates.append(
+            tf.assign(perturb_var, current_var + tf.random_normal(
+                tf.shape(current_var), mean=0., stddev=noise)))
+    return tf.group(*updates)
+
+
 class Actor:
     """
     The actor (policy mean) network. Has a variables attribute
     for optimizable variables.
+
+    Also has a "perturbed" version for exploration, which uses
+    noise as specified by the noise parameter, an instance of
+    AdaptiveNoise.
     """
 
     def __init__(self, env, scope='ddpg', depth=2, width=64):
@@ -64,10 +80,10 @@ class Actor:
 
         self._states_ph_ns = tf.placeholder(
             tf.float32, [None, get_ob_dim(env)])
-        self._acs_na = self.tf_action(self._states_ph_ns)
-        # we don't care about the target actor result here, but need
-        # TensorFlow to generate the corresponding graph variables
+        # result unimportant, just generate the corresponding graph variables
+        self.tf_action(self._states_ph_ns)
         self.tf_target_action(self._states_ph_ns)
+        self._acs_na = self.tf_perturbed_action(self._states_ph_ns)
 
         self.variables = _global_vars(self._scope, 'actor')
 
@@ -76,14 +92,27 @@ class Actor:
         return _target_updates(
             self._scope, 'actor', 'target_actor', decay)
 
+    def tf_perturb_update(self, noise):
+        """
+        Create an op that updates the perturbed actor network with a
+        perturbed version of the current actor network.
+        """
+        return _perturb_update(self._scope, 'actor', 'pertubed_actor', noise)
+
     def act(self, states_ns):
-        """Return a numpy array with the current actor's actions."""
+        """
+        Return a numpy array with the current (perturbed) actor's actions.
+        """
         return tf.get_default_session().run(self._acs_na, feed_dict={
             self._states_ph_ns: states_ns})
 
     def tf_action(self, states_ns):
         """Return the current actor's actions for the given states in TF."""
         return self._tf_action(states_ns, 'actor')
+
+    def tf_perturbed_action(self, states_ns):
+        """Return the current perturbed actor's actions for the given states"""
+        return self._tf_action(states_ns, 'perturbed_actor')
 
     def tf_target_action(self, states_ns):
         """Return the target actor's actions for the given states in TF."""
