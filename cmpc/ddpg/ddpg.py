@@ -78,18 +78,16 @@ class DDPG:
             learning_rate=critic_lr, beta1=0.9, beta2=0.999, epsilon=1e-08)
         # perform the critic update after the actor (which is dependent on it)
         # then perform both updates
-        with tf.control_dependencies([optimize_actor_op]):
-            with tf.variable_scope(scope):
-                with tf.variable_scope('opt_critic'):
-                    self._debug_grads(
-                        'critic grad', opt,
-                        self._critic_loss, critic.variables)
-                    optimize_critic_op = opt.minimize(
-                        self._critic_loss, var_list=critic.variables)
-            with tf.control_dependencies([optimize_critic_op]):
-                update_targets = tf.group(
-                    actor.tf_target_update(decay),
-                    critic.tf_target_update(decay))
+        with tf.variable_scope(scope):
+            with tf.variable_scope('opt_critic'):
+                self._debug_grads(
+                    'critic grad', opt, self._critic_loss, critic.variables)
+                optimize_critic_op = opt.minimize(
+                    self._critic_loss, var_list=critic.variables)
+        with tf.control_dependencies([optimize_actor_op, optimize_critic_op]):
+            update_targets = tf.group(
+                actor.tf_target_update(decay),
+                critic.tf_target_update(decay))
 
         for v in actor.variables + critic.variables:
             self._debug_weights(v.name, v)

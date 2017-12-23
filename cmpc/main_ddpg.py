@@ -9,9 +9,10 @@ from ddpg_learner import DDPGLearner
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags, ArgSpec)
 from learner import as_controller
+import tfnode
 from multiprocessing_env import make_venv
 import reporter
-from sample import sample_venv
+from sample import sample_venv, sample
 from utils import timeit
 
 
@@ -24,8 +25,9 @@ def _train(args):
 
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
+    tfnode.restore_all()
 
-    for _ in range(args.run.episodes):
+    for itr in range(args.run.episodes):
         with timeit('learner fit'):
             if data.size:
                 learner.fit(data)
@@ -40,6 +42,12 @@ def _train(args):
             reporter.add_summary_statistics('reward', rewards)
 
         reporter.advance_iteration()
+        if args.experiment.should_render(itr):
+            render_env = args.experiment.render_env(env, itr + 1)
+            sample(
+                render_env, controller, args.experiment.horizon, render=True)
+        if args.experiment.should_save(itr):
+            tfnode.save_all(itr + 1)
 
 
 class RunFlags(Flags):
