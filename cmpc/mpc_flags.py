@@ -35,7 +35,7 @@ class MPCFlags(Flags):
     Base class for specifying flags for model-predictive planners.
     """
 
-    def make_mpc(self, env, dyn_model, mpc_horizon):
+    def make_mpc(self, env, dyn_model, all_flags):
         """
         Generate an MPC instance according to the specification provided
         by the MPC flags instance.

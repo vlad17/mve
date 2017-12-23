@@ -33,7 +33,7 @@ def train(args):
         as venv, \
         closing(DynamicsMetrics(
             args.mpc.mpc_horizon, args.experiment.make_env,
-            args.dynamics_metrics)) as dyn_metrics:
+            args.dynamics_metrics, args.experiment.discount)) as dyn_metrics:
         _train(args, env, venv, dyn_metrics)
 
 
@@ -42,8 +42,7 @@ def _train(args, env, venv, dyn_metrics):
         env, args.experiment.horizon, args.experiment.bufsize)
     controller_flags = args.subflag
     dyn_model = NNDynamicsModel(env, data, args.dynamics)
-    controller = controller_flags.make_mpc(
-        env, dyn_model, args.mpc.mpc_horizon)
+    controller = controller_flags.make_mpc(env, dyn_model, args)
     add_dataset_to_persistance_registry(data, args.persistable_dataset)
 
     tf.global_variables_initializer().run()

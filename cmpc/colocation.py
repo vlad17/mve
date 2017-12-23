@@ -23,7 +23,7 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
     are optimized. The rest are taken with action 0.
 
     The colocation objective optimizes:
-    max(s_t,a_t) sum_t=0^h-1 reward(s_t, a_t, s_t+1)
+    max(s_t,a_t) sum_t=0^h-1 reward(s_t, a_t, s_t+1) * gamma^t
     st for all t, ||s_t+1 - dynamics(s_t, a_t)||^2 = 0
        for t >= o, ||a_t||^2 = 0
 
@@ -35,7 +35,9 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
     TODO: consider Augmented Lagrangian for better numerical properties
     """
 
-    def __init__(self, env, dyn_model, reward_fn, mpc_horizon, flags):
+    def __init__(self, env, dyn_model, discount, mpc_horizon, flags):
+        self._discount = discount
+        reward_fn = env.tf_reward
         if flags.coloc_opt_horizon is None:
             flags.coloc_opt_horizon = mpc_horizon
         assert flags.coloc_opt_horizon <= mpc_horizon, (
@@ -163,10 +165,14 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
     def _reward(self, reward_fn, states_hs, actions_ha):
         first_reward = reward_fn(
             tf.expand_dims(self._input_state_ph_s, axis=0),
-            actions_ha[:1], states_hs[:1])[0]
+            actions_ha[:1], states_hs[:1])
         rest_rewards = reward_fn(
             states_hs[:-1], actions_ha[1:], states_hs[1:])
-        return first_reward + tf.reduce_sum(rest_rewards)
+        rewards_h = tf.concat([first_reward, rest_rewards], axis=0)
+        total_reward = tf.foldr(
+            lambda acc, rew: rew + self._discount * acc,
+            rewards_h, back_prop=False)
+        return total_reward
 
     def _dyn_violations_h(self, dyn_model, states_hs, actions_ha):
         first_predicted_state = dyn_model.predict_tf(
@@ -188,7 +194,8 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
                             actions_ha[self._opt_horizon:], axis=1)
 
     def _primal(self, reward_fn, dyn_model, learner, states_hs, actions_ha):
-        primal = -self._reward(reward_fn, states_hs, actions_ha)
+
+        primal = -1 * self._reward(reward_fn, states_hs, actions_ha)
         primal += tf.reduce_sum(
             self._dynamics_dual_ph_h * self._dyn_violations_h(
                 dyn_model, states_hs, actions_ha))

@@ -63,11 +63,12 @@ class DynamicsMetrics:
     gives a measure of the planner over-optimism or pessimism.
     """
 
-    def __init__(self, planning_horizon, make_env, flags):
+    def __init__(self, planning_horizon, make_env, flags, discount):
         self._venv = make_venv(make_env, flags.evaluation_envs)
         self._env = make_env()
         self._num_envs = flags.evaluation_envs
         self._horizon = planning_horizon
+        self._discount = discount
 
     @staticmethod
     def _mse_h(true_obs_nhs, pred_obs_nhs):
@@ -122,7 +123,10 @@ class DynamicsMetrics:
         states_Ns = self._merge_axes(states_nhs)
         rew_N = self._env.np_reward(prev_states_Ns, acs_Ns, states_Ns)
         rew_nh = self._split_axes(rew_N)
-        return rew_nh.sum(axis=1)
+        rew_n = np.zeros(rew_nh.shape[0])
+        for i in reversed(range(rew_nh.shape[1])):
+            rew_n = rew_nh[:, i] + rew_n * self._discount
+        return rew_n
 
     def _merge_axes(self, arr):
         assert arr.ndim == 3, arr.ndim

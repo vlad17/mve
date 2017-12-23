@@ -78,7 +78,12 @@ class ExperimentFlags(Flags):
             type=int,
             default=100,
             help='save all persistable TF variables ever save_every episodes. '
-            'Don not save if set to 0')
+            'Do not save if set to 0')
+        yield ArgSpec(
+            name='discount',
+            type=float,
+            default=0.99,
+            help='discount factor for the reward calculations')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',

@@ -11,6 +11,7 @@ from cloning_learner import CloningLearner
 from ddpg_learner import DDPGLearner
 from zero_learner import ZeroLearner
 
+
 class RandomShooterFlags(MPCFlags):
     """
     Specifies the random shooter sampling distribution.
@@ -63,11 +64,13 @@ class RandomShooterFlags(MPCFlags):
         super().__init__(rs_learner, pretty_name, arguments + extra_args)
         self._rs_learner = rs_learner
 
-    def make_mpc(self, env, dyn_model, mpc_horizon):
+    def make_mpc(self, env, dyn_model, all_flags):
+        discount = all_flags.experiment.discount
+        mpc_horizon = all_flags.mpc.mpc_horizon
         rsclass = RandomShooterFlags._get_learner_class(self._rs_learner)
         learner = rsclass(env, self)
         return RandomShooter(
-            env, dyn_model, env.tf_reward, learner, mpc_horizon, self)
+            env, dyn_model, discount, learner, mpc_horizon, self)
 
     @staticmethod
     def _get_learner_class(rs_learner):

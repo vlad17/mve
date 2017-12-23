@@ -85,6 +85,7 @@ main() {
     cmds+=("python $main_cmpc rs $rs_mpc_flags --render_every 1")
     cmds+=("python $main_cmpc rs $rs_mpc_flags --env_name hc-easy")
     cmds+=("python $main_cmpc rs $rs_mpc_flags --evaluation_envs 2")
+    cmds+=("python $main_cmpc rs $rs_mpc_flags --discount 0.9")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-3 --episodes 2")

@@ -5,6 +5,7 @@ Specify the properties of constrained colocation-based planning.
 from mpc_flags import MPCFlags, ArgSpec
 from colocation import Colocation
 
+
 class ColocationFlags(MPCFlags):
     """
     Specifies various optimizer properties for the colocation-based
@@ -47,6 +48,8 @@ class ColocationFlags(MPCFlags):
         super().__init__('colocation', 'colocation-based planning',
                          list(ColocationFlags._generate_arguments()))
 
-    def make_mpc(self, env, dyn_model, mpc_horizon):
+    def make_mpc(self, env, dyn_model, all_flags):
+        discount = all_flags.experiment.discount
+        mpc_horizon = all_flags.mpc.mpc_horizon
         return Colocation(
-            env, dyn_model, env.tf_reward, mpc_horizon, self)
+            env, dyn_model, discount, mpc_horizon, self)

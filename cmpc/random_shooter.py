@@ -24,7 +24,8 @@ class RandomShooter(Controller):
     are optimized. The rest are taken according to the learner.
     """
 
-    def __init__(self, env, dyn_model, reward_fn, learner, mpc_horizon, flags):
+    def __init__(self, env, dyn_model, discount, learner, mpc_horizon, flags):
+        reward_fn = env.tf_reward
         if flags.opt_horizon is None:
             flags.opt_horizon = mpc_horizon
         if flags.opt_horizon != mpc_horizon:
@@ -77,8 +78,11 @@ class RandomShooter(Controller):
             next_state_ns = dyn_model.predict_tf(state_ns, action_na)
             save_state_op = tf.scatter_update(
                 self._states_hns, t, next_state_ns)
-            next_rewards = rewards + reward_fn(
-                state_ns, action_na, next_state_ns)
+            curr_reward = reward_fn(state_ns, action_na, next_state_ns)
+            # not super numerically stable discounting, would be better to save
+            # per-step rewards and then apply a recurrent discount formula
+            t_fl = tf.to_float(t)
+            next_rewards = rewards + tf.pow(discount, t_fl) * curr_reward
             with tf.control_dependencies([save_action_op, save_state_op]):
                 return [t + 1, next_state_ns, next_rewards]
 
