@@ -195,15 +195,10 @@ class DDPG:
 
         tf.get_default_session().run(self._update_adapative_noise_op)
 
-        self._debug_print(data)
+        if feed_dict is not None:
+            self._debug_print(feed_dict)
 
-    def _debug_print(self, data):
-        feed_dict = {
-            self.obs0_ph_ns: data.obs,
-            self.obs1_ph_ns: data.next_obs,
-            self.terminals1_ph_n: data.terminals,
-            self.rewards_ph_n: data.rewards,
-            self.actions_ph_na: data.acs}
+    def _debug_print(self, feed_dict):
         debug_types, names, tensors = zip(*self._debugs)
         values = tf.get_default_session().run(tensors, feed_dict)
         for debug_type, name, value in zip(debug_types, names, values):

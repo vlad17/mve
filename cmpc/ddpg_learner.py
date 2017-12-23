@@ -21,7 +21,7 @@ class DDPGLearner(Learner, TFNode):
         ArgSpec(
             name='actor_lr',
             type=float,
-            default=1e-3, help='actor network learning rate'),
+            default=1e-4, help='actor network learning rate'),
         ArgSpec(
             name='critic_lr',
             type=float,
@@ -53,12 +53,12 @@ class DDPGLearner(Learner, TFNode):
             help='number of minibatches to train on per iteration'),
         ArgSpec(
             name='target_decay',
-            default=0.999,
+            default=0.99,
             type=float,
             help='decay rate for target network'),
         ArgSpec(
             name='explore_stddev',
-            default=0.05,
+            default=0.,
             type=float,
             help='goal action standard deviation for exploration'),
         ArgSpec(
