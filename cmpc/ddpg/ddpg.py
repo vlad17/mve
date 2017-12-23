@@ -4,6 +4,7 @@ import tensorflow as tf
 import numpy as np
 
 from log import debug
+import reporter
 from utils import get_ob_dim, get_ac_dim, scale_from_box
 
 
@@ -91,7 +92,7 @@ class DDPG:
                     critic.tf_target_update(decay))
 
         for v in actor.variables + critic.variables:
-            self._debug_stats(v.name, v)
+            self._debug_weights(v.name, v)
 
         self._copy_targets = tf.group(
             actor.tf_target_update(0),
@@ -145,17 +146,20 @@ class DDPG:
 
     def _debug_stats(self, name, tensor):
         flat = tf.reshape(tensor, [-1])
-        mu, var = tf.nn.moments(flat, axes=0)
-        std = tf.cond(var > 0, lambda: tf.sqrt(var), lambda: 0.)
-        self._debugs.append((name, 'mean {:+.5g} std {:+.5g}', [mu, std]))
+        self._debugs.append(('stats', name, flat))
 
     def _debug_scalar(self, name, tensor):
-        self._debugs.append((name, '{:+.5g}', [tensor]))
+        self._debugs.append(('scalar', name, tensor))
 
     def _debug_grads(self, name, opt, loss, variables):
         grad_l2, grad_linf = _flatgrad_norms(opt, loss, variables)
-        self._debugs.append((name + ' l2', '{:.5g}', [grad_l2]))
-        self._debugs.append((name + ' linf', '{:.5g}', [grad_linf]))
+        self._debug_scalar(name + ' l2', grad_l2)
+        self._debug_scalar(name + ' linf', grad_linf)
+
+    def _debug_weights(self, name, weights):
+        flat = tf.reshape(weights, [-1])
+        ave_magnitude = tf.reduce_mean(tf.abs(flat))
+        self._debugs.append(('weight', name, ave_magnitude))
 
     def train(self, data, batch_size):
         """Run nbatches training iterations of DDPG"""
@@ -191,14 +195,23 @@ class DDPG:
 
         tf.get_default_session().run(self._update_adapative_noise_op)
 
-        if feed_dict is not None:
-            self._debug_print(feed_dict)
+        self._debug_print(data)
 
-    def _debug_print(self, feed_dict):
-        names, fmts, tensors = zip(*self._debugs)
-        evaluated_tensors = tf.get_default_session().run(tensors, feed_dict)
-        namefmt = '{: <' + str(max(len(name) for name in names)) + '}'
-        lines = [('\n  ' + namefmt + ' ' + fmt).format(name, *evaluated)
-                 for name, fmt, evaluated
-                 in zip(names, fmts, evaluated_tensors)]
-        debug('last-batch DDPG stats' + ''.join(lines))
+    def _debug_print(self, data):
+        feed_dict = {
+            self.obs0_ph_ns: data.obs,
+            self.obs1_ph_ns: data.next_obs,
+            self.terminals1_ph_n: data.terminals,
+            self.rewards_ph_n: data.rewards,
+            self.actions_ph_na: data.acs}
+        debug_types, names, tensors = zip(*self._debugs)
+        values = tf.get_default_session().run(tensors, feed_dict)
+        for debug_type, name, value in zip(debug_types, names, values):
+            if debug_type == 'scalar':
+                reporter.add_summary(name, value)
+            elif debug_type == 'stats':
+                reporter.add_summary_statistics(name, value)
+            elif debug_type == 'weight':
+                reporter.add_summary(name, value, hide=True)
+            else:
+                raise ValueError('unknown debug_type {}'.format(debug_type))
