@@ -50,9 +50,10 @@ def _perturb_update(parent_scope, current_scope, perturb_scope, noise):
     updates = []
     for current_var, perturb_var in zip(current_vars, perturb_vars):
         if 'LayerNorm' in current_var.name:
-            continue
-        perturbation = noise * tf.random_normal(
-            tf.shape(current_var), mean=0., stddev=1.)
+            perturbation = 0
+        else:
+            perturbation = noise * tf.random_normal(
+                tf.shape(current_var), mean=0., stddev=1.)
         updates.append(
             tf.assign(perturb_var, current_var + perturbation))
     return tf.group(*updates)
