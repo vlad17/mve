@@ -53,7 +53,7 @@ class DDPGLearner(Learner, TFNode):
             help='number of minibatches to train on per iteration'),
         ArgSpec(
             name='target_decay',
-            default=0.99,
+            default=0.999,
             type=float,
             help='decay rate for target network'),
         ArgSpec(
