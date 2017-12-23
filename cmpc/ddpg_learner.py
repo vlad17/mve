@@ -21,7 +21,7 @@ class DDPGLearner(Learner, TFNode):
         ArgSpec(
             name='actor_lr',
             type=float,
-            default=1e-4, help='actor network learning rate'),
+            default=1e-3, help='actor network learning rate'),
         ArgSpec(
             name='critic_lr',
             type=float,
@@ -29,7 +29,7 @@ class DDPGLearner(Learner, TFNode):
         ArgSpec(
             name='critic_l2_reg',
             type=float,
-            default=1e-2,
+            default=0.,
             help='DDPG critic regularization constant'),
         ArgSpec(
             name='learner_depth',
