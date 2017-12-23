@@ -140,6 +140,7 @@ class DDPG:
         New targets are initialized randomly, but they should be initially
         set to equal the initialization of the starting networks.
         """
+        debug('copying current network to target for DDPG init')
         tf.get_default_session().run(self._copy_targets)
 
     def _debug_stats(self, name, tensor):
