@@ -30,7 +30,7 @@ class _PersistableDataset(TFNode):
     Modifies a dataset's state upon restore() or save().
     """
 
-    def __init__(self, dataset, flags):
+    def __init__(self, dataset, gpudataset, flags):
         self._transition_attrs = [
             'obs', 'next_obs', 'rewards', 'acs', 'terminals',
             'planned_acs', 'planned_obs']
@@ -63,6 +63,7 @@ class _PersistableDataset(TFNode):
                     ph: getattr(data, attr)
                     for attr, ph in transitions_ph.items()})
         self._dataset = dataset
+        self._gpudataset = gpudataset
         super().__init__('persistable_dataset', flags.restore_buffer)
 
     def save(self, step):
@@ -77,13 +78,15 @@ class _PersistableDataset(TFNode):
             attr: tf.get_default_session().run(tf_transition)
             for attr, tf_transition in self._transitions.items()}
         self._dataset.set_state(transitions)
+        if self._gpudataset is not None:
+            self._gpudataset.set_state(transitions)
 
 
-def add_dataset_to_persistance_registry(dataset, flags):
+def add_dataset_to_persistance_registry(dataset, flags, gpudataset=None):
     """
     Given a dataset.Dataset and PersistableDatasetFlags instance, adds a
     persistable version of the the dataset to the TF graph-based
     restore registry.
     """
     # TFNode constructor implicitly saves to registry
-    _PersistableDataset(dataset, flags)
+    _PersistableDataset(dataset, gpudataset, flags)

@@ -27,26 +27,22 @@ class DDPG:
     def __init__(
             self, env, actor, critic, discount=0.99, scope='ddpg',
             actor_lr=1e-4, critic_lr=1e-3, decay=0.99, explore_stddev=0.2,
-            nbatches=1):
+            nbatches=1, gpu_dataset=None, batch_size=512):
 
         self._debugs = []
         self._nbatches = nbatches
+        self._batch_size = batch_size
 
-        self.obs0_ph_ns = tf.placeholder(
-            tf.float32, shape=[None, get_ob_dim(env)])
-        self.obs1_ph_ns = tf.placeholder(
-            tf.float32, shape=[None, get_ob_dim(env)])
-        self.terminals1_ph_n = tf.placeholder(
-            tf.float32, shape=[None])
-        self.rewards_ph_n = tf.placeholder(
-            tf.float32, shape=[None])
-        self.actions_ph_na = tf.placeholder(
-            tf.float32, shape=[None, get_ac_dim(env)])
+        # mini-batch index
+        self._ix_ph_n = tf.placeholder(tf.int32, [None])
+
+        obs_ns, next_obs_ns, rewards_n, acs_na, terminals_n = (
+            gpu_dataset.get_batch(self._ix_ph_n))
 
         # actor maximizes current Q
         normalized_critic_at_actor_n = critic.tf_critic(
-            self.obs0_ph_ns,
-            actor.tf_action(self.obs0_ph_ns))
+            obs_ns,
+            actor.tf_action(obs_ns))
         self._debug_stats('actor Q', normalized_critic_at_actor_n)
         self._actor_loss = -1 * tf.reduce_mean(normalized_critic_at_actor_n)
         self._debug_scalar('actor loss', self._actor_loss)
@@ -60,12 +56,11 @@ class DDPG:
                     self._actor_loss, var_list=actor.variables)
 
         # critic minimizes TD-1 error wrt to target Q and target actor
-        current_Q_n = critic.tf_critic(
-            self.obs0_ph_ns, self.actions_ph_na)
+        current_Q_n = critic.tf_critic(obs_ns, acs_na)
         self._debug_stats('critic Q', current_Q_n)
         next_Q_n = critic.tf_target_critic(
-            self.obs1_ph_ns, actor.tf_target_action(self.obs1_ph_ns))
-        target_Q_n = self.rewards_ph_n + (1. - self.terminals1_ph_n) * (
+            next_obs_ns, actor.tf_target_action(next_obs_ns))
+        target_Q_n = rewards_n + (1. - terminals_n) * (
             discount * next_Q_n)
         self._debug_stats('target Q', target_Q_n)
         reg_loss = sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
@@ -119,10 +114,10 @@ class DDPG:
             re_perturb = actor.tf_perturb_update(adaptive_noise)
             with tf.control_dependencies([re_perturb]):
                 mean_ac = scale_from_box(
-                    env.action_space, actor.tf_action(self.obs0_ph_ns))
+                    env.action_space, actor.tf_action(obs_ns))
                 perturb_ac = scale_from_box(
                     env.action_space, actor.tf_perturbed_action(
-                        self.obs0_ph_ns))
+                        obs_ns))
                 batch_observed_noise = tf.sqrt(
                     tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
                 save_noise = tf.assign_add(
@@ -160,25 +155,17 @@ class DDPG:
         ave_magnitude = tf.reduce_mean(tf.abs(flat))
         self._debugs.append(('weight', name, ave_magnitude))
 
-    def train(self, data, batch_size):
+    def train(self, data):
         """Run nbatches training iterations of DDPG"""
         nprints = 5
-        nbatches = self._nbatches
-        period = max(nbatches // nprints, 1)
-        feed_dict = None
+        period = max(self._nbatches // nprints, 1)
+        batch_size = self._batch_size
 
         tf.get_default_session().run(self._observed_noise_sum.initializer)
-
-        for itr, batch in enumerate(data.sample_many(
-                nbatches, batch_size)):
-            obs, next_obs, rewards, acs, terminals = batch
-            # popart would go here
-            feed_dict = {
-                self.obs0_ph_ns: obs,
-                self.obs1_ph_ns: next_obs,
-                self.terminals1_ph_n: terminals,
-                self.rewards_ph_n: rewards,
-                self.actions_ph_na: acs}
+        batch_idxs = np.random.randint(data.size, size=(
+            self._nbatches, batch_size))
+        for itr, batch in enumerate(batch_idxs):
+            feed_dict = {self._ix_ph_n: batch}
 
             tf.get_default_session().run(self._optimize, feed_dict)
 
@@ -193,9 +180,8 @@ class DDPG:
                       noise_sum / (itr + 1))
 
         tf.get_default_session().run(self._update_adapative_noise_op)
-
-        if feed_dict is not None:
-            self._debug_print(feed_dict)
+        fd = {self._ix_ph_n: np.random.randint(data.size, size=(1024,))}
+        self._debug_print(fd)
 
     def _debug_print(self, feed_dict):
         debug_types, names, tensors = zip(*self._debugs)

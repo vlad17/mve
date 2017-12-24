@@ -199,13 +199,6 @@ class Dataset(object):
             assert rb.length == 0, len(rb)
             rb.append_all(arr)
 
-    def batches_per_epoch(self, batch_size):
-        """
-        Given a fixed batch size, returns the number of batches necessary
-        to do a full pass over all data in this replay buffer.
-        """
-        return max(self.size // batch_size, 1)
-
     def sample_many(self, nbatches, batch_size):
         """
         Generates nbatches worth of batches, iid - sampled from the internal
