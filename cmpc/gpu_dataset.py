@@ -31,6 +31,7 @@ class _GPURingBuffer:
             self._data = tf.Variable(
                 initial_value=tf.zeros((maxlen,) + shape, dtype=dtype),
                 trainable=False)
+        self._tf_len = tf.Variable(initial_value=0, dtype=tf.int32)
 
         self._lo_ph1 = tf.placeholder(tf.int32, [])
         self._hi_ph1 = tf.placeholder(tf.int32, [])
@@ -40,10 +41,13 @@ class _GPURingBuffer:
         self._hi_ph2 = tf.placeholder(tf.int32, [])
         self._source2 = tf.placeholder(dtype, (None,) + shape)
 
+        self._tf_len_update_ph = tf.placeholder(tf.int32, [])
+
         self._null = np.empty((0,) + shape, dtype)
         self.update = tf.group(
             self._data[self._lo_ph1:self._hi_ph1].assign(self._source1),
-            self._data[self._lo_ph2:self._hi_ph2].assign(self._source2))
+            self._data[self._lo_ph2:self._hi_ph2].assign(self._source2),
+            tf.assign(self._tf_len, self._tf_len_update_ph))
 
     def get(self, batch_ix):
         """Get a TF index given a mini-batch index for it"""
@@ -63,7 +67,8 @@ class _GPURingBuffer:
             self._hi_ph1: 0,
             self._hi_ph2: 0,
             self._source1: self._null,
-            self._source2: self._null
+            self._source2: self._null,
+            self._tf_len_update_ph: self.length
         }
 
         if self.length < self._maxlen:
@@ -74,6 +79,7 @@ class _GPURingBuffer:
             fd[self._hi_ph1] = self.length + to_fill
             fd[self._source1] = vs[:to_fill]
             self.length += to_fill
+            fd[self._tf_len_update_ph] = self.length
             if to_fill == len(vs):
                 return fd
             vs = vs[to_fill:]
@@ -98,6 +104,13 @@ class _GPURingBuffer:
         fd[self._hi_ph1] = len(vs)
         fd[self._source1] = vs
         return fd
+
+    def tf_sample_uniform(self, n):
+        """
+        Return a set of randomly-sampled uniform numbers as a TF tensor
+        in the range [0, self.length) of the given batch size
+        """
+        return tf.random_uniform([n], 0, self._tf_len, dtype=tf.int32)
 
 
 class GPUDataset:
@@ -157,19 +170,10 @@ class GPUDataset:
                        self._acs, self._terminals]
         return [x.get(tf_ix) for x in transitions]
 
-    def sample_many(self, nbatches, batch_size):
+    def tf_sample_uniform(self, n):
         """
-        Generates nbatches worth of batches, iid - sampled from the internal
-        buffers.
-
-        Values returned are transitions, which are tuples of:
-        (current) observations, next observations, rewards, actions,
-        and terminal state indicators.
+        Return a set of randomly-sampled uniform numbers as a TF tensor
+        in the range [0, self.length) of the given batch size, where
+        length is the total number of items in the dataset.
         """
-        batch_idxs = np.random.randint(self.size, size=(
-            nbatches, batch_size))
-        transitions = [self.obs, self.next_obs, self.rewards, self.acs,
-                       self.terminals]
-        for batch_idx in batch_idxs:
-            yield [transition_item[batch_idx] for transition_item
-                   in transitions]
+        return self._obs.tf_sample_uniform(n)

@@ -30,14 +30,12 @@ class DDPG:
             nbatches=1, gpu_dataset=None, batch_size=512):
 
         self._debugs = []
-        self._nbatches = nbatches
-        self._batch_size = batch_size
 
-        # mini-batch index
-        self._ix_ph_n = tf.placeholder(tf.int32, [None])
-
+        # Create a version of the graph for debugging
+        self._debug_size = tf.placeholder(tf.int32, [])
+        debug_ix = gpu_dataset.tf_sample_uniform(self._debug_size)
         obs_ns, next_obs_ns, rewards_n, acs_na, terminals_n = (
-            gpu_dataset.get_batch(self._ix_ph_n))
+            gpu_dataset.get_batch(debug_ix))
 
         # actor maximizes current Q
         normalized_critic_at_actor_n = critic.tf_critic(
@@ -48,12 +46,8 @@ class DDPG:
         self._debug_scalar('actor loss', self._actor_loss)
         opt = tf.train.AdamOptimizer(
             learning_rate=actor_lr, beta1=0.9, beta2=0.999, epsilon=1e-8)
-        with tf.variable_scope(scope):
-            with tf.variable_scope('opt_actor'):
-                self._debug_grads(
-                    'actor grad', opt, self._actor_loss, actor.variables)
-                optimize_actor_op = opt.minimize(
-                    self._actor_loss, var_list=actor.variables)
+        self._debug_grads(
+            'actor grad', opt, self._actor_loss, actor.variables)
 
         # critic minimizes TD-1 error wrt to target Q and target actor
         current_Q_n = critic.tf_critic(obs_ns, acs_na)
@@ -68,21 +62,8 @@ class DDPG:
             target_Q_n,
             current_Q_n) + reg_loss
         self._debug_scalar('critic loss', self._critic_loss)
-
-        opt = tf.train.AdamOptimizer(
-            learning_rate=critic_lr, beta1=0.9, beta2=0.999, epsilon=1e-08)
-        # perform the critic update after the actor (which is dependent on it)
-        # then perform both updates
-        with tf.variable_scope(scope):
-            with tf.variable_scope('opt_critic'):
-                self._debug_grads(
-                    'critic grad', opt, self._critic_loss, critic.variables)
-                optimize_critic_op = opt.minimize(
-                    self._critic_loss, var_list=critic.variables)
-        with tf.control_dependencies([optimize_actor_op, optimize_critic_op]):
-            update_targets = tf.group(
-                actor.tf_target_update(decay),
-                critic.tf_target_update(decay))
+        self._debug_grads(
+            'critic grad', opt, self._critic_loss, critic.variables)
 
         for v in actor.variables + critic.variables:
             self._debug_weights(v.name, v)
@@ -91,43 +72,76 @@ class DDPG:
             actor.tf_target_update(0),
             critic.tf_target_update(0))
 
-        # Parameter-noise exploration: "train" a noise variable to learn
+        # code for actually performing multiple mini-batch steps (note it's
+        # different from the debug part of the graph above)
+        #
+        # parameter-noise exploration: "train" a noise variable to learn
         # a perturbation stddev for actor network weights that hits the target
         # action stddev. After every gradient step sample how far our current
         # parameter space noise puts our actions from mean.
         with tf.variable_scope(scope):
             adaptive_noise = tf.get_variable(
                 'adaptive_noise', trainable=False, initializer=explore_stddev)
-            # sum of action noise we've seen in the current training iteration
-            # (summed across mini-batches)
-            self._observed_noise_sum = tf.get_variable(
-                'observed_noise_sum', trainable=False, initializer=0.)
         self._debug_scalar('adaptive param noise', adaptive_noise)
-        self._debug_scalar('action noise', self._observed_noise_sum / nbatches)
+        # to make adaptive noise approximately equal to the desired level,
+        # explore_stddev, we monitor what the noise of a perturbed actor
+        # looks like over the course of training with the current
+        # adaptive_noise level, and adjust that as necessary
+        #
         # This implementation observes the param noise after every gradient
         # step this isn't absolutely necessary but doesn't seem to be a
         # bottleneck.
         #
         # We then adjust parameter noise by the adaption coefficient
         # once every iteration.
-        with tf.control_dependencies([optimize_actor_op]):
-            re_perturb = actor.tf_perturb_update(adaptive_noise)
-            with tf.control_dependencies([re_perturb]):
-                mean_ac = scale_from_box(
-                    env.action_space, actor.tf_action(obs_ns))
-                perturb_ac = scale_from_box(
-                    env.action_space, actor.tf_perturbed_action(
-                        obs_ns))
-                batch_observed_noise = tf.sqrt(
-                    tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
-                save_noise = tf.assign_add(
-                    self._observed_noise_sum, batch_observed_noise)
 
-        self._optimize = tf.group(update_targets, save_noise)
-        multiplier = tf.cond(
-            self._observed_noise_sum < explore_stddev * nbatches,
-            lambda: 1.01, lambda: 1 / 1.01)
-        self._update_adapative_noise_op = tf.assign(
+        def _train_loop(i, observed_noise_sum):
+            batch_ix = gpu_dataset.tf_sample_uniform(batch_size)
+            obs_ns, next_obs_ns, rewards_n, acs_na, terminals_n = (
+                gpu_dataset.get_batch(batch_ix))
+            actor_loss = -1 * tf.reduce_mean(critic.tf_critic(
+                obs_ns, actor.tf_action(obs_ns)))
+            current_Q_n = tf.squeeze(
+                critic.tf_critic(obs_ns, acs_na), axis=1)
+            next_Q_n = tf.squeeze(critic.tf_target_critic(
+                next_obs_ns, actor.tf_target_action(next_obs_ns)), axis=1)
+            target_Q_n = rewards_n + (1. - terminals_n) * (
+                discount * next_Q_n)
+            reg_loss = sum(tf.get_collection(
+                tf.GraphKeys.REGULARIZATION_LOSSES))
+            critic_loss = tf.losses.mean_squared_error(
+                target_Q_n,
+                current_Q_n) + reg_loss
+            with tf.variable_scope(scope):
+                with tf.variable_scope('opt_actor'):
+                    optimize_actor_op = opt.minimize(
+                        actor_loss, var_list=actor.variables)
+                with tf.variable_scope('opt_critic'):
+                    optimize_critic_op = opt.minimize(
+                        critic_loss, var_list=critic.variables)
+            with tf.control_dependencies([
+                    optimize_actor_op, optimize_critic_op]):
+                update_targets = tf.group(
+                    actor.tf_target_update(decay),
+                    critic.tf_target_update(decay))
+            with tf.control_dependencies([optimize_actor_op]):
+                re_perturb = actor.tf_perturb_update(adaptive_noise)
+                with tf.control_dependencies([re_perturb]):
+                    mean_ac = scale_from_box(
+                        env.action_space, actor.tf_action(obs_ns))
+                    perturb_ac = scale_from_box(
+                        env.action_space, actor.tf_perturbed_action(obs_ns))
+                    batch_observed_noise = tf.sqrt(
+                        tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
+            with tf.control_dependencies([update_targets]):
+                return i + 1, batch_observed_noise + observed_noise_sum
+
+        _, noise_sum = tf.while_loop(lambda t, _: t < nbatches, _train_loop,
+                                     [0, 0.], back_prop=False)
+        noise = noise_sum / nbatches
+        multiplier = tf.cond(noise < explore_stddev,
+                             lambda: 1.01, lambda: 1 / 1.01)
+        self._optimize = tf.assign(
             adaptive_noise, adaptive_noise * multiplier)
 
     def initialize_targets(self):
@@ -155,35 +169,14 @@ class DDPG:
         ave_magnitude = tf.reduce_mean(tf.abs(flat))
         self._debugs.append(('weight', name, ave_magnitude))
 
-    def train(self, data):
+    def train(self):
         """Run nbatches training iterations of DDPG"""
-        nprints = 5
-        period = max(self._nbatches // nprints, 1)
-        batch_size = self._batch_size
 
-        tf.get_default_session().run(self._observed_noise_sum.initializer)
-        batch_idxs = np.random.randint(data.size, size=(
-            self._nbatches, batch_size))
-        for itr, batch in enumerate(batch_idxs):
-            feed_dict = {self._ix_ph_n: batch}
+        tf.get_default_session().run(self._optimize)
+        self._debug_print()
 
-            tf.get_default_session().run(self._optimize, feed_dict)
-
-            if itr == 0 or itr + 1 == batch_size or (itr + 1) % period == 0:
-                fmt = 'itr {: 6d} critic loss {:7.3f} actor loss {:7.3f}'
-                fmt += ' action noise {:.5g}'
-                sess = tf.get_default_session()
-                critic_loss, actor_loss, noise_sum = sess.run(
-                    [self._critic_loss, self._actor_loss,
-                     self._observed_noise_sum], feed_dict)
-                debug(fmt, itr + 1, critic_loss, actor_loss,
-                      noise_sum / (itr + 1))
-
-        tf.get_default_session().run(self._update_adapative_noise_op)
-        fd = {self._ix_ph_n: np.random.randint(data.size, size=(1024,))}
-        self._debug_print(fd)
-
-    def _debug_print(self, feed_dict):
+    def _debug_print(self):
+        feed_dict = {self._debug_size: 1024}
         debug_types, names, tensors = zip(*self._debugs)
         values = tf.get_default_session().run(tensors, feed_dict)
         for debug_type, name, value in zip(debug_types, names, values):

@@ -93,4 +93,4 @@ class DDPGLearner(Learner, TFNode):
         return self._actor.act(states_ns)
 
     def fit(self, data):
-        self._ddpg.train(data)
+        self._ddpg.train()
