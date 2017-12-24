@@ -39,7 +39,7 @@ class _PersistableDataset(TFNode):
         transition_attr_shapes = [
             (dataset.maxlen,) + shape[1:] for shape in transition_attr_shapes]
         with tf.device('/cpu:0'):
-            with tf.variable_scope('persistable_dataset', reuse=False):
+            with tf.variable_scope('persistable_dataset'):
                 tf_len = tf.get_variable(
                     'len', trainable=False, initializer=0, dtype=tf.int32)
                 tf_transitions = {

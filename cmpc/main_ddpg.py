@@ -9,9 +9,12 @@ from ddpg_learner import DDPGLearner
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags, ArgSpec)
 from learner import as_controller
+import tfnode
 from multiprocessing_env import make_venv
+from persistable_dataset import (
+    add_dataset_to_persistance_registry, PersistableDatasetFlags)
 import reporter
-from sample import sample_venv
+from sample import sample_venv, sample
 from utils import timeit
 
 
@@ -20,12 +23,14 @@ def _train(args):
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
     venv = make_venv(args.experiment.make_env, 1)
-    learner = args.run.make_ddpg(env)
+    learner = args.run.make_ddpg(env, args.experiment.discount)
+    add_dataset_to_persistance_registry(data, args.persistable_dataset)
 
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
+    tfnode.restore_all()
 
-    for _ in range(args.run.episodes):
+    for itr in range(args.run.episodes):
         with timeit('learner fit'):
             if data.size:
                 learner.fit(data)
@@ -40,6 +45,12 @@ def _train(args):
             reporter.add_summary_statistics('reward', rewards)
 
         reporter.advance_iteration()
+        if args.experiment.should_render(itr):
+            render_env = args.experiment.render_env(env, itr + 1)
+            sample(
+                render_env, controller, args.experiment.horizon, render=True)
+        if args.experiment.should_save(itr):
+            tfnode.save_all(itr + 1)
 
 
 class RunFlags(Flags):
@@ -54,13 +65,15 @@ class RunFlags(Flags):
                 help='number episodes to train on')]
         arguments += DDPGLearner.FLAGS
         super().__init__('run', 'run flags for ddpg', arguments)
+        self.discount = None
 
-    def make_ddpg(self, env):
+    def make_ddpg(self, env, discount):
         """Create a DDPGLearner with the specifications from this invocation"""
+        self.discount = discount
         return DDPGLearner(env, self)
 
 
 if __name__ == "__main__":
-    flags = [ExperimentFlags(), RunFlags()]
+    flags = [ExperimentFlags(), RunFlags(), PersistableDatasetFlags()]
     _args = parse_args(flags)
     experiment_main(_args, _train)

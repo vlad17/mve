@@ -63,11 +63,16 @@ class RandomShooterFlags(MPCFlags):
         extra_args = RandomShooterFlags._learner_arguments(rs_learner)
         super().__init__(rs_learner, pretty_name, arguments + extra_args)
         self._rs_learner = rs_learner
+        self.discount = None
 
     def make_mpc(self, env, dyn_model, all_flags):
         discount = all_flags.experiment.discount
         mpc_horizon = all_flags.mpc.mpc_horizon
         rsclass = RandomShooterFlags._get_learner_class(self._rs_learner)
+        self.discount = discount
+        # TODO: ugly ; find better way to get info from other flags
+        # (like mpc_horizon, discount) available.
+        # Consider using a context which just has all flag info?
         learner = rsclass(env, self)
         return RandomShooter(
             env, dyn_model, discount, learner, mpc_horizon, self)

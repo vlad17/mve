@@ -146,7 +146,6 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
     def act(self, states_ns):
         self._update_to_new_state(states_ns)
 
-        # TODO reporter.report_incremental instead of logging
         log.debug('*' * 10 + ' STEP {:5d} '.format(self._step) + '*' * 10)
 
         for _ in range(self._dual_steps):
