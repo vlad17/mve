@@ -45,6 +45,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.framework.errors_impl import DataLossError  # pylint: disable=no-name-in-module
 import seaborn as sns
 
 
@@ -82,17 +83,20 @@ def get_datasets(fpath, column, label, yaxis, smoothing):
 
     unit = 0
     datasets = []
-    for root, _, files in os.walk(fpath):
+    for root, _, files in os.walk(fpath):  # pylint: disable=too-many-nested-blocks
         for fname in files:
             if not fname.startswith('events.out.tfevents'):
                 continue
             log_path = os.path.join(root, fname)
             df = []
-            for e in tf.train.summary_iterator(log_path):
-                for v in e.summary.value:
-                    if v.tag == column:
-                        df.append([e.step, unit, label, v.simple_value])
-                        break
+            try:
+                for e in tf.train.summary_iterator(log_path):
+                    for v in e.summary.value:
+                        if v.tag == column:
+                            df.append([e.step, unit, label, v.simple_value])
+                            break
+            except DataLossError as e:
+                print('ignoring', str(e))
             columns = ['iteration', 'Unit', 'Condition', yaxis]
             experiment_data = pd.DataFrame(df, columns=columns)
             experiment_data[yaxis] = pd.rolling_mean(
