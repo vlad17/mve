@@ -33,7 +33,6 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
     current primal and dual variable values between actions for warm starts.
 
     This uses the penalty method to enforce the constraints.
-    TODO: consider Augmented Lagrangian for better numerical properties
     """
 
     def __init__(self, dyn_model):

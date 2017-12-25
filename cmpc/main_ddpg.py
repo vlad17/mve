@@ -25,10 +25,6 @@ def _train(args):
     venv = make_venv(args.experiment.make_env, 1)
     learner = DDPGLearner()
     add_dataset_to_persistance_registry(data, args.persistable_dataset)
-    # TODO, hacky. venv should be created within the DDPG class via
-    # a global experiment context (issue #199)
-    learner._ddpg.venv = make_venv(  # pylint: disable=protected-access
-        args.experiment.make_env, 10)
 
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
