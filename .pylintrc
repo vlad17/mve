@@ -6,3 +6,5 @@ max-attributes=15
 [BASIC]
 good-names=i,j,k,x,y,xs,ys,t,ac,ob,acs,obs,p
 
+[SIMILARITIES]
+ignore-imports=yes

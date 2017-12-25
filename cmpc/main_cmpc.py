@@ -12,11 +12,13 @@ from dynamics_metrics import DynamicsMetricsFlags, DynamicsMetrics
 from experiment import experiment_main, ExperimentFlags
 from immutable_dataset import ImmutableDataset
 from flags import parse_args
-from mpc_flags import SharedMPCFlags
+from mpc_flags import MPCFlags
 from persistable_dataset import (
     add_dataset_to_persistance_registry, PersistableDatasetFlags)
 from colocation_flags import ColocationFlags
 from random_shooter_flags import RandomShooterFlags
+from ddpg_learner import DDPGFlags
+from cloning_learner import CloningLearnerFlags
 import tfnode
 from multiprocessing_env import make_venv
 from sample import sample_venv, sample
@@ -40,9 +42,8 @@ def train(args):
 def _train(args, env, venv, dyn_metrics):
     data = Dataset.from_env(
         env, args.experiment.horizon, args.experiment.bufsize)
-    controller_flags = args.subflag
     dyn_model = NNDynamicsModel(env, data, args.dynamics)
-    controller = controller_flags.make_mpc(env, dyn_model, args)
+    controller = args.mpc.make_mpc(dyn_model)
     add_dataset_to_persistance_registry(data, args.persistable_dataset)
 
     tf.global_variables_initializer().run()
@@ -81,14 +82,14 @@ def _train(args, env, venv, dyn_metrics):
 
 def flags_to_parse():
     """Flags that BMPC should parse"""
-    flags = [ExperimentFlags(), SharedMPCFlags(), DynamicsFlags(),
-             DynamicsMetricsFlags(), PersistableDatasetFlags()]
-    subflags = RandomShooterFlags.all_subflags()
-    subflags.append(ColocationFlags())
-    return flags, subflags
+    flags = [ExperimentFlags(), MPCFlags(), DynamicsFlags(),
+             DynamicsMetricsFlags(), PersistableDatasetFlags(),
+             RandomShooterFlags(), DDPGFlags(), CloningLearnerFlags(),
+             ColocationFlags()]
+    return flags
 
 
 if __name__ == "__main__":
-    _flags, _subflags = flags_to_parse()
-    _args = parse_args(_flags, _subflags)
+    _flags = flags_to_parse()
+    _args = parse_args(_flags)
     experiment_main(_args, train)

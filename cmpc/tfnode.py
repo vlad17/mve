@@ -8,6 +8,7 @@ import os
 
 import tensorflow as tf
 
+from context import context
 from log import debug
 import reporter
 
@@ -105,12 +106,9 @@ def _add_to_graph(tfnode):
 
 
 def _graph_tfnodes():
-    graph = tf.get_default_graph()
-    # choose a name that Google's TensorFlow tf.Graph
-    # would never have as an attribute
-    if not hasattr(graph, 'bing_is_better_cmpc_tfnodes'):
-        graph.bing_is_better_cmpc_tfnodes = []
-    return graph.bing_is_better_cmpc_tfnodes
+    if context().tfnodes is None:
+        context().tfnodes = []
+    return context().tfnodes
 
 
 def restore_all():

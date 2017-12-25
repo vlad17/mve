@@ -5,13 +5,7 @@ and processing the generated flags.
 A Flags instance should correspond to a logically grouped set of options
 for a program.
 
-If a program has multiple disjoint sets of behavior, it can specify a set
-of SubFlags.
-
-All Flags instances are shared between invocations of the program, but
-only one of the corresponding SubFlags instances is selected.
-
-To create a set of flags that should always be specified, construct
+To create a set of flags, construct
 a class as follows inheriting from Flags:
 
 class MyFlags(Flags):
@@ -31,7 +25,7 @@ attributes corresponding to the names of its arguments.
 If one of the arguments is named 'arg1', then it should be
 correspondingly invoked in the command line as:
 
-python main.py --arg1
+python main.py --arg1 value_for_arg1
 """
 
 import argparse
@@ -95,7 +89,7 @@ class Flags(object):
         return {arg.name: getattr(self, arg.name) for arg in self._args}
 
 
-def parse_args(flags, subflags=None, cmdargs=None):
+def parse_args(flags, cmdargs=None):
     """
     Please see the module documentation.
 
@@ -127,65 +121,28 @@ def parse_args(flags, subflags=None, cmdargs=None):
     to the user to make sure the names 'a' and 'b' don't clash, and that
     the argument names 'arga' and 'argb' don't clash.
 
-    SubFlags allow for disjoint specifications. A parse call like:
-
-        x = parse_args([], [A(), B()])
-
-    Would be expecting the user to invoke the program like one of the
-    following:
-
-        python main.py a --arga 3
-        python main.py b --argb 2
-        python main.py b # use default
-
-    Something like:
-
-        python main.py a --arga 3 --argb 2
-
-    Would be a parser error because only A's flags may be specified. The flag
-    instance chosen by the user in the invocation (in the example, one of
-    A() or B()) is available in x.subflag.
-
-    Note that if B() had an argument --arga, but was only used as a subflag
-    disjointly with A(), then the name clash would not be an issue.
+    If cmdargs is not None, then parse that tokenized list instead.
     """
     formatter_class = argparse.ArgumentDefaultsHelpFormatter
     parser = argparse.ArgumentParser(formatter_class=formatter_class)
-    if subflags:
-        subparsers = parser.add_subparsers(dest='subflag')
-        for subflag in subflags:
-            subparser = subparsers.add_parser(
-                subflag.name, formatter_class=formatter_class)
-            for flag in flags:
-                flag.add_to_parser(subparser)
-            subflag.add_to_parser(subparser)
-    else:
-        for flag in flags:
-            flag.add_to_parser(parser)
+    for flag in flags:
+        flag.add_to_parser(parser)
 
     args = parser.parse_args(args=cmdargs)
     for flag in flags:
         flag.set_from_parsed(args)
 
-    if subflags:
-        subflags_by_name = {subflag.name: subflag for subflag in subflags}
-        subflag = subflags_by_name[args.subflag]
-        subflag.set_from_parsed(args)
-    else:
-        subflag = None
-
     cmdargs = cmdargs if cmdargs is not None else sys.argv
     cmdargs = [sys.executable] + cmdargs[:]
     invocation = ' '.join(shlex.quote(s) for s in cmdargs)
 
-    return _TopLevelFlags(flags, invocation, subflag)
+    return _TopLevelFlags(flags, invocation)
 
 
 class _TopLevelFlags:
-    def __init__(self, flags, cmd, subflag):
+    def __init__(self, flags, cmd):
         self._cmd = cmd
         self._flags = flags
-        self.subflag = subflag
         for flag in flags:
             setattr(self, flag.name, flag)
 
@@ -197,6 +154,4 @@ class _TopLevelFlags:
         for flag in self._flags:
             all_flags[flag.name] = flag.values()
         all_flags['invocation'] = self._cmd
-        all_flags['subflag'] = self.subflag and {
-            self.subflag.name: self.subflag.values()}
         return all_flags

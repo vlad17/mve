@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 from terminaltables import SingleTable
 
+from context import context
 from utils import create_tf_session
 
 
@@ -29,10 +30,11 @@ def create(logdir, verbose):
 
     If verbose, the reporter will print summary information to the terminal.
     """
-    reporter = _Reporter(logdir, verbose)
-    with reporter.as_default():
-        yield
-    reporter.close()
+    assert context().reporter is None, 'reporter already exists'
+    context().reporter = _Reporter(logdir, verbose)
+    yield
+    context().reporter.close()
+    context().reporter = None
 
 
 def add_summary(name, value, hide=False):
@@ -41,7 +43,7 @@ def add_summary(name, value, hide=False):
     If hide is set to true, this summary is not printed during
     advance_iteration().
     """
-    _reporter().add_summary(name, value, hide)
+    context().reporter.add_summary(name, value, hide)
 
 
 def add_summary_statistics(name, values, hide=False):
@@ -49,7 +51,7 @@ def add_summary_statistics(name, values, hide=False):
     Add a list of floating values, whose statistics are summarized to the
     current reporter.
     """
-    _reporter().add_summary_statistics(name, values, hide)
+    context().reporter.add_summary_statistics(name, values, hide)
 
 
 def advance_iteration():
@@ -58,7 +60,7 @@ def advance_iteration():
     reported. The statistics are only printed if the reporter was specified
     as verbose.
     """
-    _reporter().advance_iteration()
+    context().reporter.advance_iteration()
 
 
 def logging_directory():
@@ -66,7 +68,7 @@ def logging_directory():
     Return the directory where the reporter is logging to, which
     may be useful for saving other files in.
     """
-    return _reporter().logdir
+    return context().reporter.logdir
 
 
 _thread_local = threading.local()
@@ -76,17 +78,6 @@ def _hooks():
     if not hasattr(_thread_local, 'hooks'):
         _thread_local.hooks = []
     return _thread_local.hooks
-
-
-def _reporters():
-    if not hasattr(_thread_local, 'reporters'):
-        _thread_local.reporters = []
-    return _thread_local.reporters
-
-
-def _reporter():
-    """Returns the default summary reporter within the current context."""
-    return _reporters()[-1]
 
 
 class _Summarize:
@@ -213,13 +204,6 @@ class _Reporter:
             self._writer.add_summary(
                 _Summarize.value(name + ' mean', np.mean(values)),
                 self._global_step)
-
-    @contextmanager
-    def as_default(self):
-        """Specify a report to log summaries to within a thread context"""
-        _reporters().append(self)
-        yield
-        _reporters().pop()
 
     def close(self):
         """Close the internal file writer"""

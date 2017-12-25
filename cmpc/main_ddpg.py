@@ -5,7 +5,7 @@ import mujoco_py  # pylint: disable=unused-import
 import tensorflow as tf
 
 from dataset import Dataset
-from ddpg_learner import DDPGLearner
+from ddpg_learner import DDPGLearner, DDPGFlags
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags, ArgSpec)
 from learner import as_controller
@@ -23,7 +23,7 @@ def _train(args):
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
     venv = make_venv(args.experiment.make_env, 1)
-    learner = args.run.make_ddpg(env, args.experiment.discount)
+    learner = DDPGLearner()
     add_dataset_to_persistance_registry(data, args.persistable_dataset)
     # TODO, hacky. venv should be created within the DDPG class via
     # a global experiment context (issue #199)
@@ -67,17 +67,11 @@ class RunFlags(Flags):
                 type=int,
                 default=300,
                 help='number episodes to train on')]
-        arguments += DDPGLearner.FLAGS
         super().__init__('run', 'run flags for ddpg', arguments)
-        self.discount = None
-
-    def make_ddpg(self, env, discount):
-        """Create a DDPGLearner with the specifications from this invocation"""
-        self.discount = discount
-        return DDPGLearner(env, self)
 
 
 if __name__ == "__main__":
-    flags = [ExperimentFlags(), RunFlags(), PersistableDatasetFlags()]
+    flags = [ExperimentFlags(), RunFlags(), PersistableDatasetFlags(),
+             DDPGFlags()]
     _args = parse_args(flags)
     experiment_main(_args, _train)

@@ -42,7 +42,7 @@ main() {
     }
     trap note_failure EXIT
 
-    tune_params_json='[{"smoothing": 3, "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1}, {"smoothing": 3, "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1}]'
+    tune_params_json='[{"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1}, {"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1}]'
     
     if [ -d _test ] ; then
         rm -rf _test
@@ -69,8 +69,8 @@ main() {
     short_mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 6"
     short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2 --evaluation_envs 10"
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
-    nn_learner_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2"
-    ddpg_flags="$experiment_flags $nn_learner_flags"
+    ddpg_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2"
+    ddpg_flags="$experiment_flags $ddpg_flags"
     tune_flags="--ray_addr $ray_addr"
 
     cmds=()
@@ -80,12 +80,12 @@ main() {
     cmds+=("python $main_random $random_flags --env_name walker2d")
     cmds+=("python $main_random $random_flags --env_name hc-easy")
     # MPC
-    cmds+=("python $main_cmpc rs $rs_mpc_flags")
-    cmds+=("python $main_cmpc rs $short_mpc_flags")
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --render_every 1")
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --env_name hc-easy")
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --evaluation_envs 2")
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --discount 0.9")
+    cmds+=("python $main_cmpc $rs_mpc_flags")
+    cmds+=("python $main_cmpc $short_mpc_flags")
+    cmds+=("python $main_cmpc $rs_mpc_flags --render_every 1")
+    cmds+=("python $main_cmpc $rs_mpc_flags --env_name hc-easy")
+    cmds+=("python $main_cmpc $rs_mpc_flags --evaluation_envs 2")
+    cmds+=("python $main_cmpc $rs_mpc_flags --discount 0.9")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4 --episodes 2")
@@ -93,31 +93,36 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2 --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --incremental_reports 3 --episodes 2")
     # CMPC
-    cmds+=("python $main_cmpc rs_cloning $rs_mpc_flags $nn_learner_flags")
-    cmds+=("python $main_cmpc rs_cloning $rs_mpc_flags $nn_learner_flags")
-    cmds+=("python $main_cmpc rs_ddpg $rs_mpc_flags $ddpg_flags")
-    cmds+=("python $main_cmpc rs_zero $rs_mpc_flags")
+    cloning="--mpc_optimizer random_shooter --rs_learner cloning"
+    cloning="$cloning --cloning_learner_depth 1 --cloning_learner_width 1"
+    cloning="$cloning --cloning_learner_nbatches 2"
+    cmds+=("python $main_cmpc $cloning $rs_mpc_flags")
+    rs_ddpg="--mpc_optimizer random_shooter --rs_learner ddpg"
+    cmds+=("python $main_cmpc $rs_ddpg $rs_mpc_flags $ddpg_flags")
+    rs_zero="--mpc_optimizer random_shooter --rs_learner zero"
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags")
     shooter_flags="--opt_horizon 1"
-    cmds+=("python $main_cmpc rs_zero $rs_mpc_flags $shooter_flags")
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags")
     colocation_flags="--coloc_primal_steps 2"
     colocation_flags="$colocation_flags --coloc_dual_steps 2 --coloc_primal_tol 1e-2"
     colocation_flags="$colocation_flags --coloc_primal_lr 1e-4 --coloc_dual_lr 1e-3"
     colocation_flags="$colocation_flags --onpol_paths 1"
-    cmds+=("python $main_cmpc colocation $mpc_flags $colocation_flags --coloc_opt_horizon 2")
-    cmds+=("python $main_cmpc colocation $mpc_flags $colocation_flags")
+    colocation_flags="$colocation_flags --mpc_optimizer colocation"
+    cmds+=("python $main_cmpc $mpc_flags $colocation_flags --coloc_opt_horizon 2")
+    cmds+=("python $main_cmpc $mpc_flags $colocation_flags")
     # Test recovery
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name saved --save_every 2")
+    cmds+=("python $main_cmpc $rs_mpc_flags --exp_name saved --save_every 2")
     expected_dyn_save="data/saved_hc-hard/3/checkpoints/dynamics.ckpt-00000002"
     expected_rb_save="data/saved_hc-hard/3/checkpoints/persistable_dataset.ckpt-00000002"
     restore="--restore_dynamics $expected_dyn_save --restore_buffer $expected_rb_save"
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name restored $restore")
+    cmds+=("python $main_cmpc $rs_mpc_flags --exp_name restored $restore")
     cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --episodes 2 --exp_name ddpg_save")
     savedir="data/ddpg_save_hc-hard/3/checkpoints"
     restore="--exp_name ddpg_restore --restore_buffer $savedir/persistable_dataset.ckpt-00000002"
     restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000002"
     cmds+=("python $main_ddpg $ddpg_flags $restore --episodes 2")
     # Plot tests
-    cmds+=("python $main_cmpc rs $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
+    cmds+=("python $main_cmpc $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
 
     
     for cmd in "${cmds[@]}"; do

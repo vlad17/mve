@@ -8,8 +8,8 @@ thing.
 
 import tensorflow as tf
 
-from utils import (build_mlp, get_ac_dim, get_ob_dim,
-                   scale_to_box, scale_from_box)
+import env_info
+from utils import (build_mlp, scale_to_box, scale_from_box)
 
 
 def _layer_norm(x):
@@ -66,11 +66,11 @@ class Actor:
     AdaptiveNoise.
     """
 
-    def __init__(self, env, scope='ddpg', depth=2, width=64):
-        self._ac_space = env.action_space
-        self._ob_space = env.observation_space
+    def __init__(self, scope='ddpg', depth=2, width=64):
+        self._ac_space = env_info.ac_space()
+        self._ob_space = env_info.ob_space()
         self._common_mlp_kwargs = {
-            'output_size': get_ac_dim(env),
+            'output_size': env_info.ac_dim(),
             'n_layers': depth,
             'size': width,
             'activation': tf.nn.relu,
@@ -80,7 +80,7 @@ class Actor:
         self._scope = scope
 
         self._states_ph_ns = tf.placeholder(
-            tf.float32, [None, get_ob_dim(env)])
+            tf.float32, [None, env_info.ob_dim()])
         # result unimportant, just generate the corresponding graph variables
         self._mean_acs_na = self.tf_action(self._states_ph_ns)
         self.tf_target_action(self._states_ph_ns)
@@ -140,9 +140,9 @@ class Critic:
     optimizable variables.
     """
 
-    def __init__(self, env, scope='ddpg', width=64, depth=2, l2reg=0):
-        self._ac_space = env.action_space
-        self._ob_space = env.observation_space
+    def __init__(self, scope='ddpg', width=64, depth=2, l2reg=0):
+        self._ac_space = env_info.ac_space()
+        self._ob_space = env_info.ob_space()
         self._common_mlp_kwargs = {
             'output_size': 1,
             'size': width,
@@ -157,9 +157,9 @@ class Critic:
         # we don't care about the critic results here, but need
         # TensorFlow to generate the corresponding graph variables
         states_ph_ns = tf.placeholder(
-            tf.float32, [None, get_ob_dim(env)])
+            tf.float32, [None, env_info.ob_dim()])
         acs_ph_ns = tf.placeholder(
-            tf.float32, [None, get_ac_dim(env)])
+            tf.float32, [None, env_info.ac_dim()])
         self.tf_critic(states_ph_ns, acs_ph_ns)
         self.tf_target_critic(states_ph_ns, acs_ph_ns)
 

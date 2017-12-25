@@ -67,7 +67,8 @@ def train(config, status_reporter):
     config should be a dictionary with the usual BMPC flags.
 
     This basically runs
-    python main_cmpc.py config['cmpc_type'] <other config args>
+
+    python main_cmpc.py <config dictionary as flags>
 
     The other arguments are determined by their keys (flag) and values
     (argument for the flag). If the value is None then that flag gets no
@@ -82,7 +83,7 @@ def train(config, status_reporter):
     # per https://ray.readthedocs.io/en/latest/using-ray-with-gpus.html
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, ray.get_gpu_ids()))
 
-    args = [config['cmpc_type']]
+    args = []
     smoothing = config['smoothing']
 
     assert 'exp_name' not in config['hypers'], 'exp_name in config'
@@ -91,13 +92,16 @@ def train(config, status_reporter):
     for k, v in config['hypers'].items():
         args.append('--' + k)
         if v is not None:
-            args.append(repr(v))
+            if isinstance(v, str):
+                args.append(v)
+            else:
+                args.append(repr(v))
 
     exp_name = datetime.datetime.now().strftime('%b-%d-%I%M%p-%G')
     args += ['--exp_name', exp_name, '--seed', '7']
 
-    flags, subflags = cmpc_flags()
-    parsed_flags = parse_args(flags, subflags, args)
+    flags = cmpc_flags()
+    parsed_flags = parse_args(flags, args)
 
     ctr = 0
     historical_returns = collections.deque()
@@ -126,7 +130,6 @@ def _search_hypers(all_hypers, tune):
             'script_file_path': os.path.abspath(__file__),
             'script_min_iter_time_s': 0,
             'smoothing': hyp['smoothing'],
-            'cmpc_type': 'rs_ddpg',
         }
         del hyp['smoothing']
         config['hypers'] = hyp

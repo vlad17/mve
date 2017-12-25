@@ -12,9 +12,11 @@ import time
 from gym import wrappers
 import tensorflow as tf
 
+from context import context
 from flags import Flags, ArgSpec
 from envs import (WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard,
                   WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
+import env_info
 import log
 import reporter
 from utils import seed_everything, create_tf_session
@@ -202,8 +204,10 @@ def experiment_main(flags, experiment_fn):
         # Run experiment.
         g = tf.Graph()
         with g.as_default():
+            seed_everything(seed)
+            context().flags = flags
             with reporter.create(logdir_seed, flags.experiment.verbose):
-                seed_everything(seed)
                 with create_tf_session() as sess:
                     with sess.as_default():
-                        experiment_fn(flags)
+                        with env_info.create(flags.experiment.make_env):
+                            experiment_fn(flags)

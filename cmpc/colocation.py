@@ -5,9 +5,10 @@ Optimize the planning problem explicitly with colocation.
 import numpy as np
 import tensorflow as tf
 
+from context import flags
 from controller import Controller
+import env_info
 from optimizer import AdamOptimizer
-from utils import (get_ac_dim, get_ob_dim)
 import log
 
 
@@ -35,22 +36,17 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
     TODO: consider Augmented Lagrangian for better numerical properties
     """
 
-    def __init__(self, env, dyn_model, discount, mpc_horizon, flags):
+    def __init__(self, dyn_model):
+        discount = flags().experiment.discount
+        mpc_horizon = flags().mpc.mpc_horizon
         self._discount = discount
-        reward_fn = env.tf_reward
-        if flags.coloc_opt_horizon is None:
-            flags.coloc_opt_horizon = mpc_horizon
-        assert flags.coloc_opt_horizon <= mpc_horizon, (
-            flags.coloc_opt_horizon, mpc_horizon)
-        assert mpc_horizon > 0, mpc_horizon
-        assert flags.coloc_opt_horizon > 0, flags.coloc_opt_horizon
-        learner = _dummy_learner(env)
+        reward_fn = env_info.reward_fn()
+        learner = _dummy_learner()
         # while this learner is a constant-0 function, the actual
         # constraint this can be easily made to optimize is
         # ||a_t - learner(s_t)||^2 = 0.
-
         self._mpc_horizon = mpc_horizon
-        self._opt_horizon = flags.coloc_opt_horizon
+        self._opt_horizon = flags().colocation.coloc_opt_horizon_with_default()
 
         # a = action dim
         # s = state dim
@@ -64,28 +60,30 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
         # between actions in the same episode, we warm-start our optimization
         # variables. a_i starts with the previous a_i+1 and the dual
         # variable values stay the same.
-        self._actions_ha = np.zeros((mpc_horizon, get_ac_dim(env)))
-        self._states_hs = np.zeros((mpc_horizon, get_ob_dim(env)))
+        self._actions_ha = np.zeros((mpc_horizon, env_info.ac_dim()))
+        self._states_hs = np.zeros((mpc_horizon, env_info.ob_dim()))
         self._actions_ph_ha = tf.placeholder(
             tf.float32, self._actions_ha.shape)
         self._states_ph_hs = tf.placeholder(tf.float32, self._states_hs.shape)
 
         self._dynamics_dual_ph_h = tf.placeholder(tf.float32, [mpc_horizon])
         self._learner_dual_ph_l = tf.placeholder(
-            tf.float32, [mpc_horizon - flags.coloc_opt_horizon])
+            tf.float32, [mpc_horizon - self._opt_horizon])
         self._input_state_ph_s = tf.placeholder(
-            tf.float32, [get_ob_dim(env)])
+            tf.float32, [env_info.ob_dim()])
 
+        coloc_flags = flags().colocation
         self._primal_optimizer = AdamOptimizer(
             lambda states, actions: self._primal(
                 reward_fn, dyn_model, learner, states, actions),
             [self._states_hs.shape, self._actions_ha.shape],
-            flags.coloc_primal_steps,
-            flags.coloc_primal_tol,
-            flags.coloc_primal_lr)
+            coloc_flags.coloc_primal_steps,
+            coloc_flags.coloc_primal_tol,
+            coloc_flags.coloc_primal_lr)
 
         self._dynamics_dual_h = np.ones(mpc_horizon)
-        self._learner_dual_l = np.ones(mpc_horizon - flags.coloc_opt_horizon)
+        self._learner_dual_l = np.ones(
+            mpc_horizon - self._opt_horizon)
 
         self._reified_debug_tensors = self._debug_tensors(
             reward_fn, dyn_model, learner, self._states_ph_hs,
@@ -98,8 +96,8 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
         dyn_violations = self._dyn_violations_h(
             dyn_model, self._states_ph_hs, self._actions_ph_ha)
         self._reified_violations = learner_violations, dyn_violations
-        self._dual_lr = flags.coloc_dual_lr
-        self._dual_steps = flags.coloc_dual_steps
+        self._dual_lr = coloc_flags.coloc_dual_lr
+        self._dual_steps = coloc_flags.coloc_dual_steps
 
     def reset(self, n):
         self._dynamics_dual_h = np.ones_like(self._dynamics_dual_h)
@@ -239,8 +237,8 @@ class Colocation(Controller):  # pylint: disable=too-many-instance-attributes
         return self._mpc_horizon
 
 
-def _dummy_learner(env):
-    return lambda states: tf.zeros([tf.shape(states)[0], get_ac_dim(env)])
+def _dummy_learner():
+    return lambda states: tf.zeros([tf.shape(states)[0], env_info.ac_dim()])
 
 
 def _square_norm(x, axis=None):

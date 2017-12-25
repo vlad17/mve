@@ -3,11 +3,14 @@
 import tensorflow as tf
 import numpy as np
 
+from context import flags
+import env_info
 from log import debug
 from learner import as_controller
+from multiprocessing_env import make_venv
 import reporter
 from sample import sample_venv
-from utils import get_ob_dim, get_ac_dim, scale_from_box
+from utils import scale_from_box
 
 
 def _flatgrad_norms(opt, loss, variables):
@@ -26,24 +29,23 @@ class DDPG:
     and critic networks with the DDPG algorithm
     """
 
-    def __init__(
-            self, env, actor, critic, discount=0.99, scope='ddpg',
-            actor_lr=1e-3, critic_lr=1e-3, decay=0.99, explore_stddev=0.2,
-            nbatches=1):
+    def __init__(self, actor, critic, discount=0.99, scope='ddpg',
+                 actor_lr=1e-3, critic_lr=1e-3, decay=0.99, explore_stddev=0.2,
+                 nbatches=1):
 
         self._debugs = []
         self._nbatches = nbatches
 
         self.obs0_ph_ns = tf.placeholder(
-            tf.float32, shape=[None, get_ob_dim(env)])
+            tf.float32, shape=[None, env_info.ob_dim()])
         self.obs1_ph_ns = tf.placeholder(
-            tf.float32, shape=[None, get_ob_dim(env)])
+            tf.float32, shape=[None, env_info.ob_dim()])
         self.terminals1_ph_n = tf.placeholder(
             tf.float32, shape=[None])
         self.rewards_ph_n = tf.placeholder(
             tf.float32, shape=[None])
         self.actions_ph_na = tf.placeholder(
-            tf.float32, shape=[None, get_ac_dim(env)])
+            tf.float32, shape=[None, env_info.ac_dim()])
 
         # actor maximizes current Q
         normalized_critic_at_actor_n = critic.tf_critic(
@@ -121,9 +123,9 @@ class DDPG:
             re_perturb = actor.tf_perturb_update(adaptive_noise)
             with tf.control_dependencies([re_perturb]):
                 mean_ac = scale_from_box(
-                    env.action_space, actor.tf_action(self.obs0_ph_ns))
+                    env_info.ac_space(), actor.tf_action(self.obs0_ph_ns))
                 perturb_ac = scale_from_box(
-                    env.action_space, actor.tf_perturbed_action(
+                    env_info.ac_space(), actor.tf_perturbed_action(
                         self.obs0_ph_ns))
                 batch_observed_noise = tf.sqrt(
                     tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
@@ -137,10 +139,11 @@ class DDPG:
         self._update_adapative_noise_op = tf.assign(
             adaptive_noise, adaptive_noise * multiplier)
         self._actor = as_controller(actor)
+        self._venv = make_venv(
+            flags().experiment.make_env, 10)
 
     def _test(self):
-        # TODO: venv hack, feed it in via flags (issue #199)
-        paths = sample_venv(self.venv, self._actor)
+        paths = sample_venv(self._venv, self._actor)
         rews = [path.rewards.sum() for path in paths]
         return rews
 

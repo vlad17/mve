@@ -5,14 +5,15 @@ The random shooter might be unconstrained or constrained by changing
 the support of its sample space. See RandomShooterFlags.
 """
 
-from mpc_flags import MPCFlags, ArgSpec
+from context import flags
+from flags import Flags, ArgSpec
 from random_shooter import RandomShooter
 from cloning_learner import CloningLearner
 from ddpg_learner import DDPGLearner
 from zero_learner import ZeroLearner
 
 
-class RandomShooterFlags(MPCFlags):
+class RandomShooterFlags(Flags):
     """
     Specifies the random shooter sampling distribution.
 
@@ -36,15 +37,12 @@ class RandomShooterFlags(MPCFlags):
 
     Where the learner is a deterministic mapping from states to actions.
 
-    We consider several forms of "learners":
-
-    * rs - no learner (opt_horizon == mpc_horizon)
-    * rs_cloning - train a learner to mimic past actions by the controller
-    * rs_zero - the learner will always perform the action 0
-    * rs_ddpg - the learner is a policy trained by DDPG
+    Note that the learner doesn't affect the MPC if the
+    optimization horizon is equal to the MPC horizon, which is the
+    default setting.
     """
 
-    def __init__(self, rs_learner):
+    def __init__(self):
         arguments = [
             ArgSpec(
                 name='opt_horizon',
@@ -57,61 +55,36 @@ class RandomShooterFlags(MPCFlags):
                 name='simulated_paths',
                 type=int,
                 default=1000,
-                help='number of simulated MPC rollouts')]
-
-        pretty_name = RandomShooterFlags._pretty_name_from_rs(rs_learner)
-        extra_args = RandomShooterFlags._learner_arguments(rs_learner)
-        super().__init__(rs_learner, pretty_name, arguments + extra_args)
-        self._rs_learner = rs_learner
-        self.discount = None
-
-    def make_mpc(self, env, dyn_model, all_flags):
-        discount = all_flags.experiment.discount
-        mpc_horizon = all_flags.mpc.mpc_horizon
-        rsclass = RandomShooterFlags._get_learner_class(self._rs_learner)
-        self.discount = discount
-        # TODO: ugly ; find better way to get info from other flags
-        # (like mpc_horizon, discount) available.
-        # Consider using a context which just has all flag info?
-        learner = rsclass(env, self)
-        if self._rs_learner == 'rs_ddpg':
-            # TODO, hacky. venv should be created within the DDPG class via
-            # a global experiment context (issue #199)
-            from multiprocessing_env import make_venv
-            learner._ddpg.venv = make_venv(  # pylint: disable=protected-access
-                all_flags.experiment.make_env, 10)
-        return RandomShooter(
-            env, dyn_model, discount, learner, mpc_horizon, self)
+                help='number of simulated MPC rollouts'),
+            ArgSpec(
+                name='rs_learner',
+                type=str,
+                default='zero',
+                help='learner type, one of {zero, ddpg, cloning}')]
+        super().__init__('random_shooter', 'random shooter', arguments)
 
     @staticmethod
-    def _get_learner_class(rs_learner):
-        def _no_learner(_env, _flags):
-            return None
-        _no_learner.FLAGS = []
-        mapping = {
-            'rs': _no_learner,
-            'rs_cloning': CloningLearner,
-            'rs_zero': ZeroLearner,
-            'rs_ddpg': DDPGLearner}
-        return mapping[rs_learner]
+    def make(dyn_model):
+        """Return a random shooter based on the given dynamics model"""
+        return RandomShooter(dyn_model)
 
-    @staticmethod
-    def _learner_arguments(rs_learner):
-        rsclass = RandomShooterFlags._get_learner_class(rs_learner)
-        return rsclass.FLAGS
+    def make_learner(self):
+        """Return a learner based on the current flags from the context."""
+        if self.rs_learner == 'zero':
+            return ZeroLearner()
+        elif self.rs_learner == 'ddpg':
+            return DDPGLearner()
+        elif self.rs_learner == 'cloning':
+            return CloningLearner()
+        else:
+            raise ValueError('random shooter learner {} unrecognized'.format(
+                self.rs_learner))
 
-    @staticmethod
-    def _pretty_name_from_rs(rs_learner):
-        mapping = {
-            'rs': 'unconstrained random shooter',
-            'rs_cloning':
-                'random shooter with a behavior-cloning planning constraint',
-            'rs_zero': 'random shooter with a null-action planning constraint',
-            'rs_ddpg': 'random shooter with a DDPG action planning constraint'}
-        return mapping[rs_learner]
-
-    @staticmethod
-    def all_subflags():
-        """Return RandomShooterFlags corresponding to all possible subflags."""
-        names = ['rs', 'rs_cloning', 'rs_zero', 'rs_ddpg']
-        return [RandomShooterFlags(name) for name in names]
+    def opt_horizon_with_default(self):
+        """
+        If the opt_horizon was not set, use the mpc_horizon as a default.
+        Otherwise, return the usual optimization horizon.
+        """
+        if self.opt_horizon is None:
+            return flags().mpc.mpc_horizon
+        return self.opt_horizon

@@ -2,11 +2,12 @@
 Specify the properties of constrained colocation-based planning.
 """
 
-from mpc_flags import MPCFlags, ArgSpec
+from context import flags
 from colocation import Colocation
+from flags import Flags, ArgSpec
 
 
-class ColocationFlags(MPCFlags):
+class ColocationFlags(Flags):
     """
     Specifies various optimizer properties for the colocation-based
     optimization.
@@ -48,8 +49,23 @@ class ColocationFlags(MPCFlags):
         super().__init__('colocation', 'colocation-based planning',
                          list(ColocationFlags._generate_arguments()))
 
-    def make_mpc(self, env, dyn_model, all_flags):
-        discount = all_flags.experiment.discount
-        mpc_horizon = all_flags.mpc.mpc_horizon
-        return Colocation(
-            env, dyn_model, discount, mpc_horizon, self)
+    @staticmethod
+    def make(dyn_model):
+        """Generate the colocation instance"""
+        return Colocation(dyn_model)
+
+    def coloc_opt_horizon_with_default(self):
+        """
+        Return the colocation optimization horizon, which is the
+        mpc_horizon by default.
+        """
+        mpc_horizon = flags().mpc.mpc_horizon
+        if self.coloc_opt_horizon is None:
+            opt_horizon = mpc_horizon
+        else:
+            opt_horizon = self.coloc_opt_horizon
+        assert opt_horizon <= mpc_horizon, (
+            opt_horizon, mpc_horizon)
+        assert mpc_horizon > 0, mpc_horizon
+        assert opt_horizon > 0, opt_horizon
+        return opt_horizon
