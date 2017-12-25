@@ -30,7 +30,9 @@ class DDPGLearner(Learner, TFNode):
             name='critic_l2_reg',
             type=float,
             default=0.,
-            help='DDPG critic regularization constant'),
+            help='DDPG critic regularization constant.'
+            ' Default is no regularization, but OpenAI baselines'
+            ' magic uses 0.01'),
         ArgSpec(
             name='learner_depth',
             type=int,
@@ -62,6 +64,12 @@ class DDPGLearner(Learner, TFNode):
             type=float,
             help='goal action standard deviation for exploration'),
         ArgSpec(
+            name='incremental_reports',
+            default=0,
+            type=int,
+            help='if >0, the number of intermediate DDPG training reports'
+            ' to give'),
+        ArgSpec(
             name='restore_ddpg',
             default=None,
             type=str,
@@ -69,6 +77,7 @@ class DDPGLearner(Learner, TFNode):
 
     def __init__(self, env, flags):
         self._batch_size = flags.learner_batch_size
+        self._reports = flags.incremental_reports
         self._actor = Actor(
             env, width=flags.learner_width, depth=flags.learner_depth,
             scope='ddpg')
@@ -77,7 +86,7 @@ class DDPGLearner(Learner, TFNode):
             scope='ddpg', l2reg=flags.critic_l2_reg)
         self._ddpg = DDPG(env, self._actor, self._critic, flags.discount,
                           actor_lr=flags.actor_lr, critic_lr=flags.critic_lr,
-                          decay=flags.target_decay,
+                          decay=flags.target_decay, scope='ddpg',
                           nbatches=flags.learner_nbatches,
                           explore_stddev=flags.explore_stddev)
         TFNode.__init__(self, 'ddpg', flags.restore_ddpg)
@@ -89,7 +98,7 @@ class DDPGLearner(Learner, TFNode):
         return self._actor.tf_action(states_ns)
 
     def act(self, states_ns):
-        return self._actor.act(states_ns)
+        return self._actor.perturbed_act(states_ns)
 
     def fit(self, data):
-        self._ddpg.train(data, self._batch_size)
+        self._ddpg.train(data, self._batch_size, self._reports)

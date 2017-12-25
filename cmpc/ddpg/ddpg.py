@@ -4,7 +4,9 @@ import tensorflow as tf
 import numpy as np
 
 from log import debug
+from learner import as_controller
 import reporter
+from sample import sample_venv
 from utils import get_ob_dim, get_ac_dim, scale_from_box
 
 
@@ -26,7 +28,7 @@ class DDPG:
 
     def __init__(
             self, env, actor, critic, discount=0.99, scope='ddpg',
-            actor_lr=1e-4, critic_lr=1e-3, decay=0.99, explore_stddev=0.2,
+            actor_lr=1e-3, critic_lr=1e-3, decay=0.99, explore_stddev=0.2,
             nbatches=1):
 
         self._debugs = []
@@ -134,6 +136,20 @@ class DDPG:
             lambda: 1.01, lambda: 1 / 1.01)
         self._update_adapative_noise_op = tf.assign(
             adaptive_noise, adaptive_noise * multiplier)
+        self._actor = as_controller(actor)
+
+    def _test(self):
+        # TODO: venv hack, feed it in via flags (issue #199)
+        paths = sample_venv(self.venv, self._actor)
+        rews = [path.rewards.sum() for path in paths]
+        return rews
+
+    @staticmethod
+    def _incremental_report_name(update_iteration, total_updates):
+        name = '{:0' + str(len(str(total_updates))) + 'd}-of-'
+        name += str(total_updates) + ' trained/'
+        name = 'training ddpg/' + name
+        return name.format(update_iteration)
 
     def initialize_targets(self):
         """
@@ -160,42 +176,53 @@ class DDPG:
         ave_magnitude = tf.reduce_mean(tf.abs(flat))
         self._debugs.append(('weight', name, ave_magnitude))
 
-    def train(self, data, batch_size):
+    def _sample(self, batch):
+        obs, next_obs, rewards, acs, terminals = batch
+        feed_dict = {
+            self.obs0_ph_ns: obs,
+            self.obs1_ph_ns: next_obs,
+            self.terminals1_ph_n: terminals,
+            self.rewards_ph_n: rewards,
+            self.actions_ph_na: acs}
+        return feed_dict
+
+    def train(self, data, batch_size, num_reports):
         """Run nbatches training iterations of DDPG"""
-        nprints = 5
-        nbatches = self._nbatches
-        period = max(nbatches // nprints, 1)
-        feed_dict = None
+        update_iterations = {1 if i == 0 else i * self._nbatches // num_reports
+                             for i in range(num_reports)}
 
         tf.get_default_session().run(self._observed_noise_sum.initializer)
-
-        for itr, batch in enumerate(data.sample_many(
-                nbatches, batch_size)):
-            obs, next_obs, rewards, acs, terminals = batch
-            # popart would go here
-            feed_dict = {
-                self.obs0_ph_ns: obs,
-                self.obs1_ph_ns: next_obs,
-                self.terminals1_ph_n: terminals,
-                self.rewards_ph_n: rewards,
-                self.actions_ph_na: acs}
-
+        batches = data.sample_many(self._nbatches, batch_size)
+        for itr, batch in enumerate(batches, 1):
+            feed_dict = self._sample(batch)
             tf.get_default_session().run(self._optimize, feed_dict)
 
-            if itr == 0 or itr + 1 == batch_size or (itr + 1) % period == 0:
-                fmt = 'itr {: 6d} critic loss {:7.3f} actor loss {:7.3f}'
-                fmt += ' action noise {:.5g}'
-                sess = tf.get_default_session()
-                critic_loss, actor_loss, noise_sum = sess.run(
-                    [self._critic_loss, self._actor_loss,
-                     self._observed_noise_sum], feed_dict)
-                debug(fmt, itr + 1, critic_loss, actor_loss,
-                      noise_sum / (itr + 1))
+            if itr in update_iterations:
+                self._incremental_report(feed_dict, itr)
 
         tf.get_default_session().run(self._update_adapative_noise_op)
 
-        if feed_dict is not None:
-            self._debug_print(feed_dict)
+        batch = self._sample(next(data.sample_many(1, batch_size)))
+        self._debug_print(batch)
+        reporter.add_summary_statistics(
+            'mean policy reward', self._test())
+
+    def _incremental_report(self, feed_dict, itr):
+        fmt = 'itr {: 6d} critic loss {:7.3f} actor loss {:7.3f}'
+        fmt += ' action noise {:.5g} mean rew {:6.1f}'
+        critic_loss, actor_loss, noise_sum = tf.get_default_session().run(
+            [self._critic_loss, self._actor_loss, self._observed_noise_sum],
+            feed_dict)
+        rewards = self._test()
+        mean_perf = np.mean(rewards)
+        mean_noise = noise_sum / itr
+        debug(fmt, itr, critic_loss, actor_loss, mean_noise, mean_perf)
+        prefix = self._incremental_report_name(itr, self._nbatches)
+        reporter.add_summary_statistics(
+            prefix + 'mean policy reward', rewards, hide=True)
+        reporter.add_summary(prefix + 'actor loss', actor_loss, hide=True)
+        reporter.add_summary(prefix + 'critic loss', critic_loss, hide=True)
+        reporter.add_summary(prefix + 'action noise', mean_noise, hide=True)
 
     def _debug_print(self, feed_dict):
         debug_types, names, tensors = zip(*self._debugs)

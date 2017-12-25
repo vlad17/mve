@@ -8,6 +8,7 @@ import os
 
 import tensorflow as tf
 
+from log import debug
 import reporter
 
 
@@ -82,6 +83,7 @@ class TFNode:
         """Restore TFNode variables from the given restore path."""
         if self._saver and self._restore is not None:
             self._saver.restore(tf.get_default_session(), self._restore)
+            debug('restored {} from {}', self._scope, self._restore)
         else:
             self.custom_init()
 

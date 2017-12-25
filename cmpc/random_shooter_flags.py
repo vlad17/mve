@@ -74,6 +74,12 @@ class RandomShooterFlags(MPCFlags):
         # (like mpc_horizon, discount) available.
         # Consider using a context which just has all flag info?
         learner = rsclass(env, self)
+        if self._rs_learner == 'rs_ddpg':
+            # TODO, hacky. venv should be created within the DDPG class via
+            # a global experiment context (issue #199)
+            from multiprocessing_env import make_venv
+            learner._ddpg.venv = make_venv(  # pylint: disable=protected-access
+                all_flags.experiment.make_env, 10)
         return RandomShooter(
             env, dyn_model, discount, learner, mpc_horizon, self)
 

@@ -88,8 +88,10 @@ main() {
     cmds+=("python $main_cmpc rs $rs_mpc_flags --discount 0.9")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
-    cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-3 --episodes 2")
-    cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-3 --episodes 2")
+    cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4 --episodes 2")
+    cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4 --episodes 2")
+    cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2 --episodes 2")
+    cmds+=("python $main_ddpg $ddpg_flags --incremental_reports 3 --episodes 2")
     # CMPC
     cmds+=("python $main_cmpc rs_cloning $rs_mpc_flags $nn_learner_flags")
     cmds+=("python $main_cmpc rs_cloning $rs_mpc_flags $nn_learner_flags")
@@ -109,6 +111,11 @@ main() {
     expected_rb_save="data/saved_hc-hard/3/checkpoints/persistable_dataset.ckpt-00000002"
     restore="--restore_dynamics $expected_dyn_save --restore_buffer $expected_rb_save"
     cmds+=("python $main_cmpc rs $rs_mpc_flags --exp_name restored $restore")
+    cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --episodes 2 --exp_name ddpg_save")
+    savedir="data/ddpg_save_hc-hard/3/checkpoints"
+    restore="--exp_name ddpg_restore --restore_buffer $savedir/persistable_dataset.ckpt-00000002"
+    restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000002"
+    cmds+=("python $main_ddpg $ddpg_flags $restore --episodes 2")
     # Plot tests
     cmds+=("python $main_cmpc rs $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
 

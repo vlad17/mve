@@ -44,12 +44,12 @@ def add_summary(name, value, hide=False):
     _reporter().add_summary(name, value, hide)
 
 
-def add_summary_statistics(name, values):
+def add_summary_statistics(name, values, hide=False):
     """
     Add a list of floating values, whose statistics are summarized to the
     current reporter.
     """
-    _reporter().add_summary_statistics(name, values)
+    _reporter().add_summary_statistics(name, values, hide)
 
 
 def advance_iteration():
@@ -160,11 +160,13 @@ class _Reporter:
         if hide:
             self._hidden.add(name)
 
-    def add_summary_statistics(self, name, values):
+    def add_summary_statistics(self, name, values, hide):
         """
         Add a list of floating values, whose statistics are summarized.
         """
         self._latest_statistics[name] = values
+        if hide:
+            self._hidden.add(name)
 
     def advance_iteration(self):
         """Increment the global step and print the previous step statistics"""
@@ -188,6 +190,8 @@ class _Reporter:
                 continue
             data.append([name, _floatprint(value), '', '', '', ''])
         for name, values in sorted(self._latest_statistics.items()):
+            if name in self._hidden:
+                continue
             values = [statistic(values) for statistic in
                       [np.min, np.mean, np.max, np.std]]
             values = [_floatprint(value) for value in values]

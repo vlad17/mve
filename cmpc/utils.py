@@ -145,7 +145,8 @@ def build_mlp(input_placeholder,
                 out = activation_norm(out)
                 if activation is not None:
                     out = activation(out)
-        out = tf.layers.dense(out, output_size, activation=output_activation)
+        out = tf.layers.dense(out, output_size, activation=output_activation,
+                              kernel_regularizer=l2reg)
     return out
 
 

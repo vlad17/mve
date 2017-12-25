@@ -1,12 +1,9 @@
 """
 The various neural networks (policy mean, critics) in DDPG.
 
-Implementation differences from OpenAI, done for simplicity:
-
-* Initializing the final layer with the default Glorot initializer
-  instead of the initialization to fixed magnitude 3e-3.
-* Weird network structure for critic removed (now simple MLP)
-* We don't initialize the target network to equal the current network
+The only implementation differences from OpenAI is that we use a
+simple MLP for the critic network instead of some weird multi-level
+thing.
 """
 
 import tensorflow as tf
@@ -85,7 +82,7 @@ class Actor:
         self._states_ph_ns = tf.placeholder(
             tf.float32, [None, get_ob_dim(env)])
         # result unimportant, just generate the corresponding graph variables
-        self.tf_action(self._states_ph_ns)
+        self._mean_acs_na = self.tf_action(self._states_ph_ns)
         self.tf_target_action(self._states_ph_ns)
         self._acs_na = self.tf_perturbed_action(self._states_ph_ns)
 
@@ -104,6 +101,13 @@ class Actor:
         return _perturb_update(self._scope, 'actor', 'perturbed_actor', noise)
 
     def act(self, states_ns):
+        """
+        Return a numpy array with the current (mean) actor's actions.
+        """
+        return tf.get_default_session().run(self._mean_acs_na, feed_dict={
+            self._states_ph_ns: states_ns})
+
+    def perturbed_act(self, states_ns):
         """
         Return a numpy array with the current (perturbed) actor's actions.
         """
@@ -172,7 +176,7 @@ class Critic:
         with tf.variable_scope(self._scope, reuse=tf.AUTO_REUSE):
             inputs = tf.concat([states_ns, acs_na], axis=1)
             out = build_mlp(inputs, scope=scope, **self._common_mlp_kwargs)
-        return out
+        return tf.squeeze(out, axis=1)
 
     def tf_critic(self, states_ns, acs_na):
         """Return the current critic's Q-valuation."""
