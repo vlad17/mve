@@ -3,6 +3,7 @@ This module defines the flags common to all experiments,
 and the general experimental procedure.
 """
 
+from contextlib import contextmanager, closing
 import json
 import os
 import shutil
@@ -104,13 +105,16 @@ class ExperimentFlags(Flags):
         else:
             raise ValueError('env {} unsupported'.format(self.env_name))
 
-    def render_env(self, env, uid):
-        """Take a regular env and make it render-able."""
-        limited_env = wrappers.TimeLimit(env, max_episode_steps=self.horizon)
-        render_directory = reporter.logging_directory()
-        directory = os.path.join(render_directory, str(uid))
-        render_env = wrappers.Monitor(limited_env, directory)
-        return render_env
+    @contextmanager
+    def render_env(self, uid):
+        """Create a renderable env (context)."""
+        with closing(self.make_env()) as env:
+            limited_env = wrappers.TimeLimit(
+                env, max_episode_steps=self.horizon)
+            render_directory = reporter.logging_directory()
+            directory = os.path.join(render_directory, str(uid))
+            with closing(wrappers.Monitor(limited_env, directory)) as rendered:
+                yield rendered
 
     def log_directory(self):
         """return a root name for the log directory of this experiment"""

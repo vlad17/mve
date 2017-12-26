@@ -72,9 +72,9 @@ def _train(args, env, venv, dyn_metrics):
         reporter.advance_iteration()
 
         if args.experiment.should_render(itr):
-            render_env = args.experiment.render_env(env, itr + 1)
-            sample(
-                render_env, controller, args.experiment.horizon, render=True)
+            with args.experiment.render_env(itr + 1) as render_env:
+                sample(render_env, controller,
+                       args.experiment.horizon, render=True)
 
         if args.experiment.should_save(itr):
             tfnode.save_all(itr + 1)
