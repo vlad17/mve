@@ -11,6 +11,7 @@ import tensorflow as tf
 import gym
 import numpy as np
 
+from controller import Controller
 import log
 
 
@@ -224,3 +225,60 @@ class AssignableStatistic:
     def tf_denormalize(self, x):
         """Denormalize a value according to these statistics"""
         return x * self._std_var + self._mean_var
+
+
+def as_controller(act):
+    """
+    Generates a controller interface to a single act() method,
+    which should accept a tensor of states and return a tensor of actions.
+    """
+    return _ActorAsController(act)
+
+
+class _ActorAsController(Controller):
+    def __init__(self, act):
+        self._act = act
+
+    def act(self, states_ns):
+        return self._act(states_ns), None, None
+
+    def planning_horizon(self):
+        return 0
+
+
+def qvals(paths, discount):
+    """
+    Return a list of the Q-values at each point along several
+    trajectories according to a given discount.
+
+    This is just a sample of the "true net present value" of the reward
+    for a given path.
+    """
+    all_qvals = []
+    for path in paths:
+        # numerically stable cumulative reward sum
+        path_qvals = np.empty_like(path.rewards, dtype=np.float64)
+        future_qval = 0
+        for i in range(len(path.rewards) - 1, -1, -1):
+            path_qvals[i] = path.rewards[i] + discount * future_qval
+            future_qval = path_qvals[i]
+        all_qvals.append(path_qvals)
+    return all_qvals
+
+
+def hstep(paths, discount, h):
+    """
+    Return the h-step reward, which is similar to the Q-value but truncated
+    to h steps (for any given timestep, the h-step reward is the Q-value,
+    assuming we no longer receive any rewards h steps later).
+
+    The 1-step reward is just the original reward array.
+    The the inifinity-step reward is qvals(...)
+
+    Like qvals, gives a list of the h-step rewards at each point along several
+    trajectories according to a given discount.
+    """
+    all_hstep = qvals(paths, discount)
+    for hsteps in all_hstep:
+        hsteps[:-h] -= discount ** h * hsteps[h:]
+    return all_hstep

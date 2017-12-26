@@ -15,7 +15,7 @@ matplotlib.use('Agg')
 # flake8: noqa pylint: disable=wrong-import-position
 import matplotlib.pyplot as plt
 
-from plot import gather_data
+from plot import gather_data, activate_tex
 
 
 def _main():
@@ -35,7 +35,7 @@ def _main():
     args = parser.parse_args()
 
     if not args.notex:
-        matplotlib.rcParams['text.usetex'] = True
+        activate_tex()
 
     fmt = str(max(len(str(i)) for i in args.hsteps))
     fmt = 'dynamics/open loop/{:' + fmt + 'd}-step mse'
@@ -66,8 +66,8 @@ def _main():
         ixs[name] = mu.index
         mu = mu[yaxis]
         mus[name] = mu
-        tops[name] = df.groupby('step').quantile(0.95)[yaxis]
-        bots[name] = df.groupby('step').quantile(0.05)[yaxis]
+        tops[name] = df.groupby('step').quantile(0.975)[yaxis]
+        bots[name] = df.groupby('step').quantile(0.025)[yaxis]
 
     for name in runs:
         plt.plot(ixs[name], mus[name], label=name)

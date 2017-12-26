@@ -156,12 +156,12 @@ class Critic:
 
         # we don't care about the critic results here, but need
         # TensorFlow to generate the corresponding graph variables
-        states_ph_ns = tf.placeholder(
+        self._states_ph_ns = tf.placeholder(
             tf.float32, [None, env_info.ob_dim()])
-        acs_ph_ns = tf.placeholder(
+        self._acs_ph_na = tf.placeholder(
             tf.float32, [None, env_info.ac_dim()])
-        self.tf_critic(states_ph_ns, acs_ph_ns)
-        self.tf_target_critic(states_ph_ns, acs_ph_ns)
+        self._q_n = self.tf_critic(self._states_ph_ns, self._acs_ph_na)
+        self.tf_target_critic(self._states_ph_ns, self._acs_ph_na)
 
         self.variables = _trainable_vars(self._scope, 'critic')
 
@@ -169,6 +169,12 @@ class Critic:
         """Create and return an op to do target updates"""
         return _target_updates(
             self._scope, 'critic', 'target_critic', decay)
+
+    def critique(self, states_ns, acs_na):
+        """Return current Q-value estimates"""
+        return tf.get_default_session().run(self._q_n, feed_dict={
+            self._states_ph_ns: states_ns,
+            self._acs_ph_na: acs_na})
 
     def _tf_critic(self, states_ns, acs_na, scope):
         states_ns = scale_from_box(self._ob_space, states_ns)

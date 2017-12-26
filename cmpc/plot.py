@@ -49,6 +49,21 @@ from tensorflow.python.framework.errors_impl import DataLossError  # pylint: dis
 import seaborn as sns
 
 
+def savefig(outfile, legend=True):
+    """
+    Save the figure as a pdf to the given file.
+    """
+    if legend:
+        plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2)
+    plt.savefig(outfile, format='pdf', bbox_inches='tight')
+    plt.clf()
+
+
+def activate_tex():
+    """Set LaTeX compilation for text, do this before plotting."""
+    matplotlib.rcParams['text.usetex'] = True
+
+
 def plot_data(data, value, outfile, hlines, yrange):
     """
     Prints a sns tsplot to the outfile in PDF form
@@ -58,13 +73,10 @@ def plot_data(data, value, outfile, hlines, yrange):
                unit='Unit', condition='Condition')
     for y, lbl in hlines:
         plt.axhline(y, label=lbl, linestyle='--')
-    plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2)
     if yrange:
         lo, hi = yrange
         plt.ylim(float(lo), float(hi))
-
-    plt.savefig(outfile, format='pdf', bbox_inches='tight')
-    plt.clf()
+    savefig(outfile)
 
 
 def get_datasets(fpath, column, label, yaxis, smoothing):
@@ -141,7 +153,7 @@ def _main():
     args = parser.parse_args()
 
     if not args.notex:
-        matplotlib.rcParams['text.usetex'] = True
+        activate_tex()
 
     columns = [column.split(':') for column in args.columns]
     data = gather_data(columns, args.yaxis, args.smoothing,

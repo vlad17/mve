@@ -60,6 +60,7 @@ main() {
     tune="../cmpc/tune.py"
     cmpc_plot="../cmpc/plot.py"
     cmpc_plot_dyn="../cmpc/plot_dynamics.py"
+    eval_q="../cmpc/main_evaluate_qval.py"
 
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8"
@@ -69,8 +70,8 @@ main() {
     short_mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 6"
     short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2 --evaluation_envs 10"
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
-    ddpg_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2"
-    ddpg_flags="$experiment_flags $ddpg_flags"
+    ddpg_only_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2"
+    ddpg_flags="$experiment_flags $ddpg_only_flags"
     tune_flags="--ray_addr $ray_addr"
 
     cmds=()
@@ -122,6 +123,9 @@ main() {
     restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000002"
     cmds+=("python $main_ddpg $ddpg_flags $restore --episodes 2")
     # Plot tests
+    restore_ddpg="--seed 3 --restore_ddpg $savedir/ddpg.ckpt-00000002"
+    eval_q_flags="--horizon 10 --mixture_horizon 5 $ddpg_flags --notex"
+    cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags")
     cmds+=("python $main_cmpc $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
 
     

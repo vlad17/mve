@@ -6,11 +6,10 @@ import numpy as np
 from context import flags
 import env_info
 from log import debug
-from learner import as_controller
 from multiprocessing_env import make_venv
 import reporter
 from sample import sample_venv
-from utils import scale_from_box
+from utils import scale_from_box, as_controller
 
 
 def _flatgrad_norms(opt, loss, variables):
@@ -138,7 +137,7 @@ class DDPG:
             lambda: 1.01, lambda: 1 / 1.01)
         self._update_adapative_noise_op = tf.assign(
             adaptive_noise, adaptive_noise * multiplier)
-        self._actor = as_controller(actor)
+        self._actor = as_controller(actor.act)
         self._venv = make_venv(
             flags().experiment.make_env, 10)
 

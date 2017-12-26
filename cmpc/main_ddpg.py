@@ -8,14 +8,13 @@ from dataset import Dataset
 from ddpg_learner import DDPGLearner, DDPGFlags
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags, ArgSpec)
-from learner import as_controller
 import tfnode
 from multiprocessing_env import make_venv
 from persistable_dataset import (
     add_dataset_to_persistance_registry, PersistableDatasetFlags)
 import reporter
 from sample import sample_venv, sample
-from utils import timeit
+from utils import timeit, as_controller
 
 
 def _train(args):
@@ -36,7 +35,7 @@ def _train(args):
                 learner.fit(data)
 
         with timeit('sample learner'):
-            controller = as_controller(learner)
+            controller = as_controller(learner.act)
             paths = sample_venv(venv, controller, args.experiment.horizon)
             data.add_paths(paths)
 

@@ -113,5 +113,13 @@ class DDPGLearner(Learner, TFNode):
     def act(self, states_ns):
         return self._actor.perturbed_act(states_ns)
 
+    def mean_policy_act(self, states_ns):
+        """Act in a way that doesn't explore, just uses what we know."""
+        return self._actor.act(states_ns)
+
+    def critique(self, states_ns, acs_na):
+        """Return the critic's assessment of the given states and actions."""
+        return self._critic.critique(states_ns, acs_na)
+
     def fit(self, data):
         self._ddpg.train(data, self._batch_size, self._reports)
