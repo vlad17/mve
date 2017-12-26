@@ -9,20 +9,18 @@ from log import debug
 from multiprocessing_env import make_venv
 import reporter
 from sample import sample_venv
-from utils import scale_from_box, as_controller
+from tf_reporter import TFReporter
+from utils import scale_from_box, as_controller, qvals
 
 
-def _flatgrad_norms(opt, loss, variables):
-    grads_and_vars = opt.compute_gradients(loss, var_list=variables)
-    grads = [grad for grad, var in grads_and_vars if var is not None]
-    flats = [tf.reshape(x, [-1]) for x in grads]
-    grad = tf.concat(flats, axis=0)
-    l2 = tf.norm(grad, ord=2)
-    linf = tf.norm(grad, ord=np.inf)
-    return l2, linf
+def _incremental_report_name(update_iteration, total_updates):
+    name = '{:0' + str(len(str(total_updates))) + 'd}-of-'
+    name += str(total_updates) + ' trained/'
+    name = 'training ddpg/' + name
+    return name.format(update_iteration)
 
 
-class DDPG:
+class DDPG:  # pylint: disable=too-many-instance-attributes
     """
     Builds the part of the TF graph responsible for training actor
     and critic networks with the DDPG algorithm
@@ -32,7 +30,7 @@ class DDPG:
                  actor_lr=1e-3, critic_lr=1e-3, decay=0.99, explore_stddev=0.2,
                  nbatches=1):
 
-        self._debugs = []
+        self._reporter = TFReporter()
         self._nbatches = nbatches
 
         self.obs0_ph_ns = tf.placeholder(
@@ -50,14 +48,14 @@ class DDPG:
         normalized_critic_at_actor_n = critic.tf_critic(
             self.obs0_ph_ns,
             actor.tf_action(self.obs0_ph_ns))
-        self._debug_stats('actor Q', normalized_critic_at_actor_n)
+        self._reporter.stats('actor Q', normalized_critic_at_actor_n)
         self._actor_loss = -1 * tf.reduce_mean(normalized_critic_at_actor_n)
-        self._debug_scalar('actor loss', self._actor_loss)
+        self._reporter.scalar('actor loss', self._actor_loss)
         opt = tf.train.AdamOptimizer(
             learning_rate=actor_lr, beta1=0.9, beta2=0.999, epsilon=1e-8)
         with tf.variable_scope(scope):
             with tf.variable_scope('opt_actor'):
-                self._debug_grads(
+                self._reporter.grads(
                     'actor grad', opt, self._actor_loss, actor.variables)
                 optimize_actor_op = opt.minimize(
                     self._actor_loss, var_list=actor.variables)
@@ -65,17 +63,17 @@ class DDPG:
         # critic minimizes TD-1 error wrt to target Q and target actor
         current_Q_n = critic.tf_critic(
             self.obs0_ph_ns, self.actions_ph_na)
-        self._debug_stats('critic Q', current_Q_n)
+        self._reporter.stats('critic Q', current_Q_n)
         next_Q_n = critic.tf_target_critic(
             self.obs1_ph_ns, actor.tf_target_action(self.obs1_ph_ns))
         target_Q_n = self.rewards_ph_n + (1. - self.terminals1_ph_n) * (
             discount * next_Q_n)
-        self._debug_stats('target Q', target_Q_n)
+        self._reporter.stats('target Q', target_Q_n)
         reg_loss = sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
         self._critic_loss = tf.losses.mean_squared_error(
             target_Q_n,
             current_Q_n) + reg_loss
-        self._debug_scalar('critic loss', self._critic_loss)
+        self._reporter.scalar('critic loss', self._critic_loss)
 
         opt = tf.train.AdamOptimizer(
             learning_rate=critic_lr, beta1=0.9, beta2=0.999, epsilon=1e-08)
@@ -83,7 +81,7 @@ class DDPG:
         # then perform both updates
         with tf.variable_scope(scope):
             with tf.variable_scope('opt_critic'):
-                self._debug_grads(
+                self._reporter.grads(
                     'critic grad', opt, self._critic_loss, critic.variables)
                 optimize_critic_op = opt.minimize(
                     self._critic_loss, var_list=critic.variables)
@@ -93,7 +91,7 @@ class DDPG:
                 critic.tf_target_update(decay))
 
         for v in actor.variables + critic.variables:
-            self._debug_weights(v.name, v)
+            self._reporter.weights(v.name, v)
 
         self._copy_targets = tf.group(
             actor.tf_target_update(0),
@@ -110,8 +108,9 @@ class DDPG:
             # (summed across mini-batches)
             self._observed_noise_sum = tf.get_variable(
                 'observed_noise_sum', trainable=False, initializer=0.)
-        self._debug_scalar('adaptive param noise', adaptive_noise)
-        self._debug_scalar('action noise', self._observed_noise_sum / nbatches)
+        self._reporter.scalar('adaptive param noise', adaptive_noise)
+        self._reporter.scalar(
+            'action noise', self._observed_noise_sum / nbatches)
         # This implementation observes the param noise after every gradient
         # step this isn't absolutely necessary but doesn't seem to be a
         # bottleneck.
@@ -138,20 +137,27 @@ class DDPG:
         self._update_adapative_noise_op = tf.assign(
             adaptive_noise, adaptive_noise * multiplier)
         self._actor = as_controller(actor.act)
+        self._critic = critic
         self._venv = make_venv(
             flags().experiment.make_env, 10)
 
-    def _test(self):
+    def _evaluate(self, reporting_prefix='', hide=True):
+        # runs out-of-band trials for less noise performance evaluation
         paths = sample_venv(self._venv, self._actor)
         rews = [path.rewards.sum() for path in paths]
-        return rews
-
-    @staticmethod
-    def _incremental_report_name(update_iteration, total_updates):
-        name = '{:0' + str(len(str(total_updates))) + 'd}-of-'
-        name += str(total_updates) + ' trained/'
-        name = 'training ddpg/' + name
-        return name.format(update_iteration)
+        reporter.add_summary_statistics(
+            reporting_prefix + 'mean policy reward', rews, hide=hide)
+        acs = np.concatenate([path.acs for path in paths])
+        obs = np.concatenate([path.obs for path in paths])
+        qs = np.concatenate(qvals(paths, flags().experiment.discount))
+        ddpg_qs = self._critic.critique(obs, acs)
+        diffs = ddpg_qs - qs
+        reporter.add_summary_statistics(
+            reporting_prefix + 'critic Q bias', diffs, hide=hide)
+        qmse = np.square(diffs).mean()
+        reporter.add_summary_statistics(
+            reporting_prefix + 'critic Q MSE', qmse, hide=hide)
+        return np.mean(rews)
 
     def initialize_targets(self):
         """
@@ -160,23 +166,6 @@ class DDPG:
         """
         debug('copying current network to target for DDPG init')
         tf.get_default_session().run(self._copy_targets)
-
-    def _debug_stats(self, name, tensor):
-        flat = tf.reshape(tensor, [-1])
-        self._debugs.append(('stats', name, flat))
-
-    def _debug_scalar(self, name, tensor):
-        self._debugs.append(('scalar', name, tensor))
-
-    def _debug_grads(self, name, opt, loss, variables):
-        grad_l2, grad_linf = _flatgrad_norms(opt, loss, variables)
-        self._debug_scalar(name + ' l2', grad_l2)
-        self._debug_scalar(name + ' linf', grad_linf)
-
-    def _debug_weights(self, name, weights):
-        flat = tf.reshape(weights, [-1])
-        ave_magnitude = tf.reduce_mean(tf.abs(flat))
-        self._debugs.append(('weight', name, ave_magnitude))
 
     def _sample(self, batch):
         obs, next_obs, rewards, acs, terminals = batch
@@ -205,9 +194,8 @@ class DDPG:
         tf.get_default_session().run(self._update_adapative_noise_op)
 
         batch = self._sample(next(data.sample_many(1, batch_size)))
-        self._debug_print(batch)
-        reporter.add_summary_statistics(
-            'mean policy reward', self._test())
+        self._reporter.report(batch)
+        self._evaluate(reporting_prefix='', hide=False)
 
     def _incremental_report(self, feed_dict, itr):
         fmt = 'itr {: 6d} critic loss {:7.3f} actor loss {:7.3f}'
@@ -215,26 +203,10 @@ class DDPG:
         critic_loss, actor_loss, noise_sum = tf.get_default_session().run(
             [self._critic_loss, self._actor_loss, self._observed_noise_sum],
             feed_dict)
-        rewards = self._test()
-        mean_perf = np.mean(rewards)
+        prefix = _incremental_report_name(itr, self._nbatches)
+        mean_perf = self._evaluate(prefix, hide=True)
         mean_noise = noise_sum / itr
         debug(fmt, itr, critic_loss, actor_loss, mean_noise, mean_perf)
-        prefix = self._incremental_report_name(itr, self._nbatches)
-        reporter.add_summary_statistics(
-            prefix + 'mean policy reward', rewards, hide=True)
         reporter.add_summary(prefix + 'actor loss', actor_loss, hide=True)
         reporter.add_summary(prefix + 'critic loss', critic_loss, hide=True)
         reporter.add_summary(prefix + 'action noise', mean_noise, hide=True)
-
-    def _debug_print(self, feed_dict):
-        debug_types, names, tensors = zip(*self._debugs)
-        values = tf.get_default_session().run(tensors, feed_dict)
-        for debug_type, name, value in zip(debug_types, names, values):
-            if debug_type == 'scalar':
-                reporter.add_summary(name, value)
-            elif debug_type == 'stats':
-                reporter.add_summary_statistics(name, value)
-            elif debug_type == 'weight':
-                reporter.add_summary(name, value, hide=True)
-            else:
-                raise ValueError('unknown debug_type {}'.format(debug_type))
