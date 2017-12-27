@@ -14,6 +14,20 @@ from qvalues import qvals, offline_oracle_q
 from utils import scale_from_box, as_controller
 
 
+def _tf_seq(a, b_fn):
+    # force a temporal dependence on the evaluation of b after a
+    # from Haskell :)
+    with tf.control_dependencies([a]):
+        return b_fn()
+
+
+def _tf_doif(cond, if_true_fn):
+    return tf.cond(
+        cond,
+        lambda: _tf_seq(if_true_fn(), lambda: tf.constant(0)),
+        lambda: 0)
+
+
 class DDPG:  # pylint: disable=too-many-instance-attributes
     """
     Builds the part of the TF graph responsible for training actor
@@ -26,8 +40,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
         self._reporter = TFReporter()
 
-        self._nbatches_ph = tf.placeholder(tf.int32, shape=[])
-        nbatches = tf.to_float(self._nbatches_ph)
         self.obs0_ph_ns = tf.placeholder(
             tf.float32, shape=[None, env_info.ob_dim()])
         self.obs1_ph_ns = tf.placeholder(
@@ -96,17 +108,20 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         # a perturbation stddev for actor network weights that hits the target
         # action stddev. After every gradient step sample how far our current
         # parameter space noise puts our actions from mean.
-        with tf.variable_scope(scope):
+        with tf.variable_scope(scope), tf.variable_scope('adaption'):
             init_stddev = explore_stddev / (actor.depth + 1)
             adaptive_noise = tf.get_variable(
                 'adaptive_noise', trainable=False, initializer=init_stddev)
-            # sum of action noise we've seen in the current training iteration
-            # (summed across mini-batches)
-            self._observed_noise_sum = tf.get_variable(
+            # sum of action noise we've seen in the last few updates
+            observed_noise_sum = tf.get_variable(
                 'observed_noise_sum', trainable=False, initializer=0.)
+            # number of observations in sum
+            adaption_update_ctr = tf.get_variable(
+                'update_ctr', trainable=False, initializer=0)
+            previous_mean_action_noise = tf.get_variable(
+                'prev_mean_action_noise', trainable=False, initializer=0.)
         self._reporter.scalar('adaptive param noise', adaptive_noise)
-        self._reporter.scalar(
-            'action noise', self._observed_noise_sum / nbatches)
+        self._reporter.scalar('action noise', previous_mean_action_noise)
         # This implementation observes the param noise after every gradient
         # step this isn't absolutely necessary but doesn't seem to be a
         # bottleneck.
@@ -123,22 +138,39 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                         self.obs0_ph_ns))
                 batch_observed_noise = tf.sqrt(
                     tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
-                save_noise = tf.assign_add(
-                    self._observed_noise_sum, batch_observed_noise)
+        with tf.variable_scope(scope), tf.variable_scope('adaption'):
+            save_noise = tf.group(
+                tf.assign_add(observed_noise_sum, batch_observed_noise),
+                tf.assign_add(adaption_update_ctr, 1))
+            adaption_interval = flags().ddpg.param_noise_adaption_interval
+            adaption_rate = 1.01
+            multiplier = tf.cond(
+                observed_noise_sum < explore_stddev * adaption_interval,
+                lambda: adaption_rate, lambda: 1 / adaption_rate)
+            adapted_noise = adaptive_noise * multiplier
+            with tf.control_dependencies([save_noise]):
+                # this is a bit icky, but if it wasn't for TF it'd be
+                # easy to read: if we had adaption_interval updates,
+                # then adapt the parameter-space noise and clear the
+                # running sum and counters. The lambdas are necessary
+                # b/c TF relies on op-creation context to create temporal
+                # dependencies.
+                conditional_update = _tf_doif(
+                    tf.equal(adaption_update_ctr, adaption_interval),
+                    lambda: _tf_seq(
+                        tf.group(
+                            tf.assign(adaptive_noise, adapted_noise),
+                            tf.assign(previous_mean_action_noise,
+                                      observed_noise_sum / adaption_interval)),
+                        lambda: tf.group(
+                            tf.assign(observed_noise_sum, 0.),
+                            tf.assign(adaption_update_ctr, 0))))
 
-        self._optimize = tf.group(update_targets, save_noise)
-        multiplier = tf.cond(
-            self._observed_noise_sum < explore_stddev * nbatches,
-            lambda: 1.01, lambda: 1 / 1.01)
-        self._update_adapative_noise_op = tf.assign(
-            adaptive_noise, adaptive_noise * multiplier)
+        self._optimize = tf.group(update_targets, conditional_update)
         self._actor = actor
         self._critic = critic
         self._venv = make_venv(
             flags().experiment.make_env, 10)
-        self._assess_venv = make_venv(  # currently unused, but will be :)
-            flags().experiment.make_env,
-            flags().ddpg.oracle_nenvs_with_default())
 
     def _evaluate(self):
         # runs out-of-band trials for less noise performance evaluation
@@ -187,18 +219,13 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
     def train(self, data, nbatches, batch_size):
         """Run nbatches training iterations of DDPG"""
-        tf.get_default_session().run(self._observed_noise_sum.initializer)
         batches = data.sample_many(nbatches, batch_size)
         for batch in batches:
             feed_dict = self._sample(batch)
             tf.get_default_session().run(self._optimize, feed_dict)
 
-        tf.get_default_session().run(self._update_adapative_noise_op,
-                                     feed_dict={self._nbatches_ph: nbatches})
-
         if data.size:
             batch = self._sample(next(data.sample_many(1, batch_size)))
-            batch[self._nbatches_ph] = nbatches
             self._reporter.report(batch)
 
         self._evaluate()

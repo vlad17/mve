@@ -62,13 +62,19 @@ class DDPGFlags(Flags):
                 name='explore_stddev',
                 default=0.,
                 type=float,
-                help='goal action standard deviation for exploration'),
+                help='goal action standard deviation for exploration,'
+                ' after rescaling actions to [0, 1]'),
+            ArgSpec(
+                name='param_noise_adaption_interval',
+                default=50,
+                type=int,
+                help='how frequently to update parameter-space noise'),
             ArgSpec(
                 name='oracle_nenvs',
                 default=0,
                 type=int,
                 help='number of envs to use for oracle Q-estimates (the larger'
-                ' the better, default is 100 * num cpus)'),
+                ' the better, default is 10 * num cpus)'),
             ArgSpec(
                 name='model_horizon',
                 default=1,
@@ -84,7 +90,7 @@ class DDPGFlags(Flags):
     def oracle_nenvs_with_default(self):
         """The number of environments an oracle should use."""
         par = self.oracle_nenvs
-        par = max(cpu_count(), 1) * 100 if par == 0 else par
+        par = max(cpu_count(), 1) * 10 if par == 0 else par
         return par
 
     def nbatches(self, timesteps):
