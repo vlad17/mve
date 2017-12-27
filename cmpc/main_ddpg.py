@@ -14,7 +14,7 @@ from persistable_dataset import (
     add_dataset_to_persistance_registry, PersistableDatasetFlags)
 import reporter
 from sample import sample_venv, sample
-from utils import timeit, as_controller
+from utils import timeit, as_controller, timesteps
 
 
 def _train(args):
@@ -29,10 +29,10 @@ def _train(args):
     tf.get_default_graph().finalize()
     tfnode.restore_all()
 
+    paths = []
     for itr in range(args.run.episodes):
         with timeit('learner fit'):
-            if data.size:
-                learner.fit(data)
+            learner.fit(data, timesteps(paths))
 
         with timeit('sample learner'):
             controller = as_controller(learner.act)
@@ -43,7 +43,7 @@ def _train(args):
             rewards = [path.rewards.sum() for path in paths]
             reporter.add_summary_statistics('reward', rewards)
 
-        reporter.advance_iteration()
+        reporter.advance(paths)
         if args.experiment.should_render(itr):
             with args.experiment.render_env(itr + 1) as render_env:
                 sample(render_env, controller,

@@ -49,10 +49,13 @@ class Controller:
         """
         raise NotImplementedError
 
-    def fit(self, data):
+    def fit(self, data, timesteps):
         """
         If the controller relies on a learning component from its data,
         then it might be fitted here.
+
+        data is the current ringbuffer and timesteps indicates how many
+        new transitions we have just sampled.
         """
         pass
 

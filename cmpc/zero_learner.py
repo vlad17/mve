@@ -16,7 +16,7 @@ class ZeroLearner(Learner):
     def tf_action(self, states_ns):
         return tf.zeros([tf.shape(states_ns)[0], env_info.ac_dim()])
 
-    def fit(self, data):
+    def fit(self, data, timesteps):
         pass
 
     def act(self, states_ns):

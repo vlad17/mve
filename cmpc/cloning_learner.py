@@ -37,16 +37,23 @@ class CloningLearnerFlags(Flags):
                 default=1e-3,
                 help='learned controller NN learning rate'),
             ArgSpec(
-                name='cloning_learner_nbatches',
-                type=int,
-                default=4000,
-                help='learned controller training minibatches'),
+                name='cloning_learner_batches_per_timestep',
+                type=float,
+                default=4,
+                help='number of mini-batches to train dynamics per '
+                'new sample observed'),
             ArgSpec(
                 name='cloning_learner_batch_size',
                 type=int,
                 default=512,
                 help='learned controller batch size')]
         super().__init__('cloning', 'cloning learner', arguments)
+
+    def nbatches(self, timesteps):
+        """The number training batches, given this many timesteps."""
+        nbatches = self.cloning_learner_batches_per_timestep * timesteps
+        nbatches = max(int(nbatches), 1)
+        return nbatches
 
 
 class CloningLearner(Learner):
@@ -82,8 +89,8 @@ class CloningLearner(Learner):
             output_activation=tf.sigmoid, reuse=tf.AUTO_REUSE)
         return scale_to_box(env_info.ac_space(), ac_na)
 
-    def fit(self, data):
-        nbatches = flags().cloning.cloning_learner_nbatches
+    def fit(self, data, timesteps):
+        nbatches = flags().cloning.nbatches(timesteps)
         batch_size = flags().cloning.cloning_learner_batch_size
         for batch in data.sample_many(nbatches, batch_size):
             obs, _, _, acs, _ = batch

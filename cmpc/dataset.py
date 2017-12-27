@@ -215,6 +215,9 @@ class Dataset(object):
         (current) observations, next observations, rewards, actions,
         and terminal state indicators.
         """
+        assert batch_size > 0, batch_size
+        if self.size == 0 or nbatches == 0:
+            return
         batch_idxs = np.random.randint(self.size, size=(
             nbatches, batch_size))
         transitions = [self.obs, self.next_obs, self.rewards, self.acs,

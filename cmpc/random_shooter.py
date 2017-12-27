@@ -135,8 +135,8 @@ class RandomShooter(Controller):
     def planning_horizon(self):
         return self._mpc_horizon
 
-    def fit(self, data):
-        self._learner.fit(data)
+    def fit(self, data, timesteps):
+        self._learner.fit(data, timesteps)
 
     def log(self, most_recent):
         # out-of-band learner evaluation

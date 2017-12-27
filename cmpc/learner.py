@@ -27,8 +27,13 @@ class Learner:
         """
         raise NotImplementedError
 
-    def fit(self, data):
-        """Fit the learner using the given dataset of transitions"""
+    def fit(self, data, timesteps):
+        """
+        Fit the learner using the given dataset of transitions.
+
+        data is the current ringbuffer and timesteps indicates how many
+        new transitions we have just sampled.
+        """
         raise NotImplementedError
 
     def act(self, states_ns):

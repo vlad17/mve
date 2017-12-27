@@ -255,3 +255,8 @@ def print_table(data):
     table = SingleTable(data)
     table.inner_column_border = False
     print(table.table)
+
+
+def timesteps(paths):
+    """Return the total number of timesteps in a list of trajectories"""
+    return sum(len(path.rewards) for path in paths)

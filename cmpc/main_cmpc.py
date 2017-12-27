@@ -22,7 +22,7 @@ from cloning_learner import CloningLearnerFlags
 import tfnode
 from multiprocessing_env import make_venv
 from sample import sample_venv, sample
-from utils import timeit
+from utils import timeit, timesteps
 import reporter
 
 
@@ -49,15 +49,14 @@ def _train(args, env, venv, dyn_metrics):
     tf.global_variables_initializer().run()
     tf.get_default_graph().finalize()
     tfnode.restore_all()
+    paths = []
 
     for itr in range(args.mpc.onpol_iters):
         with timeit('dynamics fit'):
-            if data.size:
-                dyn_model.fit(data)
+            dyn_model.fit(data, timesteps(paths))
 
         with timeit('controller fit'):
-            if data.size:
-                controller.fit(data)
+            controller.fit(data, timesteps(paths))
 
         with timeit('sample controller'):
             paths = sample_venv(venv, controller, args.experiment.horizon)
@@ -69,7 +68,7 @@ def _train(args, env, venv, dyn_metrics):
             dyn_metrics.log(most_recent)
             controller.log(most_recent)
 
-        reporter.advance_iteration()
+        reporter.advance(paths)
 
         if args.experiment.should_render(itr):
             with args.experiment.render_env(itr + 1) as render_env:

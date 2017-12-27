@@ -42,11 +42,11 @@ main() {
     }
     trap note_failure EXIT
 
-    tune_params_json='[{"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1, "evaluation_envs": 10}, {"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1, "evaluation_envs": 10}]'
+    tune_params_json='[{"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_batches_per_timestep": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_batches_per_timestep": 1, "evaluation_envs": 10}, {"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_batches_per_timestep": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_batches_per_timestep": 1, "evaluation_envs": 10}]'
     tune_params_run="python ../cmpc/main_cmpc.py --rs_learner ddpg --horizon 5 --simulated_paths 2"
     tune_params_run="$tune_params_run --mpc_horizon 3 --onpol_paths 3 --onpol_iters 4"
-    tune_params_run="$tune_params_run --learner_depth 1 --learner_width 10 --learner_nbatches 1"
-    tune_params_run="$tune_params_run --dyn_depth 1 --dyn_width 8 --dynamics_nbatches 1"
+    tune_params_run="$tune_params_run --learner_depth 1 --learner_width 10 --learner_batches_per_timestep 1"
+    tune_params_run="$tune_params_run --dyn_depth 1 --dyn_width 8 --dynamics_batches_per_timestep 1"
     tune_params_run="$tune_params_run --evaluation_envs 10"
     
     if [ -d _test ] ; then
@@ -69,13 +69,13 @@ main() {
 
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8"
-    dynamics_flags="--dynamics_nbatches 1 --dyn_depth 1 --dyn_width 8"
+    dynamics_flags="--dynamics_batches_per_timestep 1 --dyn_depth 1 --dyn_width 8"
     mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 3"
     mpc_flags="$mpc_flags --evaluation_envs 10"
     short_mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 6"
     short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2 --evaluation_envs 10"
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
-    ddpg_only_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2 --oracle_nenvs 10"
+    ddpg_only_flags="--learner_depth 1 --learner_width 1 --learner_batches_per_timestep 1 --oracle_nenvs 10"
     ddpg_flags="$experiment_flags $ddpg_only_flags"
     tune_flags="--ray_addr $ray_addr"
 
@@ -95,11 +95,11 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4 --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4 --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2 --episodes 2")
-    cmds+=("python $main_ddpg $ddpg_flags --incremental_reports 3 --episodes 2")
+    cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
     # CMPC
     cloning="--mpc_optimizer random_shooter --rs_learner cloning"
     cloning="$cloning --cloning_learner_depth 1 --cloning_learner_width 1"
-    cloning="$cloning --cloning_learner_nbatches 2"
+    cloning="$cloning --cloning_learner_batches_per_timestep 1"
     cmds+=("python $main_cmpc $cloning $rs_mpc_flags")
     rs_ddpg="--mpc_optimizer random_shooter --rs_learner ddpg"
     cmds+=("python $main_cmpc $rs_ddpg $rs_mpc_flags $ddpg_flags")
@@ -136,7 +136,8 @@ main() {
     cmds+=("$tune_params_run")
     
     for cmd in "${cmds[@]}"; do
-        box "$cmd"
+        relative="../cmpc"
+        box "${cmd/$relative/cmpc}"
         $cmd
     done
 
@@ -157,7 +158,7 @@ main() {
     cmd="python $cmpc_plot_dyn $instance --outfile z.pdf --notex --smoothing 2 --hsteps 1 2 3"
     hermetic_file "z.pdf" "$cmd"
     
-    cmd="python $cmpc_plot_dyn $instance --outfile z.pdf --notex --yrange 0 1 --time 1 --hsteps 2"
+    cmd="python $cmpc_plot_dyn $instance --outfile z.pdf --notex --yrange 0 1 --hsteps 2"
     hermetic_file "z.pdf" "$cmd"
 
     cd ..

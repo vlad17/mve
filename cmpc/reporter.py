@@ -10,7 +10,7 @@ import numpy as np
 import tensorflow as tf
 
 from context import context
-from utils import create_tf_session, print_table
+from utils import create_tf_session, print_table, timesteps
 
 
 @contextmanager
@@ -40,7 +40,7 @@ def add_summary(name, value, hide=False):
     """
     Add a known floating-point value summary to the current reporter.
     If hide is set to true, this summary is not printed during
-    advance_iteration().
+    advance().
     """
     context().reporter.add_summary(name, value, hide)
 
@@ -53,13 +53,18 @@ def add_summary_statistics(name, values, hide=False):
     context().reporter.add_summary_statistics(name, values, hide)
 
 
-def advance_iteration():
+def advance(paths):
     """
     Advance the iteration and print statistics as recorded by the current
     reported. The statistics are only printed if the reporter was specified
     as verbose.
+
+    We advance by the number of timesteps and episodes taken in the paths
+    list that was passed in.
     """
-    context().reporter.advance_iteration()
+    ts = timesteps(paths)
+    episodes = len(paths)
+    context().reporter.advance(ts, episodes)
 
 
 def logging_directory():
@@ -132,13 +137,15 @@ def _floatprint(f):
 class _Reporter:
     """
     Manages logging diagnostic information about the application.
-    Keeps track of the current iteration.
+    Keeps track of the current number of timesteps as the global step,
+    and the total number of episodes so far.
     """
 
     def __init__(self, logdir, verbose):
         self._writer = tf.summary.FileWriter(logdir)
         self._verbose = verbose
-        self._global_step = 1
+        self._global_step = 0
+        self._num_episodes = 0
         self._latest_summaries = {}
         self._latest_statistics = {}
         self.logdir = logdir
@@ -148,7 +155,7 @@ class _Reporter:
         """
         Add a known floating-point value summary. Optionally, choose to hide
         the summary, preventing it from being printed during
-        advance_iteration().
+        advance().
         """
         self._latest_summaries[name] = value
         if hide:
@@ -162,8 +169,11 @@ class _Reporter:
         if hide:
             self._hidden.add(name)
 
-    def advance_iteration(self):
+    def advance(self, ts, episodes):
         """Increment the global step and print the previous step statistics"""
+        self._global_step += ts
+        self._num_episodes += episodes
+        self.add_summary('total episodes', self._num_episodes, False)
         self._write_summaries()
         if self._verbose:
             self._print_table()
@@ -171,14 +181,13 @@ class _Reporter:
         for hook in _hooks():
             hook(self._latest_summaries, self._latest_statistics)
 
-        self._global_step += 1
         self._latest_summaries = {}
         self._latest_statistics = {}
         self._hidden = set()
 
     def _print_table(self):
         data = [['summary', 'value', 'min', 'mean', 'max', 'std']]
-        data.append(['iteration', self._global_step, '', '', '', ''])
+        data.append(['timesteps', self._global_step, '', '', '', ''])
         for name, value in sorted(self._latest_summaries.items()):
             if name in self._hidden:
                 continue

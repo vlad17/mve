@@ -26,7 +26,7 @@ def _train(args):
     paths = sample_venv(venv, random_policy, args.experiment.horizon)
     rewards = [path.rewards.sum() for path in paths]
     reporter.add_summary_statistics('reward', rewards)
-    reporter.advance_iteration()
+    reporter.advance(paths)
 
 
 if __name__ == "__main__":

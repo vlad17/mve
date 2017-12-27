@@ -3,6 +3,7 @@
 import tensorflow as tf
 import numpy as np
 
+from context import flags
 from flags import Flags, ArgSpec
 from tfnode import TFNode
 from utils import build_mlp, get_ob_dim, get_ac_dim, AssignableStatistic
@@ -42,14 +43,21 @@ class DynamicsFlags(Flags):
             type=str,
             help='restore dynamics from the given path')
         yield ArgSpec(
-            name='dynamics_nbatches',
-            type=int,
-            default=4000,
-            help='number of mini-batches to train dynamics on every round',)
+            name='dynamics_batches_per_timestep',
+            type=float,
+            default=4,
+            help='number of mini-batches to train dynamics per '
+            'new sample observed')
 
     def __init__(self):
         super().__init__('dynamics', 'learned dynamics',
                          list(DynamicsFlags._generate_arguments()))
+
+    def nbatches(self, timesteps):
+        """The number training batches, given this many timesteps."""
+        nbatches = self.dynamics_batches_per_timestep * timesteps
+        nbatches = max(int(nbatches), 1)
+        return nbatches
 
 
 class _Statistics:
@@ -112,8 +120,6 @@ class NNDynamicsModel(TFNode):
 
     def __init__(self, env, norm_data, dyn_flags):
         ob_dim, ac_dim = get_ob_dim(env), get_ac_dim(env)
-        self._nbatches = dyn_flags.dynamics_nbatches
-        self._batch_size = dyn_flags.dyn_batch_size
 
         self._input_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], 'dynamics_input_state')
@@ -142,8 +148,13 @@ class NNDynamicsModel(TFNode):
 
         super().__init__('dynamics', dyn_flags.restore_dynamics)
 
-    def fit(self, data):
-        """Fit the dynamics to the given dataset of transitions"""
+    def fit(self, data, timesteps):
+        """
+        Fit the dynamics to the given dataset of transitions, given that
+        we saw a certain number of new timesteps
+        """
+        if not data.size or not timesteps:
+            return
         self._norm.update_stats(data)
 
         # I actually tried out the tf.contrib.train.Dataset API, and
@@ -151,7 +162,9 @@ class NNDynamicsModel(TFNode):
         # data throughput per batch is small enough (since the data is so
         # simple) that up-front shuffling as performed here is probably
         # saving us more time.
-        for batch in data.sample_many(self._nbatches, self._batch_size):
+        nbatches = flags().dynamics.nbatches(timesteps)
+        batch_size = flags().dynamics.dyn_batch_size
+        for batch in data.sample_many(nbatches, batch_size):
             obs, next_obs, _, acs, _ = batch
             self._update_op.run(feed_dict={
                 self._input_state_ph_ns: obs,

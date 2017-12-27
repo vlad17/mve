@@ -43,10 +43,11 @@ class DDPGFlags(Flags):
                 default=64,
                 help='width for both actor and critic networks'),
             ArgSpec(
-                name='learner_nbatches',
-                default=4000,
-                type=int,
-                help='number of minibatches to train on per iteration'),
+                name='learner_batches_per_timestep',
+                default=4,
+                type=float,
+                help='number of mini-batches to train dynamics per '
+                'new sample observed'),
             ArgSpec(
                 name='learner_batch_size',
                 default=512,
@@ -62,12 +63,6 @@ class DDPGFlags(Flags):
                 default=0.,
                 type=float,
                 help='goal action standard deviation for exploration'),
-            ArgSpec(
-                name='incremental_reports',
-                default=0,
-                type=int,
-                help='if >0, the number of intermediate DDPG training reports'
-                ' to give'),
             ArgSpec(
                 name='oracle_nenvs',
                 default=0,
@@ -92,6 +87,12 @@ class DDPGFlags(Flags):
         par = max(cpu_count(), 1) * 100 if par == 0 else par
         return par
 
+    def nbatches(self, timesteps):
+        """The number training batches, given this many timesteps."""
+        nbatches = self.learner_batches_per_timestep * timesteps
+        nbatches = max(int(nbatches), 1)
+        return nbatches
+
 
 class DDPGLearner(Learner, TFNode):
     """
@@ -105,7 +106,6 @@ class DDPGLearner(Learner, TFNode):
 
     def __init__(self):
         self._batch_size = flags().ddpg.learner_batch_size
-        self._reports = flags().ddpg.incremental_reports
         self.actor = Actor(
             width=flags().ddpg.learner_width,
             depth=flags().ddpg.learner_depth,
@@ -121,7 +121,6 @@ class DDPGLearner(Learner, TFNode):
                           critic_lr=flags().ddpg.critic_lr,
                           decay=flags().ddpg.target_decay,
                           scope='ddpg',
-                          nbatches=flags().ddpg.learner_nbatches,
                           explore_stddev=flags().ddpg.explore_stddev)
         TFNode.__init__(self, 'ddpg', flags().ddpg.restore_ddpg)
 
@@ -134,5 +133,6 @@ class DDPGLearner(Learner, TFNode):
     def act(self, states_ns):
         return self.actor.perturbed_act(states_ns)
 
-    def fit(self, data):
-        self._ddpg.train(data, self._batch_size, self._reports)
+    def fit(self, data, timesteps):
+        nbatches = flags().ddpg.nbatches(timesteps)
+        self._ddpg.train(data, nbatches, self._batch_size)
