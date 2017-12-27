@@ -209,7 +209,7 @@ class _Worker(object):
                 done = True
                 info_i = {}
             observation_m.append(observation)
-            reward_m.append(reward)
+            reward_m.append(np.asscalar(np.asarray(reward, dtype=float)))
             done_m.append(done)
             info['m'].append(info_i)
         return observation_m, reward_m, done_m, info

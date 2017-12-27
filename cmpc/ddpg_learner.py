@@ -2,6 +2,7 @@
 A learner which uses DDPG: an off-policy RL algorithm based on
 policy-gradients.
 """
+from multiprocessing import cpu_count
 
 from context import flags
 from flags import Flags, ArgSpec
@@ -68,11 +69,28 @@ class DDPGFlags(Flags):
                 help='if >0, the number of intermediate DDPG training reports'
                 ' to give'),
             ArgSpec(
+                name='oracle_nenvs',
+                default=0,
+                type=int,
+                help='number of envs to use for oracle Q-estimates (the larger'
+                ' the better, default is 100 * num cpus)'),
+            ArgSpec(
+                name='model_horizon',
+                default=1,
+                type=int,
+                help='how many steps to expand Q estimates dynamics'),
+            ArgSpec(
                 name='restore_ddpg',
                 default=None,
                 type=str,
                 help='restore ddpg from the given path')]
         super().__init__('ddpg', 'DDPG', arguments)
+
+    def oracle_nenvs_with_default(self):
+        """The number of environments an oracle should use."""
+        par = self.oracle_nenvs
+        par = max(cpu_count(), 1) * 100 if par == 0 else par
+        return par
 
 
 class DDPGLearner(Learner, TFNode):
@@ -80,21 +98,24 @@ class DDPGLearner(Learner, TFNode):
     Use a DDPG agent to learn. The learner's tf_action
     gives its mean actor policy, but when the learner acts it uses
     parameter-space exploration.
+
+    Has actor and critic attributes for internal ddpg.models.Actor
+    and ddpg.models.Critic, respectively.
     """
 
     def __init__(self):
         self._batch_size = flags().ddpg.learner_batch_size
         self._reports = flags().ddpg.incremental_reports
-        self._actor = Actor(
+        self.actor = Actor(
             width=flags().ddpg.learner_width,
             depth=flags().ddpg.learner_depth,
             scope='ddpg')
-        self._critic = Critic(
+        self.critic = Critic(
             width=flags().ddpg.learner_width,
             depth=flags().ddpg.learner_depth,
             scope='ddpg',
             l2reg=flags().ddpg.critic_l2_reg)
-        self._ddpg = DDPG(self._actor, self._critic,
+        self._ddpg = DDPG(self.actor, self.critic,
                           discount=flags().experiment.discount,
                           actor_lr=flags().ddpg.actor_lr,
                           critic_lr=flags().ddpg.critic_lr,
@@ -108,18 +129,10 @@ class DDPGLearner(Learner, TFNode):
         self._ddpg.initialize_targets()
 
     def tf_action(self, states_ns):
-        return self._actor.tf_action(states_ns)
+        return self.actor.tf_action(states_ns)
 
     def act(self, states_ns):
-        return self._actor.perturbed_act(states_ns)
-
-    def mean_policy_act(self, states_ns):
-        """Act in a way that doesn't explore, just uses what we know."""
-        return self._actor.act(states_ns)
-
-    def critique(self, states_ns, acs_na):
-        """Return the critic's assessment of the given states and actions."""
-        return self._critic.critique(states_ns, acs_na)
+        return self.actor.perturbed_act(states_ns)
 
     def fit(self, data):
         self._ddpg.train(data, self._batch_size, self._reports)

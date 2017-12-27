@@ -8,10 +8,9 @@ import threading
 
 import numpy as np
 import tensorflow as tf
-from terminaltables import SingleTable
 
 from context import context
-from utils import create_tf_session
+from utils import create_tf_session, print_table
 
 
 @contextmanager
@@ -105,8 +104,12 @@ class _Summarize:
         """Generate a TF histogram with the specified name and values"""
         with _Summarize._lock:
             sess = _Summarize._session_unlocked()
-        summary_pb_bytes = sess.run(
-            _Summarize._hist_op, feed_dict={_Summarize._hist_ph: values})
+        try:
+            summary_pb_bytes = sess.run(
+                _Summarize._hist_op, feed_dict={_Summarize._hist_ph: values})
+        except tf.errors.InvalidArgumentError as e:
+            msg = 'error during histogram generation for {}'.format(name)
+            raise ValueError(msg) from e
         summary = tf.Summary()
         summary.ParseFromString(summary_pb_bytes)
         values = summary.value
@@ -187,9 +190,7 @@ class _Reporter:
                       [np.min, np.mean, np.max, np.std]]
             values = [_floatprint(value) for value in values]
             data.append([name, ''] + values)
-        table = SingleTable(data)
-        table.inner_column_border = False
-        print(table.table)
+        print_table(data)
 
     def _write_summaries(self):
         for name, value in self._latest_summaries.items():

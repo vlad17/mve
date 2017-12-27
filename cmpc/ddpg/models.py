@@ -82,9 +82,9 @@ class Actor:
         self._states_ph_ns = tf.placeholder(
             tf.float32, [None, env_info.ob_dim()])
         # result unimportant, just generate the corresponding graph variables
-        self._mean_acs_na = self.tf_action(self._states_ph_ns)
-        self.tf_target_action(self._states_ph_ns)
-        self._acs_na = self.tf_perturbed_action(self._states_ph_ns)
+        self._acs_na = self.tf_action(self._states_ph_ns)
+        self._target_acs_na = self.tf_target_action(self._states_ph_ns)
+        self._perturb_acs_na = self.tf_perturbed_action(self._states_ph_ns)
 
         self.variables = _trainable_vars(self._scope, 'actor')
 
@@ -104,14 +104,21 @@ class Actor:
         """
         Return a numpy array with the current (mean) actor's actions.
         """
-        return tf.get_default_session().run(self._mean_acs_na, feed_dict={
+        return tf.get_default_session().run(self._acs_na, feed_dict={
+            self._states_ph_ns: states_ns})
+
+    def target_act(self, states_ns):
+        """
+        Return a numpy array with the target actor's actions.
+        """
+        return tf.get_default_session().run(self._target_acs_na, feed_dict={
             self._states_ph_ns: states_ns})
 
     def perturbed_act(self, states_ns):
         """
         Return a numpy array with the current (perturbed) actor's actions.
         """
-        return tf.get_default_session().run(self._acs_na, feed_dict={
+        return tf.get_default_session().run(self._perturb_acs_na, feed_dict={
             self._states_ph_ns: states_ns})
 
     def tf_action(self, states_ns):
@@ -154,14 +161,13 @@ class Critic:
             'reuse': None}
         self._scope = scope
 
-        # we don't care about the critic results here, but need
-        # TensorFlow to generate the corresponding graph variables
         self._states_ph_ns = tf.placeholder(
             tf.float32, [None, env_info.ob_dim()])
         self._acs_ph_na = tf.placeholder(
             tf.float32, [None, env_info.ac_dim()])
         self._q_n = self.tf_critic(self._states_ph_ns, self._acs_ph_na)
-        self.tf_target_critic(self._states_ph_ns, self._acs_ph_na)
+        self._target_q_n = self.tf_target_critic(
+            self._states_ph_ns, self._acs_ph_na)
 
         self.variables = _trainable_vars(self._scope, 'critic')
 
@@ -173,6 +179,12 @@ class Critic:
     def critique(self, states_ns, acs_na):
         """Return current Q-value estimates"""
         return tf.get_default_session().run(self._q_n, feed_dict={
+            self._states_ph_ns: states_ns,
+            self._acs_ph_na: acs_na})
+
+    def target_critique(self, states_ns, acs_na):
+        """Return current Q-value estimates"""
+        return tf.get_default_session().run(self._target_q_n, feed_dict={
             self._states_ph_ns: states_ns,
             self._acs_ph_na: acs_na})
 

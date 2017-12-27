@@ -10,7 +10,8 @@ from multiprocessing_env import make_venv
 import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
-from utils import scale_from_box, as_controller, qvals
+from qvalues import qvals, offline_oracle_q
+from utils import scale_from_box, as_controller
 
 
 def _incremental_report_name(update_iteration, total_updates):
@@ -45,11 +46,11 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             tf.float32, shape=[None, env_info.ac_dim()])
 
         # actor maximizes current Q
-        normalized_critic_at_actor_n = critic.tf_critic(
+        critic_at_actor_n = critic.tf_critic(
             self.obs0_ph_ns,
             actor.tf_action(self.obs0_ph_ns))
-        self._reporter.stats('actor Q', normalized_critic_at_actor_n)
-        self._actor_loss = -1 * tf.reduce_mean(normalized_critic_at_actor_n)
+        self._reporter.stats('actor Q', critic_at_actor_n)
+        self._actor_loss = -1 * tf.reduce_mean(critic_at_actor_n)
         self._reporter.scalar('actor loss', self._actor_loss)
         opt = tf.train.AdamOptimizer(
             learning_rate=actor_lr, beta1=0.9, beta2=0.999, epsilon=1e-8)
@@ -136,27 +137,39 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             lambda: 1.01, lambda: 1 / 1.01)
         self._update_adapative_noise_op = tf.assign(
             adaptive_noise, adaptive_noise * multiplier)
-        self._actor = as_controller(actor.act)
+        self._actor = actor
         self._critic = critic
         self._venv = make_venv(
             flags().experiment.make_env, 10)
+        self._assess_venv = make_venv(
+            flags().experiment.make_env,
+            flags().ddpg.oracle_nenvs_with_default())
 
     def _evaluate(self, reporting_prefix='', hide=True):
         # runs out-of-band trials for less noise performance evaluation
-        paths = sample_venv(self._venv, self._actor)
+        paths = sample_venv(self._venv, as_controller(self._actor.target_act))
         rews = [path.rewards.sum() for path in paths]
         reporter.add_summary_statistics(
             reporting_prefix + 'mean policy reward', rews, hide=hide)
         acs = np.concatenate([path.acs for path in paths])
         obs = np.concatenate([path.obs for path in paths])
         qs = np.concatenate(qvals(paths, flags().experiment.discount))
-        ddpg_qs = self._critic.critique(obs, acs)
-        diffs = ddpg_qs - qs
-        reporter.add_summary_statistics(
-            reporting_prefix + 'critic Q bias', diffs, hide=hide)
-        qmse = np.square(diffs).mean()
-        reporter.add_summary_statistics(
-            reporting_prefix + 'critic Q MSE', qmse, hide=hide)
+        model_horizon = flags().ddpg.model_horizon
+        target_qs = self._critic.target_critique(obs, acs)
+        qs_estimators = [
+            (self._critic.critique(obs, acs), 'critic'),
+            (target_qs, 'target'),
+            (offline_oracle_q(paths, target_qs, model_horizon),
+             'oracle-' + str(model_horizon))]
+        for est_qs, name in qs_estimators:
+            diffs = est_qs - qs
+            if np.all(np.isfinite(diffs)):
+                reporter.add_summary_statistics(
+                    reporting_prefix + 'Q bias/' + name, diffs, hide=hide)
+            qmse = np.square(diffs).mean()
+            if np.isfinite(qmse):
+                reporter.add_summary(
+                    reporting_prefix + 'Q MSE/' + name, qmse, hide=hide)
         return np.mean(rews)
 
     def initialize_targets(self):
@@ -179,16 +192,16 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
     def train(self, data, batch_size, num_reports):
         """Run nbatches training iterations of DDPG"""
-        update_iterations = {1 if i == 0 else i * self._nbatches // num_reports
-                             for i in range(num_reports)}
+        itrs_when_we_report = {
+            1 if i == 0 else i * self._nbatches // num_reports
+            for i in range(num_reports)}
 
         tf.get_default_session().run(self._observed_noise_sum.initializer)
         batches = data.sample_many(self._nbatches, batch_size)
         for itr, batch in enumerate(batches, 1):
             feed_dict = self._sample(batch)
             tf.get_default_session().run(self._optimize, feed_dict)
-
-            if itr in update_iterations:
+            if itr in itrs_when_we_report:
                 self._incremental_report(feed_dict, itr)
 
         tf.get_default_session().run(self._update_adapative_noise_op)

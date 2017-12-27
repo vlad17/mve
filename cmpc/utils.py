@@ -7,6 +7,7 @@ from contextlib import contextmanager
 import random
 import time
 
+from terminaltables import SingleTable
 import tensorflow as tf
 import gym
 import numpy as np
@@ -175,8 +176,8 @@ def rate_limit(limit, fn, *args_n):
     for dst, src in zip(returns, partial_returns):
         dst[:limit] = src
 
-    for i in range(limit, n - limit + 1, limit):
-        loc = slice(i, i + limit)
+    for i in range(limit, n, limit):
+        loc = slice(i, min(i + limit, n))
         partial_slices = [arg[loc] for arg in args_n]
         partial_returns = fn(*partial_slices)
         for dst, src in zip(returns, partial_returns):
@@ -246,39 +247,11 @@ class _ActorAsController(Controller):
         return 0
 
 
-def qvals(paths, discount):
+def print_table(data):
     """
-    Return a list of the Q-values at each point along several
-    trajectories according to a given discount.
-
-    This is just a sample of the "true net present value" of the reward
-    for a given path.
+    Use terminaltables to pretty-print a table to the terminal, where the
+    table should be an even nested list of strings.
     """
-    all_qvals = []
-    for path in paths:
-        # numerically stable cumulative reward sum
-        path_qvals = np.empty_like(path.rewards, dtype=np.float64)
-        future_qval = 0
-        for i in range(len(path.rewards) - 1, -1, -1):
-            path_qvals[i] = path.rewards[i] + discount * future_qval
-            future_qval = path_qvals[i]
-        all_qvals.append(path_qvals)
-    return all_qvals
-
-
-def hstep(paths, discount, h):
-    """
-    Return the h-step reward, which is similar to the Q-value but truncated
-    to h steps (for any given timestep, the h-step reward is the Q-value,
-    assuming we no longer receive any rewards h steps later).
-
-    The 1-step reward is just the original reward array.
-    The the inifinity-step reward is qvals(...)
-
-    Like qvals, gives a list of the h-step rewards at each point along several
-    trajectories according to a given discount.
-    """
-    all_hstep = qvals(paths, discount)
-    for hsteps in all_hstep:
-        hsteps[:-h] -= discount ** h * hsteps[h:]
-    return all_hstep
+    table = SingleTable(data)
+    table.inner_column_border = False
+    print(table.table)

@@ -42,7 +42,12 @@ main() {
     }
     trap note_failure EXIT
 
-    tune_params_json='[{"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1}, {"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1}]'
+    tune_params_json='[{"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1, "evaluation_envs": 10}, {"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_nbatches": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_nbatches": 1, "evaluation_envs": 10}]'
+    tune_params_run="python ../cmpc/main_cmpc.py --rs_learner ddpg --horizon 5 --simulated_paths 2"
+    tune_params_run="$tune_params_run --mpc_horizon 3 --onpol_paths 3 --onpol_iters 4"
+    tune_params_run="$tune_params_run --learner_depth 1 --learner_width 10 --learner_nbatches 1"
+    tune_params_run="$tune_params_run --dyn_depth 1 --dyn_width 8 --dynamics_nbatches 1"
+    tune_params_run="$tune_params_run --evaluation_envs 10"
     
     if [ -d _test ] ; then
         rm -rf _test
@@ -70,7 +75,7 @@ main() {
     short_mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 6"
     short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2 --evaluation_envs 10"
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
-    ddpg_only_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2"
+    ddpg_only_flags="--learner_depth 1 --learner_width 1 --learner_nbatches 2 --oracle_nenvs 10"
     ddpg_flags="$experiment_flags $ddpg_only_flags"
     tune_flags="--ray_addr $ray_addr"
 
@@ -125,9 +130,12 @@ main() {
     # Plot tests
     restore_ddpg="--seed 3 --restore_ddpg $savedir/ddpg.ckpt-00000002"
     eval_q_flags="--horizon 10 --mixture_horizon 5 $ddpg_flags --notex"
+    eval_q_flags="$eval_q_flags --episodes 3"
     cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags")
+    cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags --evaluate_oracle_subsample 10")
     cmds+=("python $main_cmpc $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
-
+    # Make sure the ray command isn't itself buggy
+    cmds+=("$tune_params_run")
     
     for cmd in "${cmds[@]}"; do
         box "$cmd"
