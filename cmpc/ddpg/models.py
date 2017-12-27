@@ -69,6 +69,7 @@ class Actor:
     def __init__(self, scope='ddpg', depth=2, width=64):
         self._ac_space = env_info.ac_space()
         self._ob_space = env_info.ob_space()
+        self.depth = depth
         self._common_mlp_kwargs = {
             'output_size': env_info.ac_dim(),
             'n_layers': depth,

@@ -103,8 +103,9 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         # action stddev. After every gradient step sample how far our current
         # parameter space noise puts our actions from mean.
         with tf.variable_scope(scope):
+            init_stddev = explore_stddev / (actor.depth + 1)
             adaptive_noise = tf.get_variable(
-                'adaptive_noise', trainable=False, initializer=explore_stddev)
+                'adaptive_noise', trainable=False, initializer=init_stddev)
             # sum of action noise we've seen in the current training iteration
             # (summed across mini-batches)
             self._observed_noise_sum = tf.get_variable(
@@ -150,7 +151,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         paths = sample_venv(self._venv, as_controller(self._actor.target_act))
         rews = [path.rewards.sum() for path in paths]
         reporter.add_summary_statistics(
-            reporting_prefix + 'mean policy reward', rews, hide=hide)
+            reporting_prefix + 'target policy reward', rews, hide=hide)
         acs = np.concatenate([path.acs for path in paths])
         obs = np.concatenate([path.obs for path in paths])
         qs = np.concatenate(qvals(paths, flags().experiment.discount))
@@ -170,6 +171,11 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             if np.isfinite(qmse):
                 reporter.add_summary(
                     reporting_prefix + 'Q MSE/' + name, qmse, hide=hide)
+
+        paths = sample_venv(self._venv, as_controller(self._actor.act))
+        rews = [path.rewards.sum() for path in paths]
+        reporter.add_summary_statistics(
+            reporting_prefix + 'current policy reward', rews, hide=hide)
         return np.mean(rews)
 
     def initialize_targets(self):
