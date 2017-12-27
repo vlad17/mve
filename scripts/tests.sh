@@ -84,12 +84,10 @@ main() {
     cmds+=("python $main_random $random_flags")
     cmds+=("python $main_random $random_flags --env_name ant")
     cmds+=("python $main_random $random_flags --env_name walker2d")
-    cmds+=("python $main_random $random_flags --env_name hc-easy")
     # MPC
     cmds+=("python $main_cmpc $rs_mpc_flags")
     cmds+=("python $main_cmpc $short_mpc_flags")
     cmds+=("python $main_cmpc $rs_mpc_flags --render_every 1")
-    cmds+=("python $main_cmpc $rs_mpc_flags --env_name hc-easy")
     cmds+=("python $main_cmpc $rs_mpc_flags --evaluation_envs 2")
     cmds+=("python $main_cmpc $rs_mpc_flags --discount 0.9")
     # DDPG
@@ -118,12 +116,12 @@ main() {
     cmds+=("python $main_cmpc $mpc_flags $colocation_flags")
     # Test recovery
     cmds+=("python $main_cmpc $rs_mpc_flags --exp_name saved --save_every 2")
-    expected_dyn_save="data/saved_hc-hard/3/checkpoints/dynamics.ckpt-00000002"
-    expected_rb_save="data/saved_hc-hard/3/checkpoints/persistable_dataset.ckpt-00000002"
+    expected_dyn_save="data/saved_hc/3/checkpoints/dynamics.ckpt-00000002"
+    expected_rb_save="data/saved_hc/3/checkpoints/persistable_dataset.ckpt-00000002"
     restore="--restore_dynamics $expected_dyn_save --restore_buffer $expected_rb_save"
     cmds+=("python $main_cmpc $rs_mpc_flags --exp_name restored $restore")
     cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --episodes 2 --exp_name ddpg_save")
-    savedir="data/ddpg_save_hc-hard/3/checkpoints"
+    savedir="data/ddpg_save_hc/3/checkpoints"
     restore="--exp_name ddpg_restore --restore_buffer $savedir/persistable_dataset.ckpt-00000002"
     restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000002"
     cmds+=("python $main_ddpg $ddpg_flags $restore --episodes 2")
@@ -146,16 +144,16 @@ main() {
     cmd="echo '$tune_params_json' > params.json && python $tune $tune_flags --tunefile params.json"
     hermetic_file params.json "$cmd"
 
-    instance="data/plotexp_hc-hard:reward mean:x"
+    instance="data/plotexp_hc:reward mean:x"
     cmd="python $cmpc_plot \"$instance\" --outfile x.pdf --yaxis x --notex"
     hermetic_file "x.pdf" "$cmd"
 
-    instance="data/plotexp_hc-hard:reward mean:x"
-    hlines="data/plotexp_hc-hard:reward mean:yy"
+    instance="data/plotexp_hc:reward mean:x"
+    hlines="data/plotexp_hc:reward mean:yy"
     cmd="python $cmpc_plot \"$instance\" --outfile y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
     hermetic_file "y.pdf" "$cmd"
 
-    instance="data/plotexp_hc-hard:label1 data/plotexp_hc-hard:label2"
+    instance="data/plotexp_hc:label1 data/plotexp_hc:label2"
     cmd="python $cmpc_plot_dyn $instance --outfile z.pdf --notex --smoothing 2 --hsteps 1 2 3"
     hermetic_file "z.pdf" "$cmd"
     

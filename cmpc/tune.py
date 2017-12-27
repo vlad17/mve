@@ -45,11 +45,6 @@ class TuneFlags(Flags):
             required=True,
             help='json file with grid to search over')
         yield ArgSpec(
-            name='env_name',
-            type=str,
-            default='hc-hard',
-            help='environment name for testing')
-        yield ArgSpec(
             name='result_dir',
             type=str,
             default='data',
@@ -136,7 +131,7 @@ def _search_hypers(all_hypers, tune):
         nit = hyp['onpol_iters'] - config['smoothing']
         runner.add_trial(
             Trial(
-                tune.env_name,
+                'tune',
                 'script',
                 stopping_criterion={'timesteps_total': nit},
                 local_dir=tune.result_dir,

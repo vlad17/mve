@@ -15,8 +15,7 @@ import tensorflow as tf
 
 from context import context
 from flags import Flags, ArgSpec
-from envs import (WhiteBoxHalfCheetahEasy, WhiteBoxHalfCheetahHard,
-                  WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
+from envs import (WhiteBoxHalfCheetah, WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
 import env_info
 import log
 import reporter
@@ -55,12 +54,8 @@ class ExperimentFlags(Flags):
         yield ArgSpec(
             name='env_name',
             type=str,
-            default='hc-hard',
+            default='hc',
             help='environment to use',)
-        yield ArgSpec(
-            name='frame_skip',
-            type=int,
-            default=1,)
         yield ArgSpec(
             name='horizon',
             type=int,
@@ -94,14 +89,12 @@ class ExperimentFlags(Flags):
 
     def make_env(self):
         """Generates an unvectorized env."""
-        if self.env_name == 'hc-hard':
-            return WhiteBoxHalfCheetahHard(self.frame_skip)
-        elif self.env_name == 'hc-easy':
-            return WhiteBoxHalfCheetahEasy(self.frame_skip)
+        if self.env_name == 'hc':
+            return WhiteBoxHalfCheetah()
         elif self.env_name == 'ant':
-            return WhiteBoxAntEnv(self.frame_skip)
+            return WhiteBoxAntEnv()
         elif self.env_name == 'walker2d':
-            return WhiteBoxWalker2dEnv(self.frame_skip)
+            return WhiteBoxWalker2dEnv()
         else:
             raise ValueError('env {} unsupported'.format(self.env_name))
 
