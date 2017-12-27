@@ -62,6 +62,7 @@ class TFNode:
             self._saver = tf.train.Saver(
                 var_list=variables,
                 save_relative_paths=True,
+                max_to_keep=None,
                 pad_step_number=True)
             _add_to_graph(self)
         else:

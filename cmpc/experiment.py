@@ -74,7 +74,7 @@ class ExperimentFlags(Flags):
         yield ArgSpec(
             name='save_every',
             type=int,
-            default=100,
+            default=500,
             help='save all persistable TF variables ever save_every episodes. '
             'Do not save if set to 0')
         yield ArgSpec(
