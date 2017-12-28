@@ -220,9 +220,17 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
     def train(self, data, nbatches, batch_size):
         """Run nbatches training iterations of DDPG"""
         batches = data.sample_many(nbatches, batch_size)
-        for batch in batches:
+        for i, batch in enumerate(batches, 1):
             feed_dict = self._sample(batch)
             tf.get_default_session().run(self._optimize, feed_dict)
+            if (i % max(nbatches // 10, 1)) == 0:
+                cl, al = tf.get_default_session().run(
+                    [self._critic_loss, self._actor_loss],
+                    feed_dict)
+                fmt = '{: ' + str(len(str(nbatches))) + 'd}'
+                debug('ddpg ' + fmt + ' of ' + fmt + ' batches - '
+                      'critic loss {:.4g} actor loss {:.4g}',
+                      i, nbatches, cl, al)
 
         if data.size:
             batch = self._sample(next(data.sample_many(1, batch_size)))
