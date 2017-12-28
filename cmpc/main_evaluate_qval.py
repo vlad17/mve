@@ -20,10 +20,14 @@ from sample import sample_venv
 from utils import timeit, as_controller, print_table
 
 
-def _mean_errorbars(vals, label, color, ci=None):
+def _mean_errorbars(vals, label, color, logy=False, ci=None):
     # plots mean with label
     means = [x.mean() for x in vals]
-    plt.plot(means, label=label, color=color)
+    if logy:
+        plt.semilogy(means, label=label, color=color)
+        assert ci is None, 'ci {} != None incompat w/ logy'.format(ci)
+    else:
+        plt.plot(means, label=label, color=color)
     # plots error bars (a ci% CI) on a graph, with an error bar at each
     # index vals[i] (each vals[i] should itself be a list of values)
     if ci is None:
@@ -91,37 +95,30 @@ def _evaluate(_):
         acs = np.concatenate([path.acs for path in paths])
         obs = np.concatenate([path.obs for path in paths])
         ddpg_qs = learner.critic.target_critique(obs, acs)
-        current_ddpg_qs = learner.critic.critique(obs, acs)
 
     mixture_horizon = flags().evaluation.mixture_horizon
     with timeit('target oracle-n Q, for n = 1, ..., {}'
                 .format(mixture_horizon)):
         oracle_estimators = []
+        zero_estimators = []
+        zero_qs = np.zeros_like(ddpg_qs)
         for h in range(mixture_horizon):
             oracle_estimators.append(offline_oracle_q(paths, ddpg_qs, h))
-        current_oracle_estimators = []
-        for h in range(mixture_horizon):
-            current_oracle_estimators.append(
-                offline_oracle_q(paths, current_ddpg_qs, h))
+            zero_estimators.append(offline_oracle_q(paths, zero_qs, h))
 
     subsample = flags().evaluation.evaluate_oracle_subsample
     if subsample > 0:
         _evaluate_oracle(learner, paths, oracle_estimators)
 
-    neps_str = r'(${}$ episodes)'.format(neps)
-
-    oracle_diffs = [e - qs for e in oracle_estimators]
-    _mean_errorbars(oracle_diffs, 'oracle', 'blue')
-    plt.xlabel(r'horizon $h$')
-    plt.ylabel(r'$Q$ bias')
-    plt.title(r'$\hat Q_h-Q^{\pi_{\mathrm{target}}}$ bias ' + neps_str)
-    savefig(os.path.join(reporter.logging_directory(), 'bias.pdf'))
-
-    oracle_sqerrs = [np.square(diff) for diff in oracle_diffs]
-    _mean_errorbars(oracle_sqerrs, 'oracle', 'blue')
+    info_str = r'(${}$ episodes, $\gamma={}$)'.format(
+        neps, flags().experiment.discount)
+    oracle_sqerrs = [np.square(e - qs) for e in oracle_estimators]
+    _mean_errorbars(oracle_sqerrs, 'oracle', 'blue', logy=True)
+    zero_sqerrs = [np.square(e - qs) for e in zero_estimators]
+    _mean_errorbars(zero_sqerrs, 'pure model', 'red', logy=True)
     plt.xlabel(r'horizon $h$')
     plt.ylabel(r'$Q$ MSE')
-    plt.title(r'$(\hat Q_h-Q^{\pi_{\mathrm{target}}})^2$ MSE ' + neps_str)
+    plt.title(r'$(\hat Q_h-Q^{\pi_{\mathrm{target}}})^2$ MSE ' + info_str)
     savefig(os.path.join(reporter.logging_directory(), 'mse.pdf'))
 
 
