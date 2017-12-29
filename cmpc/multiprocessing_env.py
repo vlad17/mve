@@ -168,8 +168,8 @@ class _Worker(object):
                 self._child_send((observation_m, reward_m, done_m, info))
             elif method == 'multi_step':
                 actions_hma = body
-                states_hma, done_m = self.multi_step_m(actions_hma)
-                self._child_send((states_hma, done_m))
+                states_hma, rewards_hm, done_m = self.multi_step_m(actions_hma)
+                self._child_send((states_hma, rewards_hm, done_m))
             elif method == 'mask':
                 i = body
                 self.mask[i] = False
@@ -221,16 +221,19 @@ class _Worker(object):
         env = self.env_m[0]
         state_shape = env.observation_space.low.shape
         states_hms = np.zeros(actions_hma.shape[:2] + state_shape)
+        rewards_hm = np.zeros(actions_hma.shape[:2])
         dones_m = np.zeros(actions_hma.shape[1], dtype=bool)
         for i, actions_ma in enumerate(actions_hma):
-            obs_m, _, done_m, _ = self.step_m(actions_ma)
+            obs_m, reward_m, done_m, _ = self.step_m(actions_ma)
             for j, obs in enumerate(obs_m):
                 states_hms[i][j] = obs
+            for j, reward in enumerate(reward_m):
+                rewards_hm[i][j] = reward
             for j, done in enumerate(done_m):
                 dones_m[j] |= done
                 if done:
                     self.mask[j] = False
-        return states_hms, dones_m
+        return states_hms, rewards_hm, dones_m
 
 
 def _step_n(worker_n, action_n):
@@ -261,17 +264,19 @@ def _multi_step_n(worker_n, action_hna):
         worker.multi_step_start(action_hma)
         accumulated += worker.m
 
-    states, dones = [], []
+    states, rewards, dones = [], [], []
     accumulated = 0
     for worker in worker_n:
-        states_hma, done_m = worker.multi_step_finish()
+        states_hma, rewards_hm, done_m = worker.multi_step_finish()
         if states_hma is None:
             continue
         accumulated += worker.m
         states.append(states_hma)
+        rewards.append(rewards_hm)
         dones.append(done_m)
 
-    return np.concatenate(states, axis=1), np.concatenate(dones)
+    return np.concatenate(states, axis=1), np.concatenate(rewards, axis=1), \
+        np.concatenate(dones)
 
 
 def _reset_n(worker_n):

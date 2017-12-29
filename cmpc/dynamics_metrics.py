@@ -191,7 +191,7 @@ class DynamicsMetrics:
     def _eval_open_loop_limited(self, states_ns, acs_nha):
         self._venv.set_state_from_obs(states_ns)
         acs_hna = np.swapaxes(acs_nha, 0, 1)
-        states_hns, done_n = self._venv.multi_step(acs_hna)
+        states_hns, _, done_n = self._venv.multi_step(acs_hna)
         states_nhs = np.swapaxes(states_hns, 0, 1)
         return states_nhs, ~done_n
 
