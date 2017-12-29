@@ -46,7 +46,14 @@ class CloningLearnerFlags(Flags):
                 name='cloning_learner_batch_size',
                 type=int,
                 default=512,
-                help='learned controller batch size')]
+                help='learned controller batch size'),
+            ArgSpec(
+                name='cloning_min_buf_size',
+                default=500,
+                type=int,
+                help='Minimum number of frames in replay buffer before '
+                     'training')
+        ]
         super().__init__('cloning', 'cloning learner', arguments)
 
     def nbatches(self, timesteps):
@@ -90,6 +97,8 @@ class CloningLearner(Learner):
         return scale_to_box(env_info.ac_space(), ac_na)
 
     def fit(self, data, timesteps):
+        if data.size < flags().cloning.cloning_min_buf_size:
+            return
         nbatches = flags().cloning.nbatches(timesteps)
         batch_size = flags().cloning.cloning_learner_batch_size
         for batch in data.sample_many(nbatches, batch_size):

@@ -92,7 +92,14 @@ class DDPGFlags(Flags):
                 name='restore_ddpg',
                 default=None,
                 type=str,
-                help='restore ddpg from the given path')]
+                help='restore ddpg from the given path'),
+            ArgSpec(
+                name='ddpg_min_buf_size',
+                default=500,
+                type=int,
+                help='Minimum number of frames in replay buffer before '
+                     'training')
+        ]
         super().__init__('ddpg', 'DDPG', arguments)
 
     def oracle_nenvs_with_default(self):
@@ -148,5 +155,7 @@ class DDPGLearner(Learner, TFNode):
         return self.actor.perturbed_act(states_ns)
 
     def fit(self, data, timesteps):
+        if data.size < flags().ddpg.ddpg_min_buf_size:
+            return
         nbatches = flags().ddpg.nbatches(timesteps)
         self._ddpg.train(data, nbatches, self._batch_size)
