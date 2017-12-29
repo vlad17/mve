@@ -10,7 +10,7 @@ from multiprocessing_env import make_venv
 import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
-from qvalues import qvals, offline_oracle_q
+from qvalues import qvals, offline_oracle_q, oracle_q
 from utils import scale_from_box, as_controller
 
 
@@ -76,10 +76,20 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         target_Q_n = self.rewards_ph_n + (1. - self.terminals1_ph_n) * (
             discount * next_Q_n)
         self._reporter.stats('target Q', target_Q_n)
+        if flags().ddpg.mixture_estimator == 'oracle':
+            # h-step observations
+            h = flags().ddpg.model_horizon
+            debug('using oracle Q estimator with {} steps', h)
+            self._oracle_venv = make_venv(
+                flags().experiment.make_env,
+                flags().ddpg.oracle_nenvs_with_default())
+            self._target_Q_ph_n = tf.placeholder(
+                tf.float32, shape=[None])
+            target_Q_n = self._target_Q_ph_n
+
         reg_loss = sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
         self._critic_loss = tf.losses.mean_squared_error(
-            target_Q_n,
-            current_Q_n) + reg_loss
+            target_Q_n, current_Q_n) + reg_loss
         self._reporter.scalar('critic loss', self._critic_loss)
 
         opt = tf.train.AdamOptimizer(
@@ -215,14 +225,30 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             self.terminals1_ph_n: terminals,
             self.rewards_ph_n: rewards,
             self.actions_ph_na: acs}
+        if hasattr(self, '_target_Q_ph_n'):
+            h = flags().ddpg.model_horizon
+            h_n = np.full(len(obs), h, dtype=int)
+            model_expanded_Q = oracle_q(
+                self._critic.target_critique,
+                self._actor.target_act,
+                obs, acs, self._oracle_venv, h_n)
+            feed_dict[self._target_Q_ph_n] = model_expanded_Q
         return feed_dict
 
     def train(self, data, nbatches, batch_size):
         """Run nbatches training iterations of DDPG"""
         batches = data.sample_many(nbatches, batch_size)
-        for batch in batches:
+        for i, batch in enumerate(batches, 1):
             feed_dict = self._sample(batch)
             tf.get_default_session().run(self._optimize, feed_dict)
+            if (i % max(nbatches // 10, 1)) == 0:
+                cl, al = tf.get_default_session().run(
+                    [self._critic_loss, self._actor_loss],
+                    feed_dict)
+                fmt = '{: ' + str(len(str(nbatches))) + 'd}'
+                debug('ddpg ' + fmt + ' of ' + fmt + ' batches - '
+                      'critic loss {:.4g} actor loss {:.4g}',
+                      i, nbatches, cl, al)
 
         if data.size:
             batch = self._sample(next(data.sample_many(1, batch_size)))

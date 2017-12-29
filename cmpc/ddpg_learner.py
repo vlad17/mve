@@ -2,8 +2,6 @@
 A learner which uses DDPG: an off-policy RL algorithm based on
 policy-gradients.
 """
-from multiprocessing import cpu_count
-
 from context import flags
 from flags import Flags, ArgSpec
 from learner import Learner
@@ -73,8 +71,18 @@ class DDPGFlags(Flags):
                 name='oracle_nenvs',
                 default=0,
                 type=int,
-                help='number of envs to use for oracle Q-estimates (the larger'
-                ' the better, default is 10 * num cpus)'),
+                help='number of envs to use for oracle Q-estimates, should be '
+                'the learner_batch_size for full parallelism (automatically'
+                ' set to this if 0)'),
+            ArgSpec(
+                name='mixture_estimator',
+                default=None,
+                type=str,
+                help='use a mixture estimator for computing target Q '
+                'values. If None, do not mix with model-based estimates '
+                'at all. If oracle, use an oracle environment to compute '
+                'model_horizon-step rewards for mixing with the target '
+                'Q network'),
             ArgSpec(
                 name='model_horizon',
                 default=1,
@@ -90,7 +98,7 @@ class DDPGFlags(Flags):
     def oracle_nenvs_with_default(self):
         """The number of environments an oracle should use."""
         par = self.oracle_nenvs
-        par = max(cpu_count(), 1) * 10 if par == 0 else par
+        par = self.learner_batch_size if par == 0 else par
         return par
 
     def nbatches(self, timesteps):

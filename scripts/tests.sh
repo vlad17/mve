@@ -76,7 +76,7 @@ main() {
     short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2 --evaluation_envs 10"
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
     ddpg_only_flags="--learner_depth 1 --learner_width 1 --learner_batches_per_timestep 1 --oracle_nenvs 10"
-    ddpg_flags="$experiment_flags $ddpg_only_flags"
+    ddpg_flags="$experiment_flags $ddpg_only_flags --learner_batch_size 16"
     tune_flags="--ray_addr $ray_addr"
 
     cmds=()
@@ -96,6 +96,7 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4 --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2 --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
+    cmds+=("python $main_ddpg $ddpg_flags --episodes 2 --mixture_estimator oracle")
     # CMPC
     cloning="--mpc_optimizer random_shooter --rs_learner cloning"
     cloning="$cloning --cloning_learner_depth 1 --cloning_learner_width 1"
