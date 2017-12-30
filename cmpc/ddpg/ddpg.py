@@ -165,12 +165,20 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                 # b/c TF relies on op-creation context to create temporal
                 # dependencies.
                 conditional_update = _tf_doif(
-                    tf.equal(adaption_update_ctr, adaption_interval),
+                    # Some really crazy stuff is going on here -- this is all
+                    # non-concurrent TF code (with transitive
+                    # control_dependencies). So there should be no need to have
+                    # tf.greater_equal below, it should just be tf.equal.
+                    # However, on occasion some mystic concurrency comes in and
+                    # makes the counter greater than adaption_interval, so
+                    # then it just starts diverging.
+                    tf.greater_equal(adaption_update_ctr, adaption_interval),
                     lambda: _tf_seq(
                         tf.group(
                             tf.assign(adaptive_noise, adapted_noise),
                             tf.assign(previous_mean_action_noise,
-                                      observed_noise_sum / adaption_interval)),
+                                      observed_noise_sum / tf.to_float(
+                                          adaption_update_ctr))),
                         lambda: tf.group(
                             tf.assign(observed_noise_sum, 0.),
                             tf.assign(adaption_update_ctr, 0))))
