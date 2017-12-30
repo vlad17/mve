@@ -147,12 +147,13 @@ main() {
     hermetic_file params.json "$cmd"
 
     instance="data/plotexp_hc:reward mean:x"
-    cmd="python $cmpc_plot \"$instance\" --outfile x.pdf --yaxis x --notex"
+    cmd="python $cmpc_plot \"$instance\" --outfile x.pdf --yaxis x --notex --xaxis xx --xrange 0 30"
     hermetic_file "x.pdf" "$cmd"
 
     instance="data/plotexp_hc:reward mean:x"
     hlines="data/plotexp_hc:reward mean:yy"
     cmd="python $cmpc_plot \"$instance\" --outfile y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
+    cmd="$cmd --yrange -1 100"
     hermetic_file "y.pdf" "$cmd"
 
     instance="data/plotexp_hc:label1 data/plotexp_hc:label2"

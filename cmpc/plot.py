@@ -148,7 +148,7 @@ def _main():
     parser.add_argument('--yaxis', default='', type=str, required=True)
     parser.add_argument('--xaxis', default='timestep', type=str)
     parser.add_argument('--notex', default=False, action='store_true')
-    parser.add_argument('--drop_iterations', default=0, type=int)
+    parser.add_argument('--xrange', default=None, type=float, nargs=2)
     # uses last record and plots it as a horizontal line
     parser.add_argument('--hlines', default=[], nargs='*', type=str)
     parser.add_argument('--smoothing', default=1, type=int)
@@ -159,8 +159,12 @@ def _main():
         activate_tex()
 
     columns = [column.split(':') for column in args.columns]
-    data = gather_data(columns, args.yaxis, args.smoothing,
-                       args.drop_iterations)
+    drop = 0
+    data = gather_data(columns, args.yaxis, args.smoothing, drop)
+    if args.xrange is not None:
+        lo, hi = args.xrange
+        data = data[data['iteration'] >= lo]
+        data = data[data['iteration'] <= hi]
 
     hlines = []
     for column in args.hlines:
