@@ -64,12 +64,14 @@ def activate_tex():
     matplotlib.rcParams['text.usetex'] = True
 
 
-def plot_data(data, value, outfile, hlines, yrange):
+def plot_data(data, value, outfile, hlines, yrange, xaxis):
     """
     Prints a sns tsplot to the outfile in PDF form
     """
+
     sns.set(style='darkgrid', font_scale=1.5)
-    sns.tsplot(data=data, time='iteration', value=value,
+    data = data.rename(columns={'iteration': xaxis})
+    sns.tsplot(data=data, time=xaxis, value=value,
                unit='Unit', condition='Condition')
     for y, lbl in hlines:
         plt.axhline(y, label=lbl, linestyle='--')
@@ -144,6 +146,7 @@ def _main():
     parser.add_argument('columns', nargs='+')
     parser.add_argument('--outfile', default='', type=str, required=True)
     parser.add_argument('--yaxis', default='', type=str, required=True)
+    parser.add_argument('--xaxis', default='timestep', type=str)
     parser.add_argument('--notex', default=False, action='store_true')
     parser.add_argument('--drop_iterations', default=0, type=int)
     # uses last record and plots it as a horizontal line
@@ -169,7 +172,7 @@ def _main():
             values.append(top['value'])
         hlines.append([np.mean(values), label])
 
-    plot_data(data, args.yaxis, args.outfile, hlines, args.yrange)
+    plot_data(data, args.yaxis, args.outfile, hlines, args.yrange, args.xaxis)
 
 
 if __name__ == "__main__":
