@@ -1,5 +1,6 @@
 """
-Optimize the planning problem by randomly sampling.
+Optimize the planning problem by randomly sampling trajectories from learned
+dynamics.
 """
 
 import numpy as np
