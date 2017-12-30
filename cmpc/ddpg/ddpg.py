@@ -35,8 +35,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
     """
 
     def __init__(self, actor, critic, discount=0.99, scope='ddpg',
-                 actor_lr=1e-3, critic_lr=1e-3, decay=0.99,
-                 explore_stddev=0.2):
+                 actor_lr=1e-3, critic_lr=1e-3, explore_stddev=0.2):
 
         self._reporter = TFReporter()
 
@@ -104,8 +103,8 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                     self._critic_loss, var_list=critic.variables)
         with tf.control_dependencies([optimize_actor_op, optimize_critic_op]):
             update_targets = tf.group(
-                actor.tf_target_update(decay),
-                critic.tf_target_update(decay))
+                actor.tf_target_update(flags().ddpg.actor_decay),
+                critic.tf_target_update(flags().ddpg.critic_decay))
 
         for v in actor.variables + critic.variables:
             self._reporter.weights(v.name, v)

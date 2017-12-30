@@ -52,10 +52,15 @@ class DDPGFlags(Flags):
                 type=int,
                 help='number of minibatches to train on per iteration'),
             ArgSpec(
-                name='target_decay',
+                name='actor_decay',
                 default=0.99,
                 type=float,
-                help='decay rate for target network'),
+                help='decay rate for actor target network'),
+            ArgSpec(
+                name='critic_decay',
+                default=0.99,
+                type=float,
+                help='decay rate for critic target network'),
             ArgSpec(
                 name='explore_stddev',
                 default=0.,
@@ -133,7 +138,6 @@ class DDPGLearner(Learner, TFNode):
                           discount=flags().experiment.discount,
                           actor_lr=flags().ddpg.actor_lr,
                           critic_lr=flags().ddpg.critic_lr,
-                          decay=flags().ddpg.target_decay,
                           scope='ddpg',
                           explore_stddev=flags().ddpg.explore_stddev)
         TFNode.__init__(self, 'ddpg', flags().ddpg.restore_ddpg)
