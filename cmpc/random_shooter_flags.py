@@ -65,8 +65,8 @@ class RandomShooterFlags(Flags):
             ArgSpec(
                 name='true_dynamics',
                 action='store_true',
-                help='Indicates whether or not to use true dynamics, the OpenAI'
-                ' gym, as opposed to a learned model'
+                help='Indicates whether or not to use true dynamics, the'
+                ' OpenAI gym, as opposed to a learned model'
             )]
         super().__init__('random_shooter', 'random shooter', arguments)
 

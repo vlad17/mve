@@ -8,4 +8,4 @@ good-names=i,j,k,x,y,xs,ys,t,ac,ob,acs,obs,p
 
 [SIMILARITIES]
 ignore-imports=yes
-min-similarity-lines=10
+min-similarity-lines=30

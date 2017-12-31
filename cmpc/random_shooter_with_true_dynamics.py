@@ -51,14 +51,14 @@ class RandomShooterWithTrueDynamics(Controller):
 
         # play random actions p times for each state
         obs_phns, rewards_pn, ac_phna = [], [], []
-        for sim_n in range(self._sims_per_state):
+        for _ in range(self._sims_per_state):
 
             # initialize random actions
             ac_space = env_info.ac_space()
             ac_dim = ac_space.low.shape
             ac_na = np.random.random((nstates,) + ac_dim)
             ac_na = scale_to_box(ac_space, ac_na)
-            ac_hna = np.stack([ac_na] * self._mpc_horizon)  # TODO: extend to h?
+            ac_hna = np.stack([ac_na] * self._mpc_horizon)
 
             # play forward random actions
             rollout_envs.set_state_from_obs(states)
