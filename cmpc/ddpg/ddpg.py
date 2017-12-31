@@ -127,10 +127,10 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             # number of observations in sum
             adaption_update_ctr = tf.get_variable(
                 'update_ctr', trainable=False, initializer=0)
-            previous_mean_action_noise = tf.get_variable(
+            self._action_noise = tf.get_variable(
                 'prev_mean_action_noise', trainable=False, initializer=0.)
         self._reporter.scalar('adaptive param noise', adaptive_noise)
-        self._reporter.scalar('action noise', previous_mean_action_noise)
+        self._reporter.scalar('action noise', self._action_noise)
         # This implementation observes the param noise after every gradient
         # step this isn't absolutely necessary but doesn't seem to be a
         # bottleneck.
@@ -139,49 +139,42 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         # once every iteration.
         with tf.control_dependencies([optimize_actor_op]):
             re_perturb = actor.tf_perturb_update(adaptive_noise)
+            mean_ac = scale_from_box(
+                env_info.ac_space(), actor.tf_action(self.obs0_ph_ns))
             with tf.control_dependencies([re_perturb]):
-                mean_ac = scale_from_box(
-                    env_info.ac_space(), actor.tf_action(self.obs0_ph_ns))
                 perturb_ac = scale_from_box(
                     env_info.ac_space(), actor.tf_perturbed_action(
                         self.obs0_ph_ns))
                 batch_observed_noise = tf.sqrt(
                     tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
-        with tf.variable_scope(scope), tf.variable_scope('adaption'):
-            save_noise = tf.group(
-                tf.assign_add(observed_noise_sum, batch_observed_noise),
-                tf.assign_add(adaption_update_ctr, 1))
-            adaption_interval = flags().ddpg.param_noise_adaption_interval
-            adaption_rate = 1.01
+                save_noise = tf.group(
+                    tf.assign_add(observed_noise_sum, batch_observed_noise),
+                    tf.assign_add(adaption_update_ctr, 1))
+        adaption_interval = flags().ddpg.param_noise_adaption_interval
+        adaption_rate = 1.01
+        with tf.control_dependencies([save_noise]):
             multiplier = tf.cond(
-                observed_noise_sum < explore_stddev * adaption_interval,
+                observed_noise_sum.read_value() <
+                explore_stddev * adaption_interval,
                 lambda: adaption_rate, lambda: 1 / adaption_rate)
-            adapted_noise = adaptive_noise * multiplier
-            with tf.control_dependencies([save_noise]):
-                # this is a bit icky, but if it wasn't for TF it'd be
-                # easy to read: if we had adaption_interval updates,
-                # then adapt the parameter-space noise and clear the
-                # running sum and counters. The lambdas are necessary
-                # b/c TF relies on op-creation context to create temporal
-                # dependencies.
-                conditional_update = _tf_doif(
-                    # Some really crazy stuff is going on here -- this is all
-                    # non-concurrent TF code (with transitive
-                    # control_dependencies). So there should be no need to have
-                    # tf.greater_equal below, it should just be tf.equal.
-                    # However, on occasion some mystic concurrency comes in and
-                    # makes the counter greater than adaption_interval, so
-                    # then it just starts diverging.
-                    tf.greater_equal(adaption_update_ctr, adaption_interval),
-                    lambda: _tf_seq(
-                        tf.group(
-                            tf.assign(adaptive_noise, adapted_noise),
-                            tf.assign(previous_mean_action_noise,
-                                      observed_noise_sum / tf.to_float(
-                                          adaption_update_ctr))),
-                        lambda: tf.group(
-                            tf.assign(observed_noise_sum, 0.),
-                            tf.assign(adaption_update_ctr, 0))))
+            adapted_noise = adaptive_noise.read_value() * multiplier
+            # this is a bit icky, but if it wasn't for TF it'd be easy to read:
+            # if we had adaption_interval updates, then adapt the
+            # parameter-space noise and clear the running sum and counters.
+            # The lambdas are necessary b/c TF relies on op-creation context
+            # to create temporal dependencies.
+            conditional_update = _tf_doif(
+                tf.equal(adaption_update_ctr.read_value(), adaption_interval),
+                lambda: _tf_seq(
+                    tf.group(
+                        tf.assign(adaptive_noise, adapted_noise),
+                        tf.assign(self._action_noise,
+                                  observed_noise_sum.read_value() /
+                                  tf.to_float(
+                                      adaption_update_ctr.read_value()))),
+                    lambda: tf.group(
+                        tf.assign(observed_noise_sum, 0.),
+                        tf.assign(adaption_update_ctr, 0))))
 
         self._optimize = tf.group(update_targets, conditional_update)
         self._actor = actor
@@ -249,13 +242,14 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             feed_dict = self._sample(batch)
             tf.get_default_session().run(self._optimize, feed_dict)
             if (i % max(nbatches // 10, 1)) == 0:
-                cl, al = tf.get_default_session().run(
-                    [self._critic_loss, self._actor_loss],
+                cl, al, an = tf.get_default_session().run(
+                    [self._critic_loss, self._actor_loss, self._action_noise],
                     feed_dict)
                 fmt = '{: ' + str(len(str(nbatches))) + 'd}'
                 debug('ddpg ' + fmt + ' of ' + fmt + ' batches - '
-                      'critic loss {:.4g} actor loss {:.4g}',
-                      i, nbatches, cl, al)
+                      'critic loss {:.4g} actor loss {:.4g} '
+                      'action noise {:.4g}',
+                      i, nbatches, cl, al, an)
 
         if data.size:
             batch = self._sample(next(data.sample_many(1, batch_size)))
