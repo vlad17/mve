@@ -2,17 +2,17 @@ sudo: required
 language: python
 dist: trusty
 python:
-  - '3.5'
+- '3.5'
 before_install:
-  - echo $mjkey_pass | gpg --passphrase-fd 0 mjkey.txt.gpg
-  - travis_retry wget https://www.roboti.us/download/mjpro131_linux.zip
-  - unzip mjpro131_linux.zip
+- echo $mjkey_pass | gpg --passphrase-fd 0 mjkey.txt.gpg
+- travis_retry wget https://www.roboti.us/download/mjpro131_linux.zip
+- unzip mjpro131_linux.zip
 install:
-  - travis_retry pip install --upgrade pylint
-  - travis_retry ./scripts/ubuntu-install.sh
+- travis_retry pip install --upgrade pylint
+- travis_retry ./scripts/ubuntu-install.sh
 script:
-  - ./scripts/lint.sh
-  - ./scripts/fake-display.sh ./scripts/tests.sh mjkey.txt mjpro131
+- "./scripts/lint.sh"
+- "./scripts/fake-display.sh ./scripts/tests.sh mjkey.txt mjpro131"
 env:
   global:
-    - secure: UIc+2Qorbe0akNrG5HROYH1AXFDz5ESGC2ystPT4FnvFLolK864mNrr3QaTcXM15CcEzLb2XW33fcz7J5ZRVX99txtdJWRbZ4BqzAJyX06UfAZclNZXogwPy0H0SJJFV96Oi8kJmE/c0U4wFnOEAosP3IirFgt9bz9qZJHzGiefKQUL8uMYy21gOF/VkMEMi9gmasB6mTBfVyD+WggaTlK+8hqtnrPe84PNOgJDt4bBDIWduhySJaV7FK7DaZXatgu+S7qyyJAszp6VAEqjq5rBmdEcDXVPXXn7bx62+d/HQ3iHNPfMPkba/XiGRbX6lI7LW3mo5Td70bRQNp524SrtTAEOK2h+PJHe61GEQEDZW+tvkguYslAszNUb+Qp27zTMKxpTsg8yqjOgizzClIIXlRHU/H+z2JehQiv9W5bo8Yrgmq0z0vXDWvYvK9BRltBSTlJNUwUUk6qqEXRdf67TK8VA1ng2sx9Ufv6IknEzgQm6FTX/k6grCVUijNedNNXtjyuVj93DYMvOZ74RRbpmotKocx4o0XAasdoMgbBaePnUnunTGYTfGGt/JCt4RR5DrX6dfrLk5/zV8SSH5ip5EtnQ4M3ff/HpF8cJ3LE+ic+xk0adLzcfd3/HgJszznIHoRuXe8jyCwq45GJgDa5JTT9AiGeyInQoWCPUT0PA=
+  - secure: lBACYlkMvxQy33R9c7460EVoqK1GkAUd3AokZ/lfCJDebqJth28dacdrsv5apHYHXMFfUbLaaQGHMdpu5GbShXtoM6XY/oVpOKn54dd3CRH90krahbojOWIR5dmX2Faun6NWvr6glu+y/kKvc3J90mcmfAaPTY9VcLVksEnfsKbWPwYp7UURfScHb9n8URT5BwDSeZxoACdhL0ebZGWzmI4/5OUO99zcOnByNdo/JYqh/4O//HY2RPw5xfMAE5qvay0xB0Ky1Tn1uwI8ABIp6BlE5hX7k1S5DRaGYbx/QoPsKdhO2OjIvJqWQUwQeq0oVBV73AgQvqDU4D4BjAGHRNvZ6RNrjbHxKXLAZO1qGBLAZxKaJ9+H4skGiNwlAJZYdIjpSweu3BAOXjnys4wxnS/S9FKPkiaW7Q7HcS2Z7P9BM/2/BI56LfH5QAfm79c/YsXKzFcLGOpPHeDlWvPFkDzTct0IXH6EOQAiqKKa3MSNmEkOmpHS/nUUI0oWOSMsuwwndyCHUiQXHpLc+4i59YfYZvlDTDbtI35HPb6InCmKlwfxiR6gX4Ap4ALj4FonsXnHsEoTF+p9xQaL1pv4yKQNhOod42ZbobG9tVR7MJWoHmF63vbSM7Vnqg6fjSuhBQfvUMNAJ/PzeB1a1304w0X/UIoBeCzCvUvhHPZjBA8=
