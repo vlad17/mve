@@ -35,8 +35,7 @@ def _train(args):
 
         with timeit('sample learner'):
             controller = as_controller(learner.act)
-            paths = [sample(env, controller,
-                            args.experiment.horizon, render=False)]
+            paths = [sample(env, controller, render=False)]
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
@@ -46,8 +45,7 @@ def _train(args):
         reporter.advance(paths)
         if args.experiment.should_render(itr):
             with args.experiment.render_env(itr + 1) as render_env:
-                sample(render_env, controller,
-                       args.experiment.horizon, render=True)
+                sample(render_env, controller, render=True)
         if args.experiment.should_save(itr):
             tfnode.save_all(itr + 1)
 

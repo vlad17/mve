@@ -4,14 +4,16 @@ Utilities for generating rolluts from a controller.
 
 import numpy as np
 
+from context import flags
 from dataset import Path
 
 
-def sample_venv(venv, controller, max_horizon=1000):
+def sample_venv(venv, controller):
     """
     Given a n-way vectorized environment `venv`, generate n paths/rollouts with
     maximum horizon `horizon` using controller `controller`.
     """
+    max_horizon = flags().experiment.horizon
     obs_n = venv.reset()
     paths = [Path(venv, obs, max_horizon, controller.planning_horizon())
              for obs in obs_n]
@@ -35,17 +37,15 @@ def sample_venv(venv, controller, max_horizon=1000):
                 obs_n[i], reward_n[i], done_n[i], acs_n[i],
                 None if planned_acs_n is None else planned_acs_n[i],
                 None if planned_obs_n is None else planned_obs_n[i])
-            if done_n[i]:
-                active_n[i] = False
-                venv.mask(i)
     return paths
 
 
-def sample(env, controller, max_horizon=1000, render=False):
+def sample(env, controller, render=False):
     """
     Given a single environment env, perform a rollout up to max_horizon
     steps, possibly rendering, with the given controller.
     """
+    max_horizon = flags().experiment.horizon
     ob = env.reset()
     path = Path(env, ob, max_horizon, controller.planning_horizon())
     controller.reset(1)

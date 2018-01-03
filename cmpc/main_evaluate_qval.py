@@ -88,7 +88,7 @@ def _evaluate(_):
     controller = as_controller(learner.actor.target_act)
 
     with timeit('running controller evaluation (target actor)'):
-        paths = sample_venv(venv, controller, flags().experiment.horizon)
+        paths = sample_venv(venv, controller)
         qs = np.concatenate(qvals(paths, flags().experiment.discount))
 
     with timeit('target Q'):

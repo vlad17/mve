@@ -193,10 +193,6 @@ class ParallelVenv(VenvBase):
             worker.step_finish(obs, rews, dones)
         return obs, rews, dones, infos
 
-    def mask(self, ixs):
-        """does nothing"""
-        pass
-
     def _close(self):
         for worker in self._workers:
             worker.close()

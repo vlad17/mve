@@ -23,7 +23,7 @@ class RandomPolicyFlags(Flags):
 def _train(args):
     venv = ParallelVenv(args.random.num_paths)
     random_policy = RandomPolicy(venv)
-    paths = sample_venv(venv, random_policy, args.experiment.horizon)
+    paths = sample_venv(venv, random_policy)
     rewards = [path.rewards.sum() for path in paths]
     reporter.add_summary_statistics('reward', rewards)
     reporter.advance(paths)

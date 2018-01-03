@@ -59,7 +59,7 @@ def _train(args, env, venv, dyn_metrics):
             controller.fit(data, timesteps(paths))
 
         with timeit('sample controller'):
-            paths = sample_venv(venv, controller, args.experiment.horizon)
+            paths = sample_venv(venv, controller)
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
@@ -72,8 +72,7 @@ def _train(args, env, venv, dyn_metrics):
 
         if args.experiment.should_render(itr):
             with args.experiment.render_env(itr + 1) as render_env:
-                sample(render_env, controller,
-                       args.experiment.horizon, render=True)
+                sample(render_env, controller, render=True)
 
         if args.experiment.should_save(itr):
             tfnode.save_all(itr + 1)

@@ -57,10 +57,6 @@ class SerialVenv(VenvBase):
         for env in self._envs:
             env.close()
 
-    def mask(self, ixs):
-        """no-op"""
-        pass
-
     def multi_step(self, acs_hna):
         h, m = acs_hna.shape[:2]
         assert m <= self.n, (m, self.n)

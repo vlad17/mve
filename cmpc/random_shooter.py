@@ -140,7 +140,6 @@ class RandomShooter(Controller):
     def log(self, most_recent):
         # out-of-band learner evaluation
         learner = as_controller(self._learner.act)
-        learner_paths = sample_venv(
-            self._learner_test_env, learner, most_recent.max_horizon)
+        learner_paths = sample_venv(self._learner_test_env, learner)
         rews = [path.rewards for path in learner_paths]
         reporter.add_summary_statistics('learner reward', rews)

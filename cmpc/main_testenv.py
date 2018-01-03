@@ -19,16 +19,15 @@ def train(_):
     """
     nenvs = flags().run.nenvs
     repeats = flags().run.repeats
-    horizon = flags().experiment.horizon
     controller = as_controller(ZeroLearner().act)
     with closing(SerialVenv(nenvs, env_info.make_env)) as venv:
         with timeit('singleproc venv'):
             for _ in range(repeats):
-                sample_venv(venv, controller, horizon)
+                sample_venv(venv, controller)
     with closing(ParallelVenv(nenvs)) as venv:
         with timeit('multithread venv'):
             for _ in range(repeats):
-                sample_venv(venv, controller, horizon)
+                sample_venv(venv, controller)
 
 
 class _RunFlags(Flags):

@@ -120,8 +120,6 @@ def _oracle_q(critic, actor, states_ns, acs_na, venv, h_n):
     discount = flags().experiment.discount
     active_n = np.ones(len(states_ns), dtype=bool)
     active_n[h_n == 0] = False
-    for j in np.flatnonzero(h_n == 0):
-        venv.mask(j)
     final_states_ns = np.copy(states_ns)
     final_acs_na = np.copy(acs_na)
     maxh = h_n.max()
@@ -139,8 +137,6 @@ def _oracle_q(critic, actor, states_ns, acs_na, venv, h_n):
         final_states_ns[done_n] = states_ns[done_n]
         final_acs_na[done_n] = acs_na[done_n]
         end_time[done_n] = i + 1
-        for j in np.flatnonzero(done_n):
-            venv.mask(j)
     assert maxh == 0 or not np.any(active_n), (maxh, active_n.sum())
     assert np.all(end_time <= h_n), np.sum(end_time > h_n)
     final_critic = critic(final_states_ns, final_acs_na)
