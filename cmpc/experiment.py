@@ -15,7 +15,6 @@ import tensorflow as tf
 
 from context import context
 from flags import Flags, ArgSpec
-from envs import (WhiteBoxHalfCheetah, WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
 import env_info
 import log
 import reporter
@@ -87,21 +86,10 @@ class ExperimentFlags(Flags):
         super().__init__('experiment', 'experiment governance',
                          list(ExperimentFlags._generate_arguments()))
 
-    def make_env(self):
-        """Generates an unvectorized env."""
-        if self.env_name == 'hc':
-            return WhiteBoxHalfCheetah()
-        elif self.env_name == 'ant':
-            return WhiteBoxAntEnv()
-        elif self.env_name == 'walker2d':
-            return WhiteBoxWalker2dEnv()
-        else:
-            raise ValueError('env {} unsupported'.format(self.env_name))
-
     @contextmanager
     def render_env(self, uid):
         """Create a renderable env (context)."""
-        with closing(self.make_env()) as env:
+        with closing(env_info.make_env()) as env:
             limited_env = wrappers.TimeLimit(
                 env, max_episode_steps=self.horizon)
             render_directory = reporter.logging_directory()
@@ -206,5 +194,5 @@ def experiment_main(flags, experiment_fn):
             with reporter.create(logdir_seed, flags.experiment.verbose):
                 with create_tf_session() as sess:
                     with sess.as_default():
-                        with env_info.create(flags.experiment.make_env):
+                        with env_info.create():
                             experiment_fn(flags)

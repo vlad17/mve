@@ -6,22 +6,21 @@ import tensorflow as tf
 
 from dataset import Dataset
 from ddpg_learner import DDPGLearner, DDPGFlags
+import env_info
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags, ArgSpec)
 import tfnode
-from multiprocessing_env import make_venv
 from persistable_dataset import (
     add_dataset_to_persistance_registry, PersistableDatasetFlags)
 import reporter
-from sample import sample_venv, sample
+from sample import sample
 from utils import timeit, as_controller, timesteps
 
 
 def _train(args):
-    env = args.experiment.make_env()
+    env = env_info.make_env()
     data = Dataset.from_env(env, args.experiment.horizon,
                             args.experiment.bufsize)
-    venv = make_venv(args.experiment.make_env, 1)
     learner = DDPGLearner()
     add_dataset_to_persistance_registry(data, args.persistable_dataset)
 
@@ -36,7 +35,8 @@ def _train(args):
 
         with timeit('sample learner'):
             controller = as_controller(learner.act)
-            paths = sample_venv(venv, controller, args.experiment.horizon)
+            paths = [sample(env, controller,
+                            args.experiment.horizon, render=False)]
             data.add_paths(paths)
 
         with timeit('gathering statistics'):

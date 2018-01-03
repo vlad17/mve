@@ -5,10 +5,10 @@ import mujoco_py  # pylint: disable=unused-import
 
 from experiment import ExperimentFlags, experiment_main
 from flags import (Flags, parse_args, ArgSpec)
-from multiprocessing_env import make_venv
 from random_policy import RandomPolicy
 from sample import sample_venv
 import reporter
+from venv.parallel_venv import ParallelVenv
 
 
 class RandomPolicyFlags(Flags):
@@ -21,7 +21,7 @@ class RandomPolicyFlags(Flags):
 
 
 def _train(args):
-    venv = make_venv(args.experiment.make_env, args.random.num_paths)
+    venv = ParallelVenv(args.random.num_paths)
     random_policy = RandomPolicy(venv)
     paths = sample_venv(venv, random_policy, args.experiment.horizon)
     rewards = [path.rewards.sum() for path in paths]

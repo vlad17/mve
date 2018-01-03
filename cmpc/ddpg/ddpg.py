@@ -6,12 +6,12 @@ import numpy as np
 from context import flags
 import env_info
 from log import debug
-from multiprocessing_env import make_venv
 import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
 from qvalues import qvals, offline_oracle_q, oracle_q
 from utils import scale_from_box, as_controller
+from venv.parallel_venv import ParallelVenv
 
 
 def _tf_seq(a, b_fn):
@@ -79,8 +79,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             # h-step observations
             h = flags().ddpg.model_horizon
             debug('using oracle Q estimator with {} steps', h)
-            self._oracle_venv = make_venv(
-                flags().experiment.make_env,
+            self._oracle_venv = ParallelVenv(
                 flags().ddpg.oracle_nenvs_with_default())
             self._target_Q_ph_n = tf.placeholder(
                 tf.float32, shape=[None])
@@ -179,8 +178,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         self._optimize = tf.group(update_targets, conditional_update)
         self._actor = actor
         self._critic = critic
-        self._venv = make_venv(
-            flags().experiment.make_env, 10)
+        self._venv = ParallelVenv(10)
 
     def _evaluate(self):
         # runs out-of-band trials for less noise performance evaluation

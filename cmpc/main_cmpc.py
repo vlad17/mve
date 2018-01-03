@@ -9,6 +9,7 @@ import tensorflow as tf
 from dataset import Dataset
 from dynamics import DynamicsFlags, NNDynamicsModel
 from dynamics_metrics import DynamicsMetricsFlags, DynamicsMetrics
+import env_info
 from experiment import experiment_main, ExperimentFlags
 from immutable_dataset import ImmutableDataset
 from flags import parse_args
@@ -20,9 +21,9 @@ from random_shooter_flags import RandomShooterFlags
 from ddpg_learner import DDPGFlags
 from cloning_learner import CloningLearnerFlags
 import tfnode
-from multiprocessing_env import make_venv
 from sample import sample_venv, sample
 from utils import timeit, timesteps
+from venv.parallel_venv import ParallelVenv
 import reporter
 
 
@@ -30,11 +31,10 @@ def train(args):
     """
     Train constrained MPC with the specified flags and subflags.
     """
-    with closing(args.experiment.make_env()) as env, \
-        closing(make_venv(args.experiment.make_env, args.mpc.onpol_paths)) \
-        as venv, \
+    with closing(env_info.make_env()) as env, \
+        closing(ParallelVenv(args.mpc.onpol_paths)) as venv, \
         closing(DynamicsMetrics(
-            args.mpc.mpc_horizon, args.experiment.make_env,
+            args.mpc.mpc_horizon, env_info.make_env,
             args.dynamics_metrics, args.experiment.discount)) as dyn_metrics:
         _train(args, env, venv, dyn_metrics)
 

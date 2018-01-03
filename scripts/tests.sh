@@ -115,6 +115,8 @@ main() {
     colocation_flags="$colocation_flags --mpc_optimizer colocation"
     cmds+=("python $main_cmpc $mpc_flags $colocation_flags --coloc_opt_horizon 2")
     cmds+=("python $main_cmpc $mpc_flags $colocation_flags")
+    # Env test test
+    cmds+=("python ../cmpc/main_testenv.py --nenvs 1 --horizon 10 --repeats 1")
     # Test recovery
     cmds+=("python $main_cmpc $rs_mpc_flags --exp_name saved --save_every 2")
     expected_dyn_save="data/saved_hc/3/checkpoints/dynamics.ckpt-00000002"
