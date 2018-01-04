@@ -72,18 +72,18 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         self._reporter.stats('critic Q', current_Q_n)
         next_Q_n = critic.tf_target_critic(
             self.obs1_ph_ns, actor.tf_target_action(self.obs1_ph_ns))
-        target_Q_n = self.rewards_ph_n + (1. - self.terminals1_ph_n) * (
-            discount * next_Q_n)
-        self._reporter.stats('target Q', target_Q_n)
         if flags().ddpg.mixture_estimator == 'oracle':
             # h-step observations
             h = flags().ddpg.model_horizon
             debug('using oracle Q estimator with {} steps', h)
             self._oracle_venv = ParallelVenv(
                 flags().ddpg.oracle_nenvs_with_default())
-            self._target_Q_ph_n = tf.placeholder(
+            self._next_Q_ph_n = tf.placeholder(
                 tf.float32, shape=[None])
-            target_Q_n = self._target_Q_ph_n
+            next_Q_n = self._next_Q_ph_n
+        target_Q_n = self.rewards_ph_n + (1. - self.terminals1_ph_n) * (
+            discount * next_Q_n)
+        self._reporter.stats('target Q', target_Q_n)
 
         reg_loss = sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
         self._critic_loss = tf.losses.mean_squared_error(
@@ -223,14 +223,15 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             self.terminals1_ph_n: terminals,
             self.rewards_ph_n: rewards,
             self.actions_ph_na: acs}
-        if hasattr(self, '_target_Q_ph_n'):
+        if hasattr(self, '_next_Q_ph_n'):
             h = flags().ddpg.model_horizon
             h_n = np.full(len(obs), h, dtype=int)
+            next_acs = self._actor.target_act(next_obs)
             model_expanded_Q = oracle_q(
                 self._critic.target_critique,
                 self._actor.target_act,
-                obs, acs, self._oracle_venv, h_n)
-            feed_dict[self._target_Q_ph_n] = model_expanded_Q
+                next_obs, next_acs, self._oracle_venv, h_n)
+            feed_dict[self._next_Q_ph_n] = model_expanded_Q
         return feed_dict
 
     def train(self, data, nbatches, batch_size):
