@@ -34,13 +34,14 @@ def qvals(paths, discount):
     This is just a sample of the "true net present value" of the reward
     for a given path.
     """
+    rewards = [path.rewards for path in paths]
     all_qvals = []
-    for path in paths:
+    for reward_trajectory in rewards:
         # numerically stable cumulative reward sum
-        path_qvals = np.empty_like(path.rewards, dtype=np.float64)
+        path_qvals = np.empty_like(reward_trajectory, dtype=np.float64)
         future_qval = 0
-        for i in range(len(path.rewards) - 1, -1, -1):
-            path_qvals[i] = path.rewards[i] + discount * future_qval
+        for i in range(len(reward_trajectory) - 1, -1, -1):
+            path_qvals[i] = reward_trajectory[i] + discount * future_qval
             future_qval = path_qvals[i]
         all_qvals.append(path_qvals)
     return all_qvals

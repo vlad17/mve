@@ -9,18 +9,21 @@ from contextlib import closing
 import multiprocessing as mp
 import sys
 
-from context import flags
+import tensorflow as tf
+
+from context import flags, context
 import env_info
 import numpy as np
 from venv.venv_base import VenvBase
 from venv.serial_venv import SerialVenv
 
 
-def _child_loop(parent_conn, conn, m, env_args, id_str):
+def _child_loop(parent_conn, conn, m, parent_flags, id_str, venv_gen):
     parent_conn.close()
-    venv = SerialVenv(m, lambda: env_info.make_env(*env_args))
+    context().flags = parent_flags
     try:
-        with closing(venv), closing(conn):
+        with env_info.create(), closing(venv_gen(m)) as venv, closing(conn):
+            tf.get_default_graph().finalize()
             while True:
                 method_name, args = conn.recv()
                 if method_name == 'close':
@@ -41,21 +44,19 @@ class _Worker:
     Book-keeping on the parent process side for managing a single child
     process worker (which maintains several environments).
     """
-    # TODO: print identifying info upon errors for a worker and do
-    # clean exits.
 
-    def __init__(self, num_workers, worker_idx, num_envs, env_args):
-        self._env_args = env_args
+    def __init__(self, num_workers, worker_idx, num_envs, venv_generator):
         self._lo = worker_idx * num_envs // num_workers
         self._hi = (worker_idx + 1) * num_envs // num_workers
         fmt = '{: ' + str(len(str(num_workers))) + 'd}'
         self._id_str = ('worker ' + fmt + ' of ' + fmt).format(
             worker_idx, num_workers)
 
-        self._conn, child_conn = mp.Pipe()
-        self._proc = mp.Process(target=_child_loop, args=(
-            self._conn, child_conn, self._hi - self._lo, self._env_args,
-            self._id_str))
+        ctx = mp.get_context('spawn')
+        self._conn, child_conn = ctx.Pipe()
+        self._proc = ctx.Process(target=_child_loop, args=(
+            self._conn, child_conn, self._hi - self._lo, flags(),
+            self._id_str, venv_generator))
         self._proc.start()
         child_conn.close()
 
@@ -128,6 +129,19 @@ class _Worker:
         out_rews[:, self._lo:hi] = rews
         out_dones[:, self._lo:hi] = dones
 
+    def multi_step_actor(self, obs_ns, num_steps):
+        """initiate remote actor-constrained multi step"""
+        obs_ms = obs_ns[self._lo:self._hi]
+        self._push('multi_step_actor', (obs_ms, num_steps))
+
+    def multi_step_actor_finish(self, out_obs, out_rews, out_dones):
+        """wait until remote actor-constrained multi step completes"""
+        obs, rews, dones = self._pull('multi_step_actor')
+        hi = self._lo + obs.shape[0]
+        out_obs[self._lo:hi] = obs
+        out_rews[self._lo:hi] = rews
+        out_dones[self._lo:hi] = dones
+
     def close(self):
         """initiate remote close"""
         # racy if, so we swallow errors.
@@ -142,16 +156,17 @@ class _Worker:
 
 class ParallelVenv(VenvBase):
     """
-    Multiprocessing-based parallel vectorized environment.
+    Multiprocessing-based parallel vectorized environment. On each
+    child process, uses venv_generator(m) as the vectorized child
+    environment.
     """
 
-    def __init__(self, n):
+    def __init__(self, n, venv_generator=SerialVenv):
         try:
             num_workers = max(min(mp.cpu_count(), n), 1)
         except NotImplementedError:
             num_workers = 1
-        env_args = (flags().experiment.env_name,)
-        self._workers = [_Worker(num_workers, i, n, env_args)
+        self._workers = [_Worker(num_workers, i, n, venv_generator)
                          for i in range(num_workers)]
         with closing(env_info.make_env()) as env:
             self.action_space = env.action_space
@@ -209,4 +224,17 @@ class ParallelVenv(VenvBase):
             worker.multi_step(acs_hna)
         for worker in self._workers:
             worker.multi_step_finish(obs, rews, dones)
+        return obs, rews, dones
+
+    def multi_step_actor(self, obs_ns, num_steps):
+        """See documentaiton in ActorVenv.multi_step_actor"""
+        m = len(obs_ns)
+        assert m <= self.n, (m, self.n)
+        obs = np.empty((m,) + self.observation_space.shape)
+        rews = np.empty((m,))
+        dones = np.empty((m,), dtype=bool)
+        for worker in self._workers:
+            worker.multi_step_actor(obs_ns, num_steps)
+        for worker in self._workers:
+            worker.multi_step_actor_finish(obs, rews, dones)
         return obs, rews, dones

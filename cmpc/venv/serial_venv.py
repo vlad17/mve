@@ -4,6 +4,7 @@ A serial implementation of the vectorized environment.
 
 import numpy as np
 
+import env_info
 from venv.venv_base import VenvBase
 
 
@@ -13,8 +14,8 @@ class SerialVenv(VenvBase):
     environment
     """
 
-    def __init__(self, n, make_env):
-        self._envs = [make_env() for _ in range(n)]
+    def __init__(self, n):
+        self._envs = [env_info.make_env() for _ in range(n)]
         env = self._envs[0]
         self.action_space = env.action_space
         self.observation_space = env.observation_space

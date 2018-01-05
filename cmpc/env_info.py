@@ -36,13 +36,12 @@ def ob_space():
     return context().env_info.observation_space
 
 
-def make_env(env_name=None):
+def make_env():
     """
     Generates an unvectorized env from a standard string.
     Creates the experiment-flag specified name by default.
     """
-    if env_name is None:
-        env_name = context().flags.experiment.env_name
+    env_name = context().flags.experiment.env_name
     if env_name == 'hc':
         return WhiteBoxHalfCheetah()
     elif env_name == 'ant':

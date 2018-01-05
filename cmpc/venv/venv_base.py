@@ -27,8 +27,6 @@ class VenvBase(gym.Env):
       fully observable MDP)
     * multi_step - given an up-front open loop action plan, execute it
       and return the resulting states, rewards, and done indicators.
-    * TODO - multi_step_actor - distributed TF
-    * TODO - clean closing
 
     Since some environments may terminate early while others are
     iterating, vectorized environments automatically mask out done
