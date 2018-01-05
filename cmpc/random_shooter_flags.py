@@ -67,6 +67,12 @@ class RandomShooterFlags(Flags):
                 action='store_true',
                 help='Indicates whether or not to use true dynamics, the'
                 ' OpenAI gym, as opposed to a learned model'
+            ),
+            ArgSpec(
+                name='rs_n_envs',
+                type=int,
+                default=1000,
+                help='Number of parallel environments to launch.'
             )]
         super().__init__('random_shooter', 'random shooter', arguments)
 

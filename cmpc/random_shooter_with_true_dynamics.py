@@ -10,7 +10,7 @@ from controller import Controller
 from itertools import chain
 import env_info
 from venv.parallel_venv import ParallelVenv
-from utils import scale_to_box
+from utils import scale_to_box, rate_limit
 from random_shooter import random_shooter_log_reward
 
 
@@ -30,8 +30,8 @@ class RandomShooterWithTrueDynamics(Controller):
         learner = flags().random_shooter.make_learner()
         assert mpc_horizon > 0, mpc_horizon
         self._sims_per_state = flags().random_shooter.simulated_paths
-        self._n_envs = 0
-        self._rollout_envs = None
+        self._n_envs = flags().random_shooter.rs_n_envs
+        self._rollout_envs = ParallelVenv(self._n_envs)
 
         self._mpc_horizon = mpc_horizon
 
@@ -55,11 +55,10 @@ class RandomShooterWithTrueDynamics(Controller):
         p, h = self._sims_per_state, self._mpc_horizon
         nenvs = nstates * p
         if nenvs > self._n_envs:
-            self._rollout_envs = ParallelVenv(nenvs)
+            self._rollout_envs = rate_limit(self._n_envs, self.act, states_ns)
 
         # initialize states
-        initial_states = flatten([[state] * p for state in states_ns])
-        self._rollout_envs.set_state_from_obs(initial_states)
+        self._rollout_envs.set_state_from_obs(np.repeat(states_ns, p, axis=0))
 
         # initialize random actions
         ac_space = env_info.ac_space()
