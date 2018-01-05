@@ -10,7 +10,7 @@ from controller import Controller
 from itertools import chain
 import env_info
 from multiprocessing_env import make_venv
-from utils import rate_limit, scale_to_box
+from utils import scale_to_box
 from random_shooter import random_shooter_log_reward
 
 
@@ -39,7 +39,7 @@ class RandomShooterWithTrueDynamics(Controller):
         self._learner_test_env = make_venv(
             flags().experiment.make_env, 10)
 
-    def _act(self, states):
+    def act(self, states_ns):
         """Play forward using mpc_horizon steps in the actual OpenAI gym
         environment, trying simulated_paths number of random actions for each
         state.
@@ -52,15 +52,14 @@ class RandomShooterWithTrueDynamics(Controller):
         e - n * p
         """
         # initialize nstates environments environments
-        nstates = len(states)
+        nstates = len(states_ns)
         p, h = self._sims_per_state, self._mpc_horizon
         nenvs = nstates * p
         if nenvs > self._n_envs:
-            # TODO rollout?
             self._rollout_envs = make_venv(flags().experiment.make_env, nenvs)
 
         # initialize states
-        initial_states = flatten([[state] * p for state in states])
+        initial_states = flatten([[state] * p for state in states_ns])
         self._rollout_envs.set_state_from_obs(initial_states)
 
         # initialize random actions
@@ -74,10 +73,10 @@ class RandomShooterWithTrueDynamics(Controller):
         obs_hes, rewards_he, _ = self._rollout_envs.multi_step(ac_hea)
 
         # collect our observations, rewards, and actions
-        obs_hpns = obs_hes.reshape(h, p, nstates, -1)  # TODO fill in obs dim
+        obs_hpns = obs_hes.reshape(h, p, nstates, -1)
         obs_nphs = np.transpose(obs_hpns, (2, 1, 0, 3))
         rewards_pn = np.sum(rewards_he, axis=0).reshape(p, nstates)
-        ac_hpna = ac_hea.reshape(h, p, nstates, -1)  # TODO fill in a dim
+        ac_hpna = ac_hea.reshape(h, p, nstates, -1)
         ac_npha = np.transpose(ac_hpna, (2, 1, 0, 3))
 
         # find best paths for each state, by total reward across horizon
@@ -86,9 +85,6 @@ class RandomShooterWithTrueDynamics(Controller):
         best_ac_nha = np.stack([pha[i] for i, pha in zip(best_idx, ac_npha)])
         best_ac_hna = np.swapaxes(best_ac_nha, 0, 1)
         return best_ac_hna[0], best_ac_nha, best_obs_nhs
-
-    def act(self, states_ns):
-        return rate_limit(500, self._act, states_ns)
 
     def planning_horizon(self):
         return self._mpc_horizon
