@@ -69,7 +69,7 @@ main() {
 
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8"
-    dynamics_flags="--dynamics_batches_per_timestep 1 --dyn_depth 1 --dyn_width 8"
+    dynamics_flags="--dynamics_batches_per_timestep 1 --dyn_depth 1 --dyn_width 8 --dyn_min_buf_size 200"
     mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 3"
     mpc_flags="$mpc_flags --evaluation_envs 10"
     short_mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 6"
@@ -97,11 +97,13 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2 --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
     cmds+=("python $main_ddpg $ddpg_flags --episodes 2 --mixture_estimator oracle")
+    cmds+=("python $main_ddpg $ddpg_flags --episodes 2 --ddpg_min_buf_size 200")
     # CMPC
     cloning="--mpc_optimizer random_shooter --rs_learner cloning"
     cloning="$cloning --cloning_learner_depth 1 --cloning_learner_width 1"
     cloning="$cloning --cloning_learner_batches_per_timestep 1"
     cmds+=("python $main_cmpc $cloning $rs_mpc_flags")
+    cmds+=("python $main_cmpc $cloning $rs_mpc_flags --cloning_min_buf_size 200")
     rs_ddpg="--mpc_optimizer random_shooter --rs_learner ddpg"
     cmds+=("python $main_cmpc $rs_ddpg $rs_mpc_flags $ddpg_flags")
     rs_zero="--mpc_optimizer random_shooter --rs_learner zero"
