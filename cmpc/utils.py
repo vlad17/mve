@@ -260,3 +260,16 @@ def print_table(data):
 def timesteps(paths):
     """Return the total number of timesteps in a list of trajectories"""
     return sum(len(path.rewards) for path in paths)
+
+
+def random_shooter_log_reward(shooter, most_recent):
+    """Add rewards for all paths explored by random shooter."""
+    from sample import sample_venv
+    import reporter
+
+    # out-of-band learner evaluation
+    learner = as_controller(shooter._learner.act)
+    learner_paths = sample_venv(
+        shooter._learner_test_env, learner, most_recent.max_horizon)
+    rews = [path.rewards for path in learner_paths]
+    reporter.add_summary_statistics('learner reward', rews)

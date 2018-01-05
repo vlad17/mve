@@ -8,10 +8,8 @@ import numpy as np
 from context import flags
 from controller import Controller
 import env_info
-import reporter
 from multiprocessing_env import make_venv
-from sample import sample_venv
-from utils import rate_limit, as_controller, scale_to_box
+from utils import rate_limit, scale_to_box, random_shooter_log_reward
 
 
 class RandomShooterWithTrueDynamics(Controller):
@@ -27,6 +25,8 @@ class RandomShooterWithTrueDynamics(Controller):
         learner = flags().random_shooter.make_learner()
         assert mpc_horizon > 0, mpc_horizon
         self._sims_per_state = flags().random_shooter.simulated_paths
+        self._n_states = 0
+        self._rollout_envs = None
 
         self._mpc_horizon = mpc_horizon
 
@@ -47,11 +47,15 @@ class RandomShooterWithTrueDynamics(Controller):
         """
         # initialize nstates environments environments
         nstates = len(states)
-        rollout_envs = make_venv(flags().experiment.make_env, nstates)
+        if nstates > self._n_states:
+            # TODO rollout?
+            self._rollout_envs = make_venv(flags().experiment.make_env, nstates)
 
         # play random actions p times for each state
         obs_phns, rewards_pn, ac_phna = [], [], []
+        self._rollout_envs.set_state_from_obs(states)
         for _ in range(self._sims_per_state):
+            self._rollout_envs.reset()
 
             # initialize random actions
             ac_space = env_info.ac_space()
@@ -61,8 +65,7 @@ class RandomShooterWithTrueDynamics(Controller):
             ac_hna = np.stack([ac_na] * self._mpc_horizon)
 
             # play forward random actions
-            rollout_envs.set_state_from_obs(states)
-            obs_hns, rewards_hn, _ = rollout_envs.multi_step(ac_hna)
+            obs_hns, rewards_hn, _ = self._rollout_envs.multi_step(ac_hna)
 
             # collect our observations, rewards, and actions
             obs_phns.append(obs_hns)
@@ -81,12 +84,7 @@ class RandomShooterWithTrueDynamics(Controller):
         return best_ac_hna[0], best_ac_nha, best_obs_nhs
 
     def act(self, states_ns):
-        # This batch size is specific to HalfCheetah and my setup.
-        # A more appropriate version of this method should query
-        # GPU memory size, and use the state dimension + MPC horizon
-        # to figure out the appropriate batch amount.
-        batch_size = 500
-        return rate_limit(batch_size, self._act, states_ns)
+        return rate_limit(500, self._act, states_ns)
 
     def planning_horizon(self):
         return self._mpc_horizon
@@ -95,9 +93,4 @@ class RandomShooterWithTrueDynamics(Controller):
         self._learner.fit(data, timesteps)
 
     def log(self, most_recent):
-        # out-of-band learner evaluation
-        learner = as_controller(self._learner.act)
-        learner_paths = sample_venv(
-            self._learner_test_env, learner, most_recent.max_horizon)
-        rews = [path.rewards for path in learner_paths]
-        reporter.add_summary_statistics('learner reward', rews)
+        random_shooter_log_reward(self, most_recent)

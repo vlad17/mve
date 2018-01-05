@@ -9,10 +9,8 @@ import tensorflow as tf
 from context import flags
 from controller import Controller
 import env_info
-import reporter
 from multiprocessing_env import make_venv
-from sample import sample_venv
-from utils import create_random_tf_action, rate_limit, as_controller
+from utils import create_random_tf_action, rate_limit, random_shooter_log_reward
 
 
 class RandomShooter(Controller):
@@ -140,9 +138,4 @@ class RandomShooter(Controller):
         self._learner.fit(data, timesteps)
 
     def log(self, most_recent):
-        # out-of-band learner evaluation
-        learner = as_controller(self._learner.act)
-        learner_paths = sample_venv(
-            self._learner_test_env, learner, most_recent.max_horizon)
-        rews = [path.rewards for path in learner_paths]
-        reporter.add_summary_statistics('learner reward', rews)
+        random_shooter_log_reward(self, most_recent)
