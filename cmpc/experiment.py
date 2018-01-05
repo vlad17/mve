@@ -15,7 +15,6 @@ import tensorflow as tf
 
 from context import context
 from flags import Flags, ArgSpec
-from envs import (WhiteBoxHalfCheetah, WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
 import env_info
 import log
 import reporter
@@ -82,26 +81,20 @@ class ExperimentFlags(Flags):
             type=float,
             default=0.99,
             help='discount factor for the reward calculations')
+        yield ArgSpec(
+            name='port',
+            type=int,
+            default=2222,
+            help='TensorFlow server port')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',
                          list(ExperimentFlags._generate_arguments()))
 
-    def make_env(self):
-        """Generates an unvectorized env."""
-        if self.env_name == 'hc':
-            return WhiteBoxHalfCheetah()
-        elif self.env_name == 'ant':
-            return WhiteBoxAntEnv()
-        elif self.env_name == 'walker2d':
-            return WhiteBoxWalker2dEnv()
-        else:
-            raise ValueError('env {} unsupported'.format(self.env_name))
-
     @contextmanager
     def render_env(self, uid):
         """Create a renderable env (context)."""
-        with closing(self.make_env()) as env:
+        with closing(env_info.make_env()) as env:
             limited_env = wrappers.TimeLimit(
                 env, max_episode_steps=self.horizon)
             render_directory = reporter.logging_directory()
@@ -130,6 +123,15 @@ class ExperimentFlags(Flags):
         if iteration == 0:
             return True
         return (iteration + 1) % self.save_every == 0
+
+    def tf_host(self):
+        """host name for TF distributed"""
+        return 'localhost:{}'.format(self.port)
+
+    @staticmethod
+    def tf_job():
+        """TF job name"""
+        return 'local'
 
 
 def _make_data_directory(name):
@@ -198,13 +200,19 @@ def experiment_main(flags, experiment_fn):
         with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
             json.dump(flags.asdict(), f, sort_keys=True, indent=4)
 
+        host = flags.experiment.tf_host()
+        job = flags.experiment.tf_job()
+        cluster = tf.train.ClusterSpec({job: [host]})
+        server = tf.train.Server(cluster, job_name=job)
+
         # Run experiment.
         g = tf.Graph()
         with g.as_default():
             seed_everything(seed)
             context().flags = flags
-            with reporter.create(logdir_seed, flags.experiment.verbose):
-                with create_tf_session() as sess:
-                    with sess.as_default():
-                        with env_info.create(flags.experiment.make_env):
-                            experiment_fn(flags)
+            with create_tf_session(gpu=True, target=server.target) as sess:
+                with reporter.create(logdir_seed, flags.experiment.verbose), \
+                        sess.as_default(), \
+                        env_info.create(), \
+                        tf.device('/job:{}'.format(job)):
+                    experiment_fn(flags)

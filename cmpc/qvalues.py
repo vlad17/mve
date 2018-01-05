@@ -34,13 +34,14 @@ def qvals(paths, discount):
     This is just a sample of the "true net present value" of the reward
     for a given path.
     """
+    rewards = [path.rewards for path in paths]
     all_qvals = []
-    for path in paths:
+    for reward_trajectory in rewards:
         # numerically stable cumulative reward sum
-        path_qvals = np.empty_like(path.rewards, dtype=np.float64)
+        path_qvals = np.empty_like(reward_trajectory, dtype=np.float64)
         future_qval = 0
-        for i in range(len(path.rewards) - 1, -1, -1):
-            path_qvals[i] = path.rewards[i] + discount * future_qval
+        for i in range(len(reward_trajectory) - 1, -1, -1):
+            path_qvals[i] = reward_trajectory[i] + discount * future_qval
             future_qval = path_qvals[i]
         all_qvals.append(path_qvals)
     return all_qvals
@@ -120,8 +121,6 @@ def _oracle_q(critic, actor, states_ns, acs_na, venv, h_n):
     discount = flags().experiment.discount
     active_n = np.ones(len(states_ns), dtype=bool)
     active_n[h_n == 0] = False
-    for j in np.flatnonzero(h_n == 0):
-        venv.mask(j)
     final_states_ns = np.copy(states_ns)
     final_acs_na = np.copy(acs_na)
     maxh = h_n.max()
@@ -139,8 +138,6 @@ def _oracle_q(critic, actor, states_ns, acs_na, venv, h_n):
         final_states_ns[done_n] = states_ns[done_n]
         final_acs_na[done_n] = acs_na[done_n]
         end_time[done_n] = i + 1
-        for j in np.flatnonzero(done_n):
-            venv.mask(j)
     assert maxh == 0 or not np.any(active_n), (maxh, active_n.sum())
     assert np.all(end_time <= h_n), np.sum(end_time > h_n)
     final_critic = critic(final_states_ns, final_acs_na)

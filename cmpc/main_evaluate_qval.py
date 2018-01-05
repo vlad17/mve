@@ -12,12 +12,12 @@ from ddpg_learner import DDPGLearner, DDPGFlags
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags, ArgSpec)
 import tfnode
-from multiprocessing_env import make_venv
 from plot import plt, savefig, activate_tex
 from qvalues import qvals, oracle_q, offline_oracle_q, corrected_horizon
 import reporter
 from sample import sample_venv
 from utils import timeit, as_controller, print_table
+from venv.parallel_venv import ParallelVenv
 
 
 def _mean_errorbars(vals, label, color, logy=False, ci=None):
@@ -53,7 +53,7 @@ def _evaluate_oracle(learner, paths, offline_oracle_estimators):
     par = flags().ddpg.oracle_nenvs_with_default()
     horizons_to_test = {0, 1, mixture_horizon // 2, mixture_horizon - 1}
     horizons_to_test = sorted(list(horizons_to_test))
-    with closing(make_venv(flags().experiment.make_env, par)) as evalvenv:
+    with closing(ParallelVenv(par)) as evalvenv:
         for h in horizons_to_test:
             with timeit('  oracle sim iter ' + str(h)):
                 h_n = corrected_horizon(paths, h)
@@ -78,7 +78,7 @@ def _evaluate(_):
         activate_tex()
 
     neps = flags().evaluation.episodes
-    venv = make_venv(flags().experiment.make_env, neps)
+    venv = ParallelVenv(neps)
     learner = DDPGLearner()
 
     tf.global_variables_initializer().run()
@@ -88,7 +88,7 @@ def _evaluate(_):
     controller = as_controller(learner.actor.target_act)
 
     with timeit('running controller evaluation (target actor)'):
-        paths = sample_venv(venv, controller, flags().experiment.horizon)
+        paths = sample_venv(venv, controller)
         qs = np.concatenate(qvals(paths, flags().experiment.discount))
 
     with timeit('target Q'):

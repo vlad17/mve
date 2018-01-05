@@ -1,5 +1,5 @@
 [MESSAGES CONTROL]
-disable=logging-format-interpolation,too-many-arguments,invalid-name,no-member,too-many-locals,too-many-statements,too-few-public-methods,not-context-manager,redefined-variable-type
+disable=logging-format-interpolation,too-many-arguments,invalid-name,no-member,too-many-locals,too-many-statements,too-few-public-methods,not-context-manager,redefined-variable-type,wrong-import-order
 max-line-length=79
 max-attributes=15
 

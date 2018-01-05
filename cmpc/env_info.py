@@ -7,6 +7,7 @@ this single metadata class.
 from contextlib import contextmanager, closing
 
 from context import context
+from envs import (WhiteBoxHalfCheetah, WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
 from utils import get_ob_dim, get_ac_dim
 
 
@@ -35,8 +36,24 @@ def ob_space():
     return context().env_info.observation_space
 
 
+def make_env():
+    """
+    Generates an unvectorized env from a standard string.
+    Creates the experiment-flag specified name by default.
+    """
+    env_name = context().flags.experiment.env_name
+    if env_name == 'hc':
+        return WhiteBoxHalfCheetah()
+    elif env_name == 'ant':
+        return WhiteBoxAntEnv()
+    elif env_name == 'walker2d':
+        return WhiteBoxWalker2dEnv()
+    else:
+        raise ValueError('env {} unsupported'.format(env_name))
+
+
 @contextmanager
-def create(make_env):
+def create():
     """
     Create an environment information instance within a given context.
     """

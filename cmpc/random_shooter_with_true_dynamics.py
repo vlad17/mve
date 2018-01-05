@@ -9,7 +9,7 @@ from context import flags
 from controller import Controller
 from itertools import chain
 import env_info
-from multiprocessing_env import make_venv
+from venv.parallel_venv import ParallelVenv
 from utils import scale_to_box
 from random_shooter import random_shooter_log_reward
 
@@ -93,4 +93,13 @@ class RandomShooterWithTrueDynamics(Controller):
         self._learner.fit(data, timesteps)
 
     def log(self, most_recent):
-        random_shooter_log_reward(self, most_recent)
+        random_shooter_log_reward(self)
+
+
+def make_venv(make_env, n):
+    """Generates vectorized multiprocessing env."""
+    envs = [make_env() for _ in range(n)]
+    venv = ParallelVenv(envs)
+    seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]
+    venv.seed(seeds)
+    return venv
