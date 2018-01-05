@@ -36,8 +36,7 @@ class RandomShooterWithTrueDynamics(Controller):
         self._mpc_horizon = mpc_horizon
 
         self._learner = learner
-        self._learner_test_env = make_venv(
-            flags().experiment.make_env, 10)
+        self._learner_test_env = ParallelVenv(10)
 
     def act(self, states_ns):
         """Play forward using mpc_horizon steps in the actual OpenAI gym
@@ -56,7 +55,7 @@ class RandomShooterWithTrueDynamics(Controller):
         p, h = self._sims_per_state, self._mpc_horizon
         nenvs = nstates * p
         if nenvs > self._n_envs:
-            self._rollout_envs = make_venv(flags().experiment.make_env, nenvs)
+            self._rollout_envs = ParallelVenv(nenvs)
 
         # initialize states
         initial_states = flatten([[state] * p for state in states_ns])
@@ -93,13 +92,4 @@ class RandomShooterWithTrueDynamics(Controller):
         self._learner.fit(data, timesteps)
 
     def log(self, most_recent):
-        random_shooter_log_reward(self)
-
-
-def make_venv(make_env, n):
-    """Generates vectorized multiprocessing env."""
-    envs = [make_env() for _ in range(n)]
-    venv = ParallelVenv(envs)
-    seeds = [int(s) for s in np.random.randint(0, 2 ** 30, size=n)]
-    venv.seed(seeds)
-    return venv
+        random_shooter_log_reward(self._learner, self._learner_test_env)

@@ -139,13 +139,13 @@ class RandomShooter(Controller):
         self._learner.fit(data, timesteps)
 
     def log(self, most_recent):
-        random_shooter_log_reward(self)
+        random_shooter_log_reward(self._learner, self._learner_test_env)
 
 
-def random_shooter_log_reward(shooter):
+def random_shooter_log_reward(learner, learner_test_env):
     """Add rewards for all paths explored by random shooter."""
     # out-of-band learner evaluation
-    learner = as_controller(shooter._learner.act)
-    learner_paths = sample_venv(shooter._learner_test_env, learner)
+    learner = as_controller(learner.act)
+    learner_paths = sample_venv(learner_test_env, learner)
     rews = [path.rewards for path in learner_paths]
     reporter.add_summary_statistics('learner reward', rews)
