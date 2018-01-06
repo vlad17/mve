@@ -38,7 +38,7 @@ class RandomShooterWithTrueDynamics(Controller):
         self._learner = learner
         self._learner_test_env = ParallelVenv(10)
 
-    def act(self, states_ns):
+    def _act(self, states_ns):
         """Play forward using mpc_horizon steps in the actual OpenAI gym
         environment, trying simulated_paths number of random actions for each
         state.
@@ -53,9 +53,6 @@ class RandomShooterWithTrueDynamics(Controller):
         # initialize nstates environments environments
         nstates = len(states_ns)
         p, h = self._sims_per_state, self._mpc_horizon
-        nenvs = nstates * p
-        if nenvs > self._n_envs:
-            self._rollout_envs = rate_limit(self._n_envs, self.act, states_ns)
 
         # initialize states
         self._rollout_envs.set_state_from_obs(np.repeat(states_ns, p, axis=0))
@@ -83,6 +80,11 @@ class RandomShooterWithTrueDynamics(Controller):
         best_ac_nha = np.stack([pha[i] for i, pha in zip(best_idx, ac_npha)])
         best_ac_hna = np.swapaxes(best_ac_nha, 0, 1)
         return best_ac_hna[0], best_ac_nha, best_obs_nhs
+
+    def act(self, states_ns):
+        """Rate-limit the `act` call."""
+        limit = self._n_envs // self._sims_per_state
+        return rate_limit(limit, self._act, states_ns)
 
     def planning_horizon(self):
         return self._mpc_horizon

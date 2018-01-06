@@ -111,6 +111,7 @@ main() {
     shooter_flags="--opt_horizon 1"
     cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags")
     cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --true_dynamics")
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --true_dynamics --rs_n_envs 2")
     colocation_flags="--coloc_primal_steps 2"
     colocation_flags="$colocation_flags --coloc_dual_steps 2 --coloc_primal_tol 1e-2"
     colocation_flags="$colocation_flags --coloc_primal_lr 1e-4 --coloc_dual_lr 1e-3"
@@ -143,7 +144,6 @@ main() {
     cmds+=("python $main_cmpc $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
     # Make sure the ray command isn't itself buggy
     cmds+=("$tune_params_run")
-
     for cmd in "${cmds[@]}"; do
         relative="../cmpc"
         box "${cmd/$relative/cmpc}"
