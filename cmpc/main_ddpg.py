@@ -14,7 +14,9 @@ from persistable_dataset import (
     add_dataset_to_persistance_registry, PersistableDatasetFlags)
 import reporter
 from sample import sample
+import server_registry
 from utils import timeit, as_controller, timesteps
+from venv.parallel_venv import ParallelVenvFlags
 
 
 def _train(args):
@@ -23,31 +25,31 @@ def _train(args):
                             args.experiment.bufsize)
     learner = DDPGLearner()
     add_dataset_to_persistance_registry(data, args.persistable_dataset)
+    init = tf.global_variables_initializer()
 
-    tf.global_variables_initializer().run()
-    tf.get_default_graph().finalize()
-    tfnode.restore_all()
+    with server_registry.make_default_session():
+        init.run()
+        tfnode.restore_all()
+        paths = []
+        for itr in range(args.run.episodes):
+            with timeit('learner fit'):
+                learner.fit(data, timesteps(paths))
 
-    paths = []
-    for itr in range(args.run.episodes):
-        with timeit('learner fit'):
-            learner.fit(data, timesteps(paths))
+            with timeit('sample learner'):
+                controller = as_controller(learner.act)
+                paths = [sample(env, controller, render=False)]
+                data.add_paths(paths)
 
-        with timeit('sample learner'):
-            controller = as_controller(learner.act)
-            paths = [sample(env, controller, render=False)]
-            data.add_paths(paths)
+            with timeit('gathering statistics'):
+                rewards = [path.rewards.sum() for path in paths]
+                reporter.add_summary_statistics('reward', rewards)
 
-        with timeit('gathering statistics'):
-            rewards = [path.rewards.sum() for path in paths]
-            reporter.add_summary_statistics('reward', rewards)
-
-        reporter.advance(paths)
-        if args.experiment.should_render(itr):
-            with args.experiment.render_env(itr + 1) as render_env:
-                sample(render_env, controller, render=True)
-        if args.experiment.should_save(itr):
-            tfnode.save_all(itr + 1)
+            reporter.advance(paths)
+            if args.experiment.should_render(itr):
+                with args.experiment.render_env(itr + 1) as render_env:
+                    sample(render_env, controller, render=True)
+            if args.experiment.should_save(itr):
+                tfnode.save_all(itr + 1)
 
 
 class RunFlags(Flags):
@@ -65,6 +67,6 @@ class RunFlags(Flags):
 
 if __name__ == "__main__":
     flags = [ExperimentFlags(), RunFlags(), PersistableDatasetFlags(),
-             DDPGFlags()]
+             DDPGFlags(), ParallelVenvFlags()]
     _args = parse_args(flags)
     experiment_main(_args, _train)

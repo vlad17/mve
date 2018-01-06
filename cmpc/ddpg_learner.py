@@ -2,13 +2,15 @@
 A learner which uses DDPG: an off-policy RL algorithm based on
 policy-gradients.
 """
+import tensorflow as tf
+
 from context import flags
 from flags import Flags, ArgSpec
 from learner import Learner
 from tfnode import TFNode
 from ddpg.ddpg import DDPG
 from ddpg.models import Actor, Critic
-
+import server_registry
 
 class DDPGFlags(Flags):
     """DDPG settings"""
@@ -125,10 +127,11 @@ class DDPGLearner(Learner, TFNode):
 
     def __init__(self):
         self._batch_size = flags().ddpg.learner_batch_size
-        self.actor = Actor(
-            width=flags().ddpg.learner_width,
-            depth=flags().ddpg.learner_depth,
-            scope='ddpg')
+        with tf.device(server_registry.parent_device()):
+            self.actor = Actor(
+                width=flags().ddpg.learner_width,
+                depth=flags().ddpg.learner_depth,
+                scope='ddpg')
         self.critic = Critic(
             width=flags().ddpg.learner_width,
             depth=flags().ddpg.learner_depth,

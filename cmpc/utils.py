@@ -16,8 +16,8 @@ from controller import Controller
 import log
 
 
-def create_tf_session(gpu=True, target=''):
-    """Create a TF session that doesn't eat all GPU memory."""
+def create_tf_config(gpu=True):
+    """Create a TF session config that doesn't eat all GPU memory."""
     if gpu:
         config = tf.ConfigProto()
     else:
@@ -25,8 +25,7 @@ def create_tf_session(gpu=True, target=''):
     config.gpu_options.allow_growth = True
     opt_opts = config.graph_options.optimizer_options
     opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
-    sess = tf.Session(target=target, config=config)
-    return sess
+    return config
 
 
 def seed_everything(seed):

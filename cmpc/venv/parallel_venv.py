@@ -3,27 +3,70 @@ An environment vectorized over multiple processes. Inspired from OpenAI
 multiprocessing_env, but otherwise pretty different.
 
 Cleanly exits on the first SIGNINT.
+
+This class is compatible with server registry: it creates worker
+tasks in the distributed TF graph.
 """
 
-from contextlib import closing
+from contextlib import contextmanager, closing
 import multiprocessing as mp
 import sys
 
-import tensorflow as tf
-
 from context import flags, context
+from flags import Flags, ArgSpec
 import env_info
 import numpy as np
+import server_registry
 from venv.venv_base import VenvBase
 from venv.serial_venv import SerialVenv
 
 
-def _child_loop(parent_conn, conn, m, parent_flags, id_str, venv_gen):
+class ParallelVenvFlags(Flags):
+    """Specification for the parallel environments"""
+
+    @staticmethod
+    def _cpu_count():
+        try:
+            return mp.cpu_count()
+        except NotImplementedError:
+            return 1
+
+    def __init__(self):
+        args = [
+            ArgSpec(
+                name='venv_parallelism',
+                default=self._cpu_count(),
+                type=int,
+                help='maximum number of child processes in parallelized envs'
+                ' that DO NOT use tensorflow'),
+            ArgSpec(
+                name='tf_parallelism',
+                default=self._cpu_count(),
+                type=int,
+                help='maximum number of child processes in parallelized envs'
+                ' that DO use tensorflow')]
+        super().__init__('parallel', 'parallel environment evaluation', args)
+
+
+@contextmanager
+def _optionally_create_remote_session(need_tf):
+    if need_tf:
+        with server_registry.make_default_session():
+            yield
+    else:
+        yield
+
+
+def _child_loop(parent_conn, conn, m, parent_flags,
+                id_str, venv_gen, child_id, need_tf):
     parent_conn.close()
     context().flags = parent_flags
     try:
-        with env_info.create(), closing(venv_gen(m)) as venv, closing(conn):
-            tf.get_default_graph().finalize()
+        with env_info.create(), server_registry.create(child_id), \
+                closing(venv_gen(m)) as venv, closing(conn), \
+                _optionally_create_remote_session(need_tf):
+            print('{} ready\n'.format(id_str), end='', file=sys.stderr)
+            sys.stderr.flush()
             while True:
                 method_name, args = conn.recv()
                 if method_name == 'close':
@@ -33,10 +76,13 @@ def _child_loop(parent_conn, conn, m, parent_flags, id_str, venv_gen):
                 try:
                     conn.send((method_name, result))
                 except IOError:
-                    print('worker swallowing error\n', file=sys.stderr, end='')
+                    print('{} swallowing IOError\n'.format(id_str),
+                          file=sys.stderr, end='')
+                    sys.stderr.flush()
     except KeyboardInterrupt:
         print('{} exited cleanly on SIGINT\n'.format(id_str), end='',
               file=sys.stderr)
+        sys.stderr.flush()
 
 
 class _Worker:
@@ -45,18 +91,20 @@ class _Worker:
     process worker (which maintains several environments).
     """
 
-    def __init__(self, num_workers, worker_idx, num_envs, venv_generator):
+    def __init__(self, num_workers, worker_idx, num_envs, venv_generator,
+                 need_tf):
         self._lo = worker_idx * num_envs // num_workers
         self._hi = (worker_idx + 1) * num_envs // num_workers
         fmt = '{: ' + str(len(str(num_workers))) + 'd}'
         self._id_str = ('worker ' + fmt + ' of ' + fmt).format(
             worker_idx, num_workers)
+        self._child_id = server_registry.reserve_child() if need_tf else None
 
         ctx = mp.get_context('spawn')
         self._conn, child_conn = ctx.Pipe()
         self._proc = ctx.Process(target=_child_loop, args=(
             self._conn, child_conn, self._hi - self._lo, flags(),
-            self._id_str, venv_generator))
+            self._id_str, venv_generator, self._child_id, need_tf))
         self._proc.start()
         child_conn.close()
 
@@ -161,12 +209,13 @@ class ParallelVenv(VenvBase):
     environment.
     """
 
-    def __init__(self, n, venv_generator=SerialVenv):
-        try:
-            num_workers = max(min(mp.cpu_count(), n), 1)
-        except NotImplementedError:
-            num_workers = 1
-        self._workers = [_Worker(num_workers, i, n, venv_generator)
+    def __init__(self, n, venv_generator=SerialVenv, need_tf=False):
+        if need_tf:
+            num_workers = flags().parallel.tf_parallelism
+        else:
+            num_workers = flags().parallel.venv_parallelism
+        num_workers = max(min(num_workers, n), 1)
+        self._workers = [_Worker(num_workers, i, n, venv_generator, need_tf)
                          for i in range(num_workers)]
         with closing(env_info.make_env()) as env:
             self.action_space = env.action_space
@@ -227,7 +276,7 @@ class ParallelVenv(VenvBase):
         return obs, rews, dones
 
     def multi_step_actor(self, obs_ns, num_steps):
-        """See documentaiton in ActorVenv.multi_step_actor"""
+        """See documentation in ActorVenv.multi_step_actor"""
         m = len(obs_ns)
         assert m <= self.n, (m, self.n)
         obs = np.empty((m,) + self.observation_space.shape)

@@ -1,22 +1,18 @@
 """DDPG training."""
 
-from functools import partial
-
 import tensorflow as tf
 import numpy as np
 
 from context import flags
-from ddpg.models import Actor
 import env_info
 from log import debug
 import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
 from qvalues import qvals, offline_oracle_q
-from utils import scale_from_box, as_controller
-from venv.actor_venv import ActorVenv
+from utils import scale_from_box, as_controller, rate_limit
+from venv.ddpg_actor_venv import DDPGActorVenv
 from venv.parallel_venv import ParallelVenv
-from utils import rate_limit
 
 
 def _tf_seq(a, b_fn):
@@ -31,27 +27,6 @@ def _tf_doif(cond, if_true_fn):
         cond,
         lambda: _tf_seq(if_true_fn(), lambda: tf.constant(0)),
         lambda: 0)
-
-
-def generate_actor():
-    """
-    Generates an actor which acts according to its target policy. To be
-    called on a remote process, fetching the parent/master's actor policy.
-
-    Returns a closure which maps states to actions using the current
-    default TF session.
-    """
-    device = '/job:{}'.format(flags().experiment.tf_job())
-    with tf.device(device):
-        obs_ph_ns = tf.placeholder(
-            tf.float32, [None, env_info.ob_dim()])
-        actor = Actor(
-            width=flags().ddpg.learner_width,
-            depth=flags().ddpg.learner_depth,
-            scope='ddpg')
-        acs_na = actor.tf_target_action(obs_ph_ns)
-    return lambda states: tf.get_default_session().run(acs_na, feed_dict={
-        obs_ph_ns: states})
 
 
 class DDPG:  # pylint: disable=too-many-instance-attributes
@@ -102,9 +77,9 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             # h-step observations
             h = flags().ddpg.model_horizon
             debug('using oracle Q estimator with {} steps', h)
-            venv_generator = partial(ActorVenv, generate_actor)
             nenvs = flags().ddpg.oracle_nenvs_with_default()
-            self._oracle_venv = ParallelVenv(nenvs, venv_generator)
+            self._oracle_venv = ParallelVenv(
+                nenvs, DDPGActorVenv, need_tf=True)
             self._next_Q_ph_n = tf.placeholder(
                 tf.float32, shape=[None])
             next_Q_n = self._next_Q_ph_n

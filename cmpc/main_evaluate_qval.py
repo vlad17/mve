@@ -16,8 +16,9 @@ from plot import plt, savefig, activate_tex
 from qvalues import qvals, oracle_q, offline_oracle_q, corrected_horizon
 import reporter
 from sample import sample_venv
+import server_registry
 from utils import timeit, as_controller, print_table
-from venv.parallel_venv import ParallelVenv
+from venv.parallel_venv import ParallelVenv, ParallelVenvFlags
 
 
 def _mean_errorbars(vals, label, color, logy=False, ci=None):
@@ -80,13 +81,15 @@ def _evaluate(_):
     neps = flags().evaluation.episodes
     venv = ParallelVenv(neps)
     learner = DDPGLearner()
+    init = tf.global_variables_initializer()
 
-    tf.global_variables_initializer().run()
-    tf.get_default_graph().finalize()
-    tfnode.restore_all()
+    with server_registry.make_default_session():
+        init.run()
+        tfnode.restore_all()
+        controller = as_controller(learner.actor.target_act)
+        _evaluate_with_session(neps, venv, learner, controller)
 
-    controller = as_controller(learner.actor.target_act)
-
+def _evaluate_with_session(neps, venv, learner, controller):
     with timeit('running controller evaluation (target actor)'):
         paths = sample_venv(venv, controller)
         qs = np.concatenate(qvals(paths, flags().experiment.discount))
@@ -155,6 +158,7 @@ class EvaluationFlags(Flags):
 
 
 if __name__ == "__main__":
-    _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags()]
+    _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags(),
+              ParallelVenvFlags()]
     _args = parse_args(_flags)
     experiment_main(_args, _evaluate)

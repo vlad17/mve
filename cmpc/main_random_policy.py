@@ -8,7 +8,7 @@ from flags import (Flags, parse_args, ArgSpec)
 from random_policy import RandomPolicy
 from sample import sample_venv
 import reporter
-from venv.parallel_venv import ParallelVenv
+from venv.parallel_venv import ParallelVenv, ParallelVenvFlags
 
 
 class RandomPolicyFlags(Flags):
@@ -30,5 +30,6 @@ def _train(args):
 
 
 if __name__ == "__main__":
-    _args = parse_args([ExperimentFlags(), RandomPolicyFlags()])
+    _args = parse_args([
+        ExperimentFlags(), RandomPolicyFlags(), ParallelVenvFlags()])
     experiment_main(_args, _train)

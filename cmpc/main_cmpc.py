@@ -22,8 +22,9 @@ from ddpg_learner import DDPGFlags
 from cloning_learner import CloningLearnerFlags
 import tfnode
 from sample import sample_venv, sample
+import server_registry
 from utils import timeit, timesteps
-from venv.parallel_venv import ParallelVenv
+from venv.parallel_venv import ParallelVenv, ParallelVenvFlags
 import reporter
 
 
@@ -36,18 +37,22 @@ def train(args):
         closing(DynamicsMetrics(
             args.mpc.mpc_horizon, env_info.make_env,
             args.dynamics_metrics, args.experiment.discount)) as dyn_metrics:
-        _train(args, env, venv, dyn_metrics)
+
+        # TF graph construction
+        data = Dataset.from_env(
+            env, args.experiment.horizon, args.experiment.bufsize)
+        dyn_model = NNDynamicsModel(env, data, args.dynamics)
+        controller = args.mpc.make_mpc(dyn_model)
+        add_dataset_to_persistance_registry(data, args.persistable_dataset)
+        init = tf.global_variables_initializer()
+
+        # actually run stuff
+        with server_registry.make_default_session():
+            init.run()
+            _train(args, venv, dyn_metrics, data, dyn_model, controller)
 
 
-def _train(args, env, venv, dyn_metrics):
-    data = Dataset.from_env(
-        env, args.experiment.horizon, args.experiment.bufsize)
-    dyn_model = NNDynamicsModel(env, data, args.dynamics)
-    controller = args.mpc.make_mpc(dyn_model)
-    add_dataset_to_persistance_registry(data, args.persistable_dataset)
-
-    tf.global_variables_initializer().run()
-    tf.get_default_graph().finalize()
+def _train(args, venv, dyn_metrics, data, dyn_model, controller):
     tfnode.restore_all()
     paths = []
 
@@ -83,7 +88,7 @@ def flags_to_parse():
     flags = [ExperimentFlags(), MPCFlags(), DynamicsFlags(),
              DynamicsMetricsFlags(), PersistableDatasetFlags(),
              RandomShooterFlags(), DDPGFlags(), CloningLearnerFlags(),
-             ColocationFlags()]
+             ColocationFlags(), ParallelVenvFlags()]
     return flags
 
 
