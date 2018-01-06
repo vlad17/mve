@@ -83,13 +83,16 @@ class DDPGFlags(Flags):
                 ' set to this if 0)'),
             ArgSpec(
                 name='mixture_estimator',
-                default=None,
+                default='',
                 type=str,
                 help='use a mixture estimator for computing target Q '
                 'values. If None, do not mix with model-based estimates '
                 'at all. If oracle, use an oracle environment to compute '
                 'model_horizon-step rewards for mixing with the target '
-                'Q network'),
+                'Q network (the environment implementation uses '
+                'distributed TF by default). If oracle-notf, then a '
+                'non-distributed version of TF (with more python '
+                'communication) is used instead.'),
             ArgSpec(
                 name='model_horizon',
                 default=1,

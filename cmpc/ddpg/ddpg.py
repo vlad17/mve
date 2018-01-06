@@ -9,7 +9,7 @@ from log import debug
 import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
-from qvalues import qvals, offline_oracle_q
+from qvalues import qvals, offline_oracle_q, oracle_q
 from utils import scale_from_box, as_controller, rate_limit
 from venv.ddpg_actor_venv import DDPGActorVenv
 from venv.parallel_venv import ParallelVenv
@@ -73,13 +73,19 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         self._reporter.stats('critic Q', current_Q_n)
         next_Q_n = critic.tf_target_critic(
             self.obs1_ph_ns, actor.tf_target_action(self.obs1_ph_ns))
-        if flags().ddpg.mixture_estimator == 'oracle':
+        if flags().ddpg.mixture_estimator.startswith('oracle'):
             # h-step observations
             h = flags().ddpg.model_horizon
             debug('using oracle Q estimator with {} steps', h)
             nenvs = flags().ddpg.oracle_nenvs_with_default()
-            self._oracle_venv = ParallelVenv(
-                nenvs, DDPGActorVenv, need_tf=True)
+            if flags().ddpg.mixture_estimator == 'oracle-notf':
+                self._oracle_venv = ParallelVenv(nenvs)
+            elif flags().ddpg.mixture_estimator == 'oracle':
+                self._oracle_venv = ParallelVenv(
+                    nenvs, DDPGActorVenv, need_tf=True)
+            else:
+                raise ValueError('unknown mixture_estimator setting {}'.format(
+                    flags().ddpg.mixture_estimator))
             self._next_Q_ph_n = tf.placeholder(
                 tf.float32, shape=[None])
             next_Q_n = self._next_Q_ph_n
@@ -225,18 +231,14 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             self.terminals1_ph_n: terminals,
             self.rewards_ph_n: rewards,
             self.actions_ph_na: acs}
-        if hasattr(self, '_next_Q_ph_n'):
-            h = flags().ddpg.model_horizon
-            sim_results = rate_limit(
-                self._oracle_venv.n,
-                lambda obs: self._oracle_venv.multi_step_actor(obs, h),
-                next_obs)
-            sim_obs, sim_rews, sim_terminals = sim_results
-            discount = flags().experiment.discount
-            terminal_Q = self._critic.target_critique(
-                sim_obs, self._actor.target_act(sim_obs))
-            model_expanded_Q = sim_rews + discount ** h * (
-                1 - sim_terminals) * terminal_Q
+        if flags().ddpg.mixture_estimator.startswith('oracle'):
+            if flags().ddpg.mixture_estimator == 'oracle-notf':
+                model_expanded_Q = self._no_tf_oracle(next_obs)
+            elif flags().ddpg.mixture_estimator == 'oracle':
+                model_expanded_Q = self._tf_oracle(next_obs)
+            else:
+                raise ValueError('unknown mixture_estimator setting {}'.format(
+                    flags().ddpg.mixture_estimator))
             feed_dict[self._next_Q_ph_n] = model_expanded_Q
         return feed_dict
 
@@ -261,3 +263,27 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             self._reporter.report(batch)
 
         self._evaluate()
+
+    def _no_tf_oracle(self, next_obs):
+        h = flags().ddpg.model_horizon
+        h_n = np.full(len(next_obs), h, dtype=int)
+        next_acs = self._actor.target_act(next_obs)
+        model_expanded_Q = oracle_q(
+            self._critic.target_critique,
+            self._actor.target_act,
+            next_obs, next_acs, self._oracle_venv, h_n)
+        return model_expanded_Q
+
+    def _tf_oracle(self, next_obs):
+        h = flags().ddpg.model_horizon
+        sim_results = rate_limit(
+            self._oracle_venv.n,
+            lambda obs: self._oracle_venv.multi_step_actor(obs, h),
+            next_obs)
+        sim_obs, sim_rews, sim_terminals = sim_results
+        discount = flags().experiment.discount
+        terminal_Q = self._critic.target_critique(
+            sim_obs, self._actor.target_act(sim_obs))
+        model_expanded_Q = sim_rews + discount ** h * (
+            1 - sim_terminals) * terminal_Q
+        return model_expanded_Q
