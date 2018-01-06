@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import time
+import random
 
 from gym import wrappers
 import tensorflow as tf
@@ -82,11 +83,13 @@ class ExperimentFlags(Flags):
             type=float,
             default=0.99,
             help='discount factor for the reward calculations')
+        rand_port = random.randrange(10000, 2 ** 16)
         yield ArgSpec(
             name='port',
             type=int,
-            default=22222,
-            help='TensorFlow server port')
+            default=rand_port,
+            help='TensorFlow server port. Note the default port '
+            'randomly changes between invocations.')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',
