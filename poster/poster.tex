@@ -48,12 +48,15 @@
 
 \maketitle[width=38in]
 
+
 \begin{columns}
 
   \column{0.3}
 
 
-  \block{Motivation}{
+  \block[
+  bodyoffsety=-1cm,
+  titleoffsety=-1cm]{Motivation}{
     \begin{itemize}
     \item Sample complexity reduction for model-free function-approximated value-based RL.
     \item Currently, the effect of multiple-step value learning is poorly understood.
@@ -83,16 +86,21 @@
   \]
   }
 
-  \column{0.05}
-  \column{0.30}
+  \column{0.035}
+  \column{0.33}
 
-  \block{Theoretical Gaps}{
+  \block[
+  bodyoffsety=-1cm,
+  titleoffsety=-1cm]{Theoretical Gaps}{
     (Szepesv\'{a}ri 2009) Multi-step $Q$ isn't obviously convergent, even with perfect dynamics in the tabular case. Defining:
     \[
       \mcT_h^\pi(Q)(s, a)=\sum_{t=0}^{h-1}\gamma^t r_t+\max_{a'}\gamma^hQ(s_h, a'), a_t=\pi(s_t)
     \]
     If $\pi=\argmax Q$, $\mcT_h$ won't contract more than $\gamma$, even if $h>1$. If $\pi$ is fixed then $\mcT_h$ contracts by $\gamma^h$, but does the analysis hold as we update $\pi$?
-}
+
+    \vspace{1.2cm}
+  }
+
 \block{Contributions \\(Ongoing Work)}{
   \begin{itemize}
   \item Extensive empirical validation of (van Seijen 2016) claim (improved $Q^\pi$ estimator accelerates training).
@@ -108,10 +116,12 @@
 }
 
 
-\column{0.05}
+\column{0.035}
 \column{0.3}
 
-\block{Model-Mixed DDPG}{
+\block[
+  bodyoffsety=-1cm,
+  titleoffsety=-1cm]{Model-Mixed DDPG}{
   Initialize $\pi, \hat\theta, \hat Q$. Loop:
   \begin{enumerate}
   \item Collect a sample playing $\pi$, add to replay buffer $B$.
