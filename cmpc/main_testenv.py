@@ -13,6 +13,7 @@ import server_registry
 from utils import timeit, as_controller
 from venv.ddpg_actor_venv import DDPGActorVenv
 from venv.serial_venv import SerialVenv
+from venv.threaded_venv import ThreadedVenv
 from venv.parallel_venv import ParallelVenv, ParallelVenvFlags
 
 
@@ -38,6 +39,10 @@ def _train(act, remote_actor_venv):
             with timeit('singleproc venv'):
                 for _ in range(repeats):
                     _ = sample_venv(venv, controller)
+    with closing(ThreadedVenv(nenvs)) as venv:
+        with timeit('multithreaded venv'):
+            for _ in range(repeats):
+                _ = sample_venv(venv, controller)
     with closing(ParallelVenv(nenvs)) as venv:
         with timeit('multiproc venv'):
             for _ in range(repeats):
