@@ -10,7 +10,7 @@ import numpy as np
 import tensorflow as tf
 
 from context import context
-from utils import create_tf_session, print_table, timesteps
+from utils import create_tf_config, print_table, timesteps
 
 
 @contextmanager
@@ -97,7 +97,8 @@ class _Summarize:
             return _Summarize._live_session
         _Summarize._graph = tf.Graph()
         with _Summarize._graph.as_default():
-            _Summarize._live_session = create_tf_session(gpu=False, target='')
+            _Summarize._live_session = tf.Session(
+                config=create_tf_config(gpu=False))
             _Summarize._hist_ph = tf.placeholder(tf.float32)
             _Summarize._hist_op = tf.summary.histogram(
                 'hist', _Summarize._hist_ph)

@@ -45,3 +45,4 @@ class Context:
         self.reporter = None
         self.tfnodes = None
         self.env_info = None
+        self.servers = None

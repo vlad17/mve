@@ -1,0 +1,150 @@
+\documentclass{tikzposter}
+
+\geometry{paperwidth=42in,paperheight=32in}
+\pagenumbering{gobble}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\input{defs}
+
+% \usepackage{fontspec}
+% \setmainfont{Corbel}  % This was the font used in the powerpoint template
+
+% \usepackage[labelformat=empty]{caption}  % Disable figure numbering and labels
+
+\usetheme{Default}
+\useblockstyle{Basic}
+
+\makeatletter
+\def\title#1{\gdef\@title{\scalebox{\TP@titletextscale}{%
+\begin{minipage}[t]{\linewidth}
+\centering
+#1
+\par
+\vspace{0.5em}
+\end{minipage}%
+}}}
+\makeatother
+
+\DeclareFontShape{OMX}{cmex}{m}{n}{
+  <-7.5> cmex7
+  <7.5-8.5> cmex8
+  <8.5-9.5> cmex9
+  <9.5-> cmex10
+}{}
+
+\SetSymbolFont{largesymbols}{normal}{OMX}{cmex}{m}{n}
+\SetSymbolFont{largesymbols}{bold}  {OMX}{cmex}{m}{n}
+
+
+\title{Model-Mixed Value Estimation\\[0.5em]}
+
+\author{\Large{Vladimir Feinberg, Michael I.~Jordan, Ion Stoica, Joseph Gonzalez, Sergey Levine}}
+
+\institute{University of California, Berkeley}
+
+%-- Main Document --------------------------------------------------
+\begin{document}
+
+\maketitle[width=38in]
+
+
+\begin{columns}
+
+  \column{0.3}
+
+
+  \block[
+  bodyoffsety=-1cm,
+  titleoffsety=-1cm]{Motivation}{
+    \begin{itemize}
+    \item Sample complexity reduction for model-free function-approximated value-based RL.
+    \item Currently, the effect of multiple-step value learning is poorly understood.
+    \item Focus on continuous control: we may only have sparse but known rewards and a rich transition signal.
+    \end{itemize}
+  }
+  
+  \block{Definitions}{
+    Fully observable Markov Decision Process over continuous spaces:
+    \begin{itemize}
+    \item States $s\in\mcS$
+    \item Actions $a\in\mcA$
+    \item Known reward $r:\mcS\times \mcA\times \mcS\rightarrow \R$, bounded.
+    \item Dynamics are deterministic and feasible: we have access to a model class $\{f_\theta\}_\theta$ such that for any policy $\pi:\mcS\rightarrow\mcA$ there exists a $\theta_\pi$ such that $f_{\theta_\pi}:\mcS\times\mcA\rightarrow$ satisfies $f_{\theta_\pi}(s,a)=s'$, where $a=\pi(s)$, $s$ is a state that arises from $\pi$'s marginal state distribution, and $s'$ is the true resulting state. We do not know $\theta_\pi$.
+    \end{itemize}
+    All stochasticity is currently from the initial state. Objective is to maximize infinite-horizon discounted reward:
+    \[
+    \max_\pi\E_{s_0} \sum_{t=0}^\infty \gamma^t r_t,\;\;\; r_t\triangleq r(s_t, a_t, s_{t+1})
+  \]
+   For a fixed $\pi:\mcS\rightarrow \mcA$ in context:
+    \[
+    Q^\pi(s,a)=\sum_{t=0}^\infty \gamma^tr_t, \text{ where } s_0=s, a_0=a
+  \]
+  Denote estimates with a hat. E.g., $\hat r_1=r(s_0, a_0, \hat s_1)$ where $\hat s_1=f_{\hat \theta}(s_0, a_0)$. Define the $h$-step estimator:
+  \[
+    \hat Q_h(s,a)=\sum_{t=0}^h \gamma^t\hat r_t + \gamma^h\hat Q(\hat s_h, \pi(\hat s_h))
+  \]
+  }
+
+  \column{0.035}
+  \column{0.33}
+
+  \block[
+  bodyoffsety=-1cm,
+  titleoffsety=-1cm]{Theoretical Gaps}{
+    (Szepesv\'{a}ri 2009) Multi-step $Q$ isn't obviously convergent, even with perfect dynamics in the tabular case. Defining:
+    \[
+      \mcT_h^\pi(Q)(s, a)=\sum_{t=0}^{h-1}\gamma^t r_t+\max_{a'}\gamma^hQ(s_h, a'), a_t=\pi(s_t)
+    \]
+    If $\pi=\argmax Q$, $\mcT_h$ won't contract more than $\gamma$, even if $h>1$. If $\pi$ is fixed then $\mcT_h$ contracts by $\gamma^h$, but does the analysis hold as we update $\pi$?
+
+    \vspace{1.2cm}
+  }
+
+\block{Contributions \\(Ongoing Work)}{
+  \begin{itemize}
+  \item Extensive empirical validation of (van Seijen 2016) claim (improved $Q^\pi$ estimator accelerates training).
+  \item Flexible generalization of existing joint model-based and model-free methods (Dyna, Stochastic Value Gradients, ME-TRPO, NAF): $\tilde Q = \sum_h w(h) \hat Q_h$.
+  \end{itemize}
+    (van Seijen 2016) Lower-bias estimates of $Q^\pi$ still help in practice. With perfect dynamics, $\hat Q_h$ exponentially improves $Q^\pi$ MSE throughout training:
+
+\begin{tikzfigure}[DDPG-based mixture estimator MSE at various points during training on the \texttt{HalfCheetah} task.]
+\includegraphics{cmp-mse.pdf}
+\end{tikzfigure}
+
+\textbf{Impact}. If successful, this can demonstrate utility of a new class of joint model-free and learned-model-based algorithms. Applications to robotic control are immediate.
+}
+
+
+\column{0.035}
+\column{0.3}
+
+\block[
+  bodyoffsety=-1cm,
+  titleoffsety=-1cm]{Model-Mixed DDPG}{
+  Initialize $\pi, \hat\theta, \hat Q$. Loop:
+  \begin{enumerate}
+  \item Collect a sample playing $\pi$, add to replay buffer $B$.
+  \item Update $\hat\theta$ with loss $\E \norm{s'-f_{\hat\theta}(s,a)}^2$, $(s,a,s')\sim B$
+  \item Estimate $w(h)$ used in $\tilde Q$ (via sampling, holdout, or delta method)
+  \item Update $\hat Q$ with loss $(\hat Q-\tilde Q)^2$ sampling from $B$.
+  \item Update $\pi$ to maximize $\hat Q(s, \pi(s))$ for $s\in B$.
+  \end{enumerate}
+}
+\block{Results Preview}{
+  Fix ideal dynamics $\theta=\theta_\pi$ and $w(h)=\indicator\ca{h=5}$.
+
+\begin{tikzfigure}[Comparison of MM-DDPG to DDPG on \texttt{HalfCheetah}.]
+\includegraphics{ddpg-mh5.pdf}
+\end{tikzfigure}
+}
+\block{Future Work}{
+  \begin{itemize}
+  \item Apply model-mixtures to other actor-critic algorithms, even policy-gradient ones.
+  \item Theoretical results in probabilistic tabular setting with iterate-based analysis (Szepesv\'{a}ri 1997).
+  \item Extend to constrained model-predictive control by learning $f$ which generalizes to actions near $\pi$, not just on $\pi$.
+  \end{itemize}
+}
+
+\end{columns}
+\end{document}

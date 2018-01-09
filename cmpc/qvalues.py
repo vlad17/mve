@@ -17,6 +17,9 @@ critic and actor and dynamics:
 
   h-step reward + discount^h critic(s_h, a_h)
   where the same definitions hold
+
+Note if there is an early termination, then the critic and reward
+values are taken to be 0 in the h-step reward calculation.
 """
 
 import numpy as np
@@ -120,6 +123,7 @@ def _oracle_q(critic, actor, states_ns, acs_na, venv, h_n):
     venv.set_state_from_obs(states_ns)
     discount = flags().experiment.discount
     active_n = np.ones(len(states_ns), dtype=bool)
+    terminated_early_n = np.zeros(len(states_ns), dtype=bool)
     active_n[h_n == 0] = False
     final_states_ns = np.copy(states_ns)
     final_acs_na = np.copy(acs_na)
@@ -132,8 +136,9 @@ def _oracle_q(critic, actor, states_ns, acs_na, venv, h_n):
         done_n = np.asarray(done_n, dtype=bool)
         acs_na = actor(states_ns)
         qest[active_n] += discount ** i * reward_n[active_n]
-        done_n |= i + 1 == h_n
         done_n &= active_n
+        terminated_early_n |= done_n
+        done_n |= i + 1 == h_n
         active_n[done_n] = False
         final_states_ns[done_n] = states_ns[done_n]
         final_acs_na[done_n] = acs_na[done_n]
@@ -142,6 +147,7 @@ def _oracle_q(critic, actor, states_ns, acs_na, venv, h_n):
     assert np.all(end_time <= h_n), np.sum(end_time > h_n)
     final_critic = critic(final_states_ns, final_acs_na)
     final_critic *= np.power(discount, end_time)
+    final_critic *= 1 - terminated_early_n
     qest += final_critic
     return (qest, end_time != h_n)
 
@@ -174,11 +180,8 @@ def offline_oracle_q(paths, critic_qs, h):
     # most h but keeps us within the trajectory still
     per_path_h_step_critic_qs = []
     for q in per_path_critic_qs:
-        assert q.size > 0, 'empty trajectories disallowed'
-        ending_len = len(q[-h:])  # can be less than h for short trajectories
-        ending = q[-1] * discount ** (h - np.arange(h)[-ending_len:])
         q = np.roll(q, -h) * discount ** h
-        q[-h:] = ending
+        q[-h:] = 0
         per_path_h_step_critic_qs.append(q)
     h_step_critic_qs = np.concatenate(per_path_h_step_critic_qs)
     return hsteps + h_step_critic_qs

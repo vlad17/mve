@@ -84,6 +84,7 @@ main() {
     cmds+=("python $main_random $random_flags")
     cmds+=("python $main_random $random_flags --env_name ant")
     cmds+=("python $main_random $random_flags --env_name walker2d")
+    cmds+=("python $main_random $random_flags --port 12341")
     # MPC
     cmds+=("python $main_cmpc $rs_mpc_flags")
     cmds+=("python $main_cmpc $short_mpc_flags")
@@ -121,7 +122,7 @@ main() {
     cmds+=("python $main_cmpc $mpc_flags $colocation_flags")
     # Env test test
     cmds+=("python ../cmpc/main_testenv.py --nenvs 1 --horizon 10 --repeats 1")
-    ddpg_env_test_flags="--nenvs 1 --horizon 10 --repeats 1 --controller ddpg"
+    ddpg_env_test_flags="--nenvs 1 --horizon 10 --repeats 1"
     ddpg_env_test_flags="$ddpg_env_test_flags $ddpg_only_flags"
     cmds+=("python ../cmpc/main_testenv.py $ddpg_env_test_flags")
     # Test recovery

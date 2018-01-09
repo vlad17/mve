@@ -2,13 +2,15 @@
 A learner which uses DDPG: an off-policy RL algorithm based on
 policy-gradients.
 """
+import tensorflow as tf
+
 from context import flags
 from flags import Flags, ArgSpec
 from learner import Learner
 from tfnode import TFNode
 from ddpg.ddpg import DDPG
 from ddpg.models import Actor, Critic
-
+import server_registry
 
 class DDPGFlags(Flags):
     """DDPG settings"""
@@ -81,13 +83,16 @@ class DDPGFlags(Flags):
                 ' set to this if 0)'),
             ArgSpec(
                 name='mixture_estimator',
-                default=None,
+                default='',
                 type=str,
                 help='use a mixture estimator for computing target Q '
                 'values. If None, do not mix with model-based estimates '
                 'at all. If oracle, use an oracle environment to compute '
                 'model_horizon-step rewards for mixing with the target '
-                'Q network'),
+                'Q network (the environment implementation uses '
+                'distributed TF by default). If oracle-notf, then a '
+                'non-distributed version of TF (with more python '
+                'communication) is used instead.'),
             ArgSpec(
                 name='model_horizon',
                 default=1,
@@ -132,10 +137,11 @@ class DDPGLearner(Learner, TFNode):
 
     def __init__(self):
         self._batch_size = flags().ddpg.learner_batch_size
-        self.actor = Actor(
-            width=flags().ddpg.learner_width,
-            depth=flags().ddpg.learner_depth,
-            scope='ddpg')
+        with tf.device(server_registry.parent_device()):
+            self.actor = Actor(
+                width=flags().ddpg.learner_width,
+                depth=flags().ddpg.learner_depth,
+                scope='ddpg')
         self.critic = Critic(
             width=flags().ddpg.learner_width,
             depth=flags().ddpg.learner_depth,

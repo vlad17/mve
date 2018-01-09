@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import time
+import random
 
 from gym import wrappers
 import tensorflow as tf
@@ -18,7 +19,8 @@ from flags import Flags, ArgSpec
 import env_info
 import log
 import reporter
-from utils import seed_everything, create_tf_session
+import server_registry
+from utils import seed_everything
 
 
 class ExperimentFlags(Flags):
@@ -81,11 +83,13 @@ class ExperimentFlags(Flags):
             type=float,
             default=0.99,
             help='discount factor for the reward calculations')
+        rand_port = random.randrange(10000, 2 ** 16)
         yield ArgSpec(
             name='port',
             type=int,
-            default=2222,
-            help='TensorFlow server port')
+            default=rand_port,
+            help='TensorFlow server port. Note the default port '
+            'randomly changes between invocations.')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',
@@ -123,15 +127,6 @@ class ExperimentFlags(Flags):
         if iteration == 0:
             return True
         return (iteration + 1) % self.save_every == 0
-
-    def tf_host(self):
-        """host name for TF distributed"""
-        return 'localhost:{}'.format(self.port)
-
-    @staticmethod
-    def tf_job():
-        """TF job name"""
-        return 'local'
 
 
 def _make_data_directory(name):
@@ -200,19 +195,11 @@ def experiment_main(flags, experiment_fn):
         with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
             json.dump(flags.asdict(), f, sort_keys=True, indent=4)
 
-        host = flags.experiment.tf_host()
-        job = flags.experiment.tf_job()
-        cluster = tf.train.ClusterSpec({job: [host]})
-        server = tf.train.Server(cluster, job_name=job)
-
-        # Run experiment.
         g = tf.Graph()
         with g.as_default():
             seed_everything(seed)
             context().flags = flags
-            with create_tf_session(gpu=True, target=server.target) as sess:
-                with reporter.create(logdir_seed, flags.experiment.verbose), \
-                        sess.as_default(), \
-                        env_info.create(), \
-                        tf.device('/job:{}'.format(job)):
-                    experiment_fn(flags)
+            with server_registry.create(child_index=None), \
+                    reporter.create(logdir_seed, flags.experiment.verbose), \
+                    env_info.create():
+                experiment_fn(flags)
