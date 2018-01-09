@@ -1,5 +1,6 @@
 """
-Optimize the planning problem by randomly sampling.
+Optimize the planning problem by randomly sampling trajectories from learned
+dynamics.
 """
 
 import numpy as np
@@ -7,9 +8,9 @@ import tensorflow as tf
 
 from context import flags
 from controller import Controller
+from sample import sample_venv
 import env_info
 import reporter
-from sample import sample_venv
 from utils import create_random_tf_action, rate_limit, as_controller
 from venv.parallel_venv import ParallelVenv
 
@@ -138,8 +139,13 @@ class RandomShooter(Controller):
         self._learner.fit(data, timesteps)
 
     def log(self, most_recent):
-        # out-of-band learner evaluation
-        learner = as_controller(self._learner.act)
-        learner_paths = sample_venv(self._learner_test_env, learner)
-        rews = [path.rewards for path in learner_paths]
-        reporter.add_summary_statistics('learner reward', rews)
+        random_shooter_log_reward(self._learner, self._learner_test_env)
+
+
+def random_shooter_log_reward(learner, learner_test_env):
+    """Add rewards for all paths explored by random shooter."""
+    # out-of-band learner evaluation
+    learner = as_controller(learner.act)
+    learner_paths = sample_venv(learner_test_env, learner)
+    rews = [path.rewards for path in learner_paths]
+    reporter.add_summary_statistics('learner reward', rews)

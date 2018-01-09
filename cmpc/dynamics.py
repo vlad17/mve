@@ -48,6 +48,12 @@ class DynamicsFlags(Flags):
             default=4,
             help='number of mini-batches to train dynamics per '
             'new sample observed')
+        yield ArgSpec(
+            name='dyn_min_buf_size',
+            default=500,
+            type=int,
+            help='Minimum number of frames in replay buffer before '
+                 'training')
 
     def __init__(self):
         super().__init__('dynamics', 'learned dynamics',
@@ -154,6 +160,8 @@ class NNDynamicsModel(TFNode):
         we saw a certain number of new timesteps
         """
         if not data.size or not timesteps:
+            return
+        if data.size < flags().dynamics.dyn_min_buf_size:
             return
         self._norm.update_stats(data)
 

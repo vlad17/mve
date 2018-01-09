@@ -8,6 +8,7 @@ the support of its sample space. See RandomShooterFlags.
 from context import flags
 from flags import Flags, ArgSpec
 from random_shooter import RandomShooter
+from random_shooter_with_true_dynamics import RandomShooterWithTrueDynamics
 from cloning_learner import CloningLearner
 from ddpg_learner import DDPGLearner
 from zero_learner import ZeroLearner
@@ -60,12 +61,25 @@ class RandomShooterFlags(Flags):
                 name='rs_learner',
                 type=str,
                 default='zero',
-                help='learner type, one of {zero, ddpg, cloning}')]
+                help='learner type, one of {zero, ddpg, cloning}'),
+            ArgSpec(
+                name='true_dynamics',
+                action='store_true',
+                help='Indicates whether or not to use true dynamics, the'
+                ' OpenAI gym, as opposed to a learned model'
+            ),
+            ArgSpec(
+                name='rs_n_envs',
+                type=int,
+                default=1000,
+                help='Number of parallel environments to launch.'
+            )]
         super().__init__('random_shooter', 'random shooter', arguments)
 
-    @staticmethod
-    def make(dyn_model):
+    def make(self, dyn_model):
         """Return a random shooter based on the given dynamics model"""
+        if self.true_dynamics:
+            return RandomShooterWithTrueDynamics()
         return RandomShooter(dyn_model)
 
     def make_learner(self):
