@@ -38,7 +38,7 @@ class RandomShooterWithTrueDynamics(Controller):
         self._learner = learner
         self._learner_test_env = ParallelVenv(10)
 
-    def _act(self, states_ns):
+    def act(self, states_ns):
         """Play forward using mpc_horizon steps in the actual OpenAI gym
         environment, trying simulated_paths number of random actions for each
         state.
@@ -55,7 +55,7 @@ class RandomShooterWithTrueDynamics(Controller):
         p, h = self._sims_per_state, self._mpc_horizon
 
         # initialize states
-        self._rollout_envs.set_state_from_obs(np.repeat(states_ns, p, axis=0))
+        init_states_es = np.repeat(states_ns, p, axis=0)
 
         # initialize random actions
         ac_space = env_info.ac_space()
@@ -63,9 +63,13 @@ class RandomShooterWithTrueDynamics(Controller):
         ac_ea = np.random.random((p * nstates,) + ac_dim)
         ac_ea = scale_to_box(ac_space, ac_ea)
         ac_hea = np.stack([ac_ea] * self._mpc_horizon)
+        ac_eha = np.swapaxes(ac_hea, 0, 1)
 
         # play forward random actions
-        obs_hes, rewards_he, _ = self._rollout_envs.multi_step(ac_hea)
+        obs_ehs, rewards_eh, _ = rate_limit(
+            self._n_envs, self._set_state_multi_step, init_states_es, ac_eha)
+        obs_hes = np.swapaxes(obs_ehs, 0, 1)
+        rewards_he = np.swapaxes(rewards_eh, 0, 1)
 
         # collect our observations, rewards, and actions
         obs_hpns = obs_hes.reshape(h, p, nstates, -1)
@@ -81,10 +85,15 @@ class RandomShooterWithTrueDynamics(Controller):
         best_ac_hna = np.swapaxes(best_ac_nha, 0, 1)
         return best_ac_hna[0], best_ac_nha, best_obs_nhs
 
-    def act(self, states_ns):
-        """Rate-limit the `act` call."""
-        limit = self._n_envs // self._sims_per_state
-        return rate_limit(limit, self._act, states_ns)
+    def _set_state_multi_step(self, init_states_es, ac_eha):
+        """Initialize states and run multistep."""
+        self._rollout_envs.set_state_from_obs(init_states_es)
+        ac_hea = np.swapaxes(ac_eha, 0, 1)
+        obs_hes, rewards_he, done_he = self._rollout_envs.multi_step(ac_hea)
+        obs_ehs = np.swapaxes(obs_hes, 0, 1)
+        rewards_eh = np.swapaxes(rewards_he, 0, 1)
+        done_eh = np.swapaxes(done_he, 0, 1)
+        return obs_ehs, rewards_eh, done_eh
 
     def planning_horizon(self):
         return self._mpc_horizon
