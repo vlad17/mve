@@ -11,7 +11,9 @@ from terminaltables import SingleTable
 import tensorflow as tf
 import gym
 import numpy as np
+from numpy.polynomial.polynomial import polyval
 
+from context import flags
 from controller import Controller
 import log
 
@@ -259,3 +261,14 @@ def print_table(data):
 def timesteps(paths):
     """Return the total number of timesteps in a list of trajectories"""
     return sum(len(path.rewards) for path in paths)
+
+
+def discounted_rewards(rewards_hn):
+    """
+    Given an array of rewards collected from n trajectories over h
+    steps, where the first axis is the timestep and the second
+    is the number of trajectories, returns the discounted cumulative
+    reward for each trajectory.
+    """
+    discount = flags().experiment.discount
+    return polyval(discount, rewards_hn)

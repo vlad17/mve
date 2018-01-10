@@ -113,6 +113,7 @@ main() {
     cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags")
     cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --true_dynamics")
     cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --true_dynamics --rs_n_envs 2")
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --true_dynamics --simulated_paths 10 --rs_n_envs 5")
     colocation_flags="--coloc_primal_steps 2"
     colocation_flags="$colocation_flags --coloc_dual_steps 2 --coloc_primal_tol 1e-2"
     colocation_flags="$colocation_flags --coloc_primal_lr 1e-4 --coloc_dual_lr 1e-3"

@@ -4,7 +4,6 @@ remote actor execution.
 """
 
 import numpy as np
-from numpy.polynomial.polynomial import polyval
 
 import tensorflow as tf
 
@@ -13,17 +12,7 @@ from ddpg.models import trainable_vars, Actor
 import env_info
 import server_registry
 from venv.serial_venv import SerialVenv
-
-
-def _discounted_rewards(rewards_hn):
-    """
-    Given an array of rewards collected from n trajectories over h
-    steps, where the first axis is the timestep and the second
-    is the number of trajectories, returns the discounted cumulative
-    reward for each trajectory.
-    """
-    discount = flags().experiment.discount
-    return polyval(discount, rewards_hn)
+from utils import discounted_rewards
 
 
 def _child_scope():
@@ -114,5 +103,5 @@ class DDPGActorVenv(SerialVenv):
                     if done:
                         self._mask[j] = False
 
-        rewards = _discounted_rewards(all_rews)
+        rewards = discounted_rewards(all_rews)
         return obs_ms, rewards, dones

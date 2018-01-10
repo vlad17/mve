@@ -10,7 +10,7 @@ from controller import Controller
 from itertools import chain
 import env_info
 from venv.parallel_venv import ParallelVenv
-from utils import scale_to_box, rate_limit
+from utils import scale_to_box, rate_limit, discounted_rewards
 from random_shooter import random_shooter_log_reward
 
 
@@ -74,7 +74,7 @@ class RandomShooterWithTrueDynamics(Controller):
         # collect our observations, rewards, and actions
         obs_hpns = obs_hes.reshape(h, p, nstates, -1)
         obs_nphs = np.transpose(obs_hpns, (2, 1, 0, 3))
-        rewards_pn = np.sum(rewards_he, axis=0).reshape(p, nstates)
+        rewards_pn = discounted_rewards(rewards_he).reshape(p, nstates)
         ac_hpna = ac_hea.reshape(h, p, nstates, -1)
         ac_npha = np.transpose(ac_hpna, (2, 1, 0, 3))
 
