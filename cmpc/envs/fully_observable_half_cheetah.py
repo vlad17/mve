@@ -9,14 +9,13 @@ observations space, the environments are equivalent to the OpenAI gym
 versions at commit f724a720061d76dc315b4737f19a33949cf7b687.
 """
 
-import gym.envs.mujoco
 import numpy as np
 import tensorflow as tf
 
 from .fully_observable import FullyObservable
+from .render_free_mjc import RenderFreeMJC
 
-class FullyObservableHalfCheetah(
-        gym.envs.mujoco.mujoco_env.MujocoEnv, FullyObservable):
+class FullyObservableHalfCheetah(RenderFreeMJC, FullyObservable):
     """A fully-observable version of half cheetah."""
 
     # gym code

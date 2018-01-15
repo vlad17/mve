@@ -3,14 +3,13 @@ This file was made in the style of fully_observable_half_cheetah.py,
 mimicking the analogous gym environment.
 """
 
-import gym.envs.mujoco
 import numpy as np
 import tensorflow as tf
 
 from .fully_observable import FullyObservable
+from .render_free_mjc import RenderFreeMJC
 
-class FullyObservableWalker2d(
-        gym.envs.mujoco.mujoco_env.MujocoEnv, FullyObservable):
+class FullyObservableWalker2d(RenderFreeMJC, FullyObservable):
     """A fully-observable version of Walker2d"""
 
     # gym code
