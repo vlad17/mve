@@ -9,6 +9,7 @@ import numpy as np
 
 from context import flags
 from ddpg_learner import DDPGLearner, DDPGFlags
+import env_info
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags, ArgSpec)
 import tfnode
@@ -16,9 +17,7 @@ from plot import plt, savefig, activate_tex
 from qvalues import qvals, oracle_q, offline_oracle_q, corrected_horizon
 import reporter
 from sample import sample_venv
-import server_registry
-from utils import timeit, as_controller, print_table
-from venv.parallel_venv import ParallelVenv, ParallelVenvFlags
+from utils import timeit, as_controller, print_table, make_session_as_default
 
 
 def _mean_errorbars(vals, label, color, logy=False, ci=None):
@@ -54,7 +53,7 @@ def _evaluate_oracle(learner, paths, offline_oracle_estimators):
     par = flags().ddpg.oracle_nenvs_with_default()
     horizons_to_test = {0, 1, mixture_horizon // 2, mixture_horizon - 1}
     horizons_to_test = sorted(list(horizons_to_test))
-    with closing(ParallelVenv(par)) as evalvenv:
+    with closing(env_info.make_venv(par)) as evalvenv:
         for h in horizons_to_test:
             with timeit('  oracle sim iter ' + str(h)):
                 h_n = corrected_horizon(paths, h)
@@ -79,15 +78,16 @@ def _evaluate(_):
         activate_tex()
 
     neps = flags().evaluation.episodes
-    venv = ParallelVenv(neps)
+    venv = env_info.make_venv(neps)
     learner = DDPGLearner()
-    init = tf.global_variables_initializer()
 
-    with server_registry.make_default_session():
-        init.run()
+    with make_session_as_default():
+        tf.global_variables_initializer().run()
+        tf.get_default_graph().finalize()
         tfnode.restore_all()
         controller = as_controller(learner.actor.target_act)
         _evaluate_with_session(neps, venv, learner, controller)
+
 
 def _evaluate_with_session(neps, venv, learner, controller):
     with timeit('running controller evaluation (target actor)'):
@@ -158,7 +158,6 @@ class EvaluationFlags(Flags):
 
 
 if __name__ == "__main__":
-    _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags(),
-              ParallelVenvFlags()]
+    _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags()]
     _args = parse_args(_flags)
     experiment_main(_args, _evaluate)

@@ -12,7 +12,6 @@ from sample import sample_venv
 import env_info
 import reporter
 from utils import create_random_tf_action, rate_limit, as_controller
-from venv.parallel_venv import ParallelVenv
 
 
 class RandomShooter(Controller):
@@ -88,7 +87,7 @@ class RandomShooter(Controller):
         self._mpc_horizon = mpc_horizon
 
         self._learner = learner
-        self._learner_test_env = ParallelVenv(10)
+        self._learner_test_env = env_info.make_venv(10)
 
     def _act(self, states):
         nstates = len(states)

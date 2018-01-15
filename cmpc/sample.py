@@ -37,6 +37,8 @@ def sample_venv(venv, controller):
                 obs_n[i], reward_n[i], done_n[i], acs_n[i],
                 None if planned_acs_n is None else planned_acs_n[i],
                 None if planned_obs_n is None else planned_obs_n[i])
+            if done_n[i]:
+                active_n[i] = False
     return paths
 
 

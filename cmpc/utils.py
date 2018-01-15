@@ -30,6 +30,14 @@ def create_tf_config(gpu=True):
     return config
 
 
+@contextmanager
+def make_session_as_default(gpu=True):
+    """Create a session and install it as the default one."""
+    with tf.Session(config=create_tf_config(gpu)) as sess:
+        with sess.as_default():
+            yield sess
+
+
 def seed_everything(seed):
     """Seed random, numpy, and tensorflow."""
     random.seed(seed)

@@ -2,11 +2,11 @@
 
 import numpy as np
 
+import env_info
 from flags import Flags, ArgSpec
 import log
 import reporter
 from utils import rate_limit
-from venv.parallel_venv import ParallelVenv
 
 
 class DynamicsMetricsFlags(Flags):
@@ -64,7 +64,7 @@ class DynamicsMetrics:
     """
 
     def __init__(self, planning_horizon, make_env, flags, discount):
-        self._venv = ParallelVenv(flags.evaluation_envs)
+        self._venv = env_info.make_venv(flags.evaluation_envs)
         self._env = make_env()
         self._num_envs = flags.evaluation_envs
         self._horizon = planning_horizon
@@ -189,8 +189,7 @@ class DynamicsMetrics:
         return states_nhs, mask_n
 
     def _eval_open_loop_limited(self, states_ns, acs_nha):
-        self._venv.reset()
-        self._venv.set_state_from_obs(states_ns)
+        self._venv.set_state_from_ob(states_ns)
         acs_hna = np.swapaxes(acs_nha, 0, 1)
         states_hns, _, done_hn = self._venv.multi_step(acs_hna)
         done_n = done_hn.sum(axis=0)

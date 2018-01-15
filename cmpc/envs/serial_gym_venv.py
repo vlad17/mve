@@ -1,21 +1,22 @@
 """
-A serial implementation of the vectorized environment.
+A serial implementation of vectorized (old) Gym environments. Note that
+MuJoCo-1.50-based environments implemented directly in gym2 should NOT
+use this class, and instead rely on VectorMJCEnv.
 """
 
 import numpy as np
 
-import env_info
-from venv.venv_base import VenvBase
+from .vector_env import VectorEnv
 
 
-class SerialVenv(VenvBase):
+class SerialGymVenv(VectorEnv):
     """
-    See VenvBase documentation. Creates a serially-executed rank-n vectorized
-    environment
+    See VectorEnv documentation. Creates a serially-executed rank-n vectorized
+    environment meant for gym envs.
     """
 
-    def __init__(self, n):
-        self._envs = [env_info.make_env() for _ in range(n)]
+    def __init__(self, n, scalar_env_gen):
+        self._envs = [scalar_env_gen() for _ in range(n)]
         env = self._envs[0]
         self.action_space = env.action_space
         self.observation_space = env.observation_space
@@ -24,7 +25,7 @@ class SerialVenv(VenvBase):
         self._mask = np.ones(self.n, dtype=bool)
         self._seed_uncorr(self.n)
 
-    def set_state_from_obs(self, obs):
+    def set_state_from_ob(self, obs):
         for ob, env in zip(obs, self._envs):
             env.set_state_from_ob(ob)
 
@@ -35,7 +36,7 @@ class SerialVenv(VenvBase):
 
     def _reset(self):
         self._mask[:] = True
-        return [env.reset() for env in self._envs]
+        return np.asarray([env.reset() for env in self._envs])
 
     def _step(self, action):
         m = len(action)

@@ -9,7 +9,6 @@ import os
 import shutil
 import subprocess
 import time
-import random
 
 from gym import wrappers
 import tensorflow as tf
@@ -19,7 +18,6 @@ from flags import Flags, ArgSpec
 import env_info
 import log
 import reporter
-import server_registry
 from utils import seed_everything
 
 
@@ -83,13 +81,6 @@ class ExperimentFlags(Flags):
             type=float,
             default=0.99,
             help='discount factor for the reward calculations')
-        rand_port = random.randrange(10000, 2 ** 16)
-        yield ArgSpec(
-            name='port',
-            type=int,
-            default=rand_port,
-            help='TensorFlow server port. Note the default port '
-            'randomly changes between invocations.')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',
@@ -199,7 +190,6 @@ def experiment_main(flags, experiment_fn):
         with g.as_default():
             seed_everything(seed)
             context().flags = flags
-            with server_registry.create(child_index=None), \
-                    reporter.create(logdir_seed, flags.experiment.verbose), \
-                    env_info.create():
+            with reporter.create(logdir_seed, flags.experiment.verbose), \
+                 env_info.create():
                 experiment_fn(flags)

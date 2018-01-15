@@ -14,9 +14,7 @@ from persistable_dataset import (
     add_dataset_to_persistance_registry, PersistableDatasetFlags)
 import reporter
 from sample import sample
-import server_registry
-from utils import timeit, as_controller, timesteps
-from venv.parallel_venv import ParallelVenvFlags
+from utils import timeit, as_controller, timesteps, make_session_as_default
 
 
 def _train(args):
@@ -25,10 +23,10 @@ def _train(args):
                             args.experiment.bufsize)
     learner = DDPGLearner()
     add_dataset_to_persistance_registry(data, args.persistable_dataset)
-    init = tf.global_variables_initializer()
 
-    with server_registry.make_default_session():
-        init.run()
+    with make_session_as_default():
+        tf.global_variables_initializer().run()
+        tf.get_default_graph().finalize()
         tfnode.restore_all()
         paths = []
         for itr in range(args.run.episodes):
@@ -67,6 +65,6 @@ class RunFlags(Flags):
 
 if __name__ == "__main__":
     flags = [ExperimentFlags(), RunFlags(), PersistableDatasetFlags(),
-             DDPGFlags(), ParallelVenvFlags()]
+             DDPGFlags()]
     _args = parse_args(flags)
     experiment_main(_args, _train)

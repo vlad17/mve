@@ -120,7 +120,7 @@ def oracle_q(critic, actor, states_ns, acs_na, venv, h_n):
 def _oracle_q(critic, actor, states_ns, acs_na, venv, h_n):
     qest = np.zeros(len(states_ns))
     venv.reset()
-    venv.set_state_from_obs(states_ns)
+    venv.set_state_from_ob(states_ns)
     discount = flags().experiment.discount
     active_n = np.ones(len(states_ns), dtype=bool)
     terminated_early_n = np.zeros(len(states_ns), dtype=bool)

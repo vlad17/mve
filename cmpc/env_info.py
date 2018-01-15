@@ -7,7 +7,7 @@ this single metadata class.
 from contextlib import contextmanager, closing
 
 from context import context
-from envs import (WhiteBoxHalfCheetah, WhiteBoxAntEnv, WhiteBoxWalker2dEnv)
+import envs
 from utils import get_ob_dim, get_ac_dim
 
 
@@ -35,21 +35,29 @@ def ob_space():
     """The specified environment's observation space."""
     return context().env_info.observation_space
 
+def _env_class():
+    env_name = context().flags.experiment.env_name
+    if env_name == 'hc':
+        return envs.FullyObservableHalfCheetah
+    elif env_name == 'ant':
+        return envs.FullyObservableAnt
+    elif env_name == 'walker2d':
+        return envs.FullyObservableWalker2d
+    else:
+        raise ValueError('env {} unsupported'.format(env_name))
 
 def make_env():
     """
     Generates an unvectorized env from a standard string.
     Creates the experiment-flag specified name by default.
     """
-    env_name = context().flags.experiment.env_name
-    if env_name == 'hc':
-        return WhiteBoxHalfCheetah()
-    elif env_name == 'ant':
-        return WhiteBoxAntEnv()
-    elif env_name == 'walker2d':
-        return WhiteBoxWalker2dEnv()
-    else:
-        raise ValueError('env {} unsupported'.format(env_name))
+    return _env_class()()
+
+def make_venv(n):
+    """
+    Same as make_env, but returns a vectorized version of the env.
+    """
+    return envs.ParallelGymVenv(n, _env_class())
 
 
 @contextmanager

@@ -3,12 +3,12 @@
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 
+import env_info
 from experiment import ExperimentFlags, experiment_main
 from flags import (Flags, parse_args, ArgSpec)
 from random_policy import RandomPolicy
 from sample import sample_venv
 import reporter
-from venv.parallel_venv import ParallelVenv, ParallelVenvFlags
 
 
 class RandomPolicyFlags(Flags):
@@ -21,7 +21,7 @@ class RandomPolicyFlags(Flags):
 
 
 def _train(args):
-    venv = ParallelVenv(args.random.num_paths)
+    venv = env_info.make_venv(args.random.num_paths)
     random_policy = RandomPolicy(venv)
     paths = sample_venv(venv, random_policy)
     rewards = [path.rewards.sum() for path in paths]
@@ -31,5 +31,5 @@ def _train(args):
 
 if __name__ == "__main__":
     _args = parse_args([
-        ExperimentFlags(), RandomPolicyFlags(), ParallelVenvFlags()])
+        ExperimentFlags(), RandomPolicyFlags()])
     experiment_main(_args, _train)

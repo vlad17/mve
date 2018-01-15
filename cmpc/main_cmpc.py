@@ -22,9 +22,7 @@ from ddpg_learner import DDPGFlags
 from cloning_learner import CloningLearnerFlags
 import tfnode
 from sample import sample_venv, sample
-import server_registry
-from utils import timeit, timesteps
-from venv.parallel_venv import ParallelVenv, ParallelVenvFlags
+from utils import timeit, timesteps, make_session_as_default
 import reporter
 
 
@@ -33,7 +31,7 @@ def train(args):
     Train constrained MPC with the specified flags and subflags.
     """
     with closing(env_info.make_env()) as env, \
-        closing(ParallelVenv(args.mpc.onpol_paths)) as venv, \
+        closing(env_info.make_venv(args.mpc.onpol_paths)) as venv, \
         closing(DynamicsMetrics(
             args.mpc.mpc_horizon, env_info.make_env,
             args.dynamics_metrics, args.experiment.discount)) as dyn_metrics:
@@ -44,11 +42,11 @@ def train(args):
         dyn_model = NNDynamicsModel(env, data, args.dynamics)
         controller = args.mpc.make_mpc(dyn_model)
         add_dataset_to_persistance_registry(data, args.persistable_dataset)
-        init = tf.global_variables_initializer()
 
         # actually run stuff
-        with server_registry.make_default_session():
-            init.run()
+        with make_session_as_default():
+            tf.global_variables_initializer().run()
+            tf.get_default_graph().finalize()
             _train(args, venv, dyn_metrics, data, dyn_model, controller)
 
 
@@ -88,7 +86,7 @@ def flags_to_parse():
     flags = [ExperimentFlags(), MPCFlags(), DynamicsFlags(),
              DynamicsMetricsFlags(), PersistableDatasetFlags(),
              RandomShooterFlags(), DDPGFlags(), CloningLearnerFlags(),
-             ColocationFlags(), ParallelVenvFlags()]
+             ColocationFlags()]
     return flags
 
 

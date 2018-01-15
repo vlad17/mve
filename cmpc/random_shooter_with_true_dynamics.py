@@ -7,14 +7,9 @@ import numpy as np
 
 from context import flags
 from controller import Controller
-from itertools import chain
 import env_info
-from venv.parallel_venv import ParallelVenv
 from utils import scale_to_box, rate_limit, discounted_rewards
 from random_shooter import random_shooter_log_reward
-
-
-flatten = lambda x: list(chain.from_iterable(x))
 
 
 class RandomShooterWithTrueDynamics(Controller):
@@ -31,12 +26,12 @@ class RandomShooterWithTrueDynamics(Controller):
         assert mpc_horizon > 0, mpc_horizon
         self._sims_per_state = flags().random_shooter.simulated_paths
         self._n_envs = flags().random_shooter.rs_n_envs
-        self._rollout_envs = ParallelVenv(self._n_envs)
+        self._rollout_envs = env_info.make_venv(self._n_envs)
 
         self._mpc_horizon = mpc_horizon
 
         self._learner = learner
-        self._learner_test_env = ParallelVenv(10)
+        self._learner_test_env = env_info.make_venv(10)
 
     def act(self, states_ns):
         """Play forward using mpc_horizon steps in the actual OpenAI gym
@@ -87,7 +82,7 @@ class RandomShooterWithTrueDynamics(Controller):
 
     def _set_state_multi_step(self, init_states_es, ac_eha):
         """Initialize states and run multistep."""
-        self._rollout_envs.set_state_from_obs(init_states_es)
+        self._rollout_envs.set_state_from_ob(init_states_es)
         ac_hea = np.swapaxes(ac_eha, 0, 1)
         obs_hes, rewards_he, done_he = self._rollout_envs.multi_step(ac_hea)
         obs_ehs = np.swapaxes(obs_hes, 0, 1)

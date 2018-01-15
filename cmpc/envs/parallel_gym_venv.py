@@ -8,65 +8,20 @@ This class is compatible with server registry: it creates worker
 tasks in the distributed TF graph.
 """
 
-from contextlib import contextmanager, closing
+from contextlib import closing
+from functools import partial
 import multiprocessing as mp
 import sys
 
-from context import flags, context
-from flags import Flags, ArgSpec
-import env_info
 import numpy as np
-import server_registry
-from venv.venv_base import VenvBase
-from venv.serial_venv import SerialVenv
 
+from .serial_gym_venv import SerialGymVenv
+from .vector_env import VectorEnv
 
-class ParallelVenvFlags(Flags):
-    """Specification for the parallel environments"""
-
-    @staticmethod
-    def _cpu_count():
-        try:
-            return mp.cpu_count()
-        except NotImplementedError:
-            return 1
-
-    def __init__(self):
-        args = [
-            ArgSpec(
-                name='venv_parallelism',
-                default=self._cpu_count(),
-                type=int,
-                help='maximum number of child processes in parallelized envs'
-                ' that DO NOT use tensorflow'),
-            ArgSpec(
-                name='tf_parallelism',
-                default=self._cpu_count(),
-                type=int,
-                help='maximum number of child processes in parallelized envs'
-                ' that DO use tensorflow')]
-        super().__init__('parallel', 'parallel environment evaluation', args)
-
-
-@contextmanager
-def _optionally_create_remote_session(need_tf):
-    if need_tf:
-        with server_registry.make_default_session():
-            yield
-    else:
-        yield
-
-
-def _child_loop(parent_conn, conn, m, parent_flags,
-                id_str, venv_gen, child_id, need_tf):
+def _child_loop(parent_conn, conn, id_str, venv_gen):
     parent_conn.close()
-    context().flags = parent_flags
     try:
-        with env_info.create(), server_registry.create(child_id), \
-                closing(venv_gen(m)) as venv, closing(conn), \
-                _optionally_create_remote_session(need_tf):
-            print('{} ready\n'.format(id_str), end='', file=sys.stderr)
-            sys.stderr.flush()
+        with closing(venv_gen()) as venv, closing(conn):
             while True:
                 method_name, args = conn.recv()
                 if method_name == 'close':
@@ -91,20 +46,18 @@ class _Worker:
     process worker (which maintains several environments).
     """
 
-    def __init__(self, num_workers, worker_idx, num_envs, venv_generator,
-                 need_tf):
+    def __init__(self, num_workers, worker_idx, num_envs, env_generator):
         self._lo = worker_idx * num_envs // num_workers
         self._hi = (worker_idx + 1) * num_envs // num_workers
         fmt = '{: ' + str(len(str(num_workers))) + 'd}'
         self._id_str = ('worker ' + fmt + ' of ' + fmt).format(
             worker_idx, num_workers)
-        self._child_id = server_registry.reserve_child() if need_tf else None
 
         ctx = mp.get_context('spawn')
         self._conn, child_conn = ctx.Pipe()
         self._proc = ctx.Process(target=_child_loop, args=(
-            self._conn, child_conn, self._hi - self._lo, flags(),
-            self._id_str, venv_generator, self._child_id, need_tf))
+            self._conn, child_conn, self._id_str,
+            partial(SerialGymVenv, self._hi - self._lo, env_generator)))
         self._proc.start()
         child_conn.close()
 
@@ -124,14 +77,14 @@ class _Worker:
         assert method_name == expected_name, (method_name, expected_name)
         return result
 
-    def set_state_from_obs(self, obs):
+    def set_state_from_ob(self, obs):
         """initiate remote state-setting"""
         obs = obs[self._lo:self._hi]
-        self._push('set_state_from_obs', (obs,))
+        self._push('set_state_from_ob', (obs,))
 
-    def set_state_from_obs_finish(self):
+    def set_state_from_ob_finish(self):
         """wait until remote state-setting completes"""
-        self._pull('set_state_from_obs')
+        self._pull('set_state_from_ob')
 
     def seed(self, seeds):
         """initiate remote seeding"""
@@ -177,19 +130,6 @@ class _Worker:
         out_rews[:, self._lo:hi] = rews
         out_dones[:, self._lo:hi] = dones
 
-    def multi_step_actor(self, obs_ns, num_steps):
-        """initiate remote actor-constrained multi step"""
-        obs_ms = obs_ns[self._lo:self._hi]
-        self._push('multi_step_actor', (obs_ms, num_steps))
-
-    def multi_step_actor_finish(self, out_obs, out_rews, out_dones):
-        """wait until remote actor-constrained multi step completes"""
-        obs, rews, dones = self._pull('multi_step_actor')
-        hi = self._lo + obs.shape[0]
-        out_obs[self._lo:hi] = obs
-        out_rews[self._lo:hi] = rews
-        out_dones[self._lo:hi] = dones
-
     def close(self):
         """initiate remote close"""
         # racy if, so we swallow errors.
@@ -202,33 +142,32 @@ class _Worker:
         self._proc.join()
 
 
-class ParallelVenv(VenvBase):
+class ParallelGymVenv(VectorEnv):
     """
     Multiprocessing-based parallel vectorized environment. On each
     child process, uses venv_generator(m) as the vectorized child
     environment.
+
+    Defaults to (number of CPUs) parallelism.
     """
 
-    def __init__(self, n, venv_generator=SerialVenv, need_tf=False):
-        if need_tf:
-            num_workers = flags().parallel.tf_parallelism
-        else:
-            num_workers = flags().parallel.venv_parallelism
+    def __init__(self, n, scalar_env_gen, parallelism=None):
+        num_workers = parallelism or mp.cpu_count()
         num_workers = max(min(num_workers, n), 1)
-        self._workers = [_Worker(num_workers, i, n, venv_generator, need_tf)
+        self._workers = [_Worker(num_workers, i, n, scalar_env_gen)
                          for i in range(num_workers)]
-        with closing(env_info.make_env()) as env:
+        with closing(scalar_env_gen()) as env:
             self.action_space = env.action_space
             self.observation_space = env.observation_space
             self.reward_range = env.reward_range
         self.n = n
         self._seed_uncorr(n)
 
-    def set_state_from_obs(self, obs):
+    def set_state_from_ob(self, obs):
         for worker in self._workers:
-            worker.set_state_from_obs(obs)
+            worker.set_state_from_ob(obs)
         for worker in self._workers:
-            worker.set_state_from_obs_finish()
+            worker.set_state_from_ob_finish()
 
     def _seed(self, seed=None):
         for worker in self._workers:
@@ -273,17 +212,4 @@ class ParallelVenv(VenvBase):
             worker.multi_step(acs_hna)
         for worker in self._workers:
             worker.multi_step_finish(obs, rews, dones)
-        return obs, rews, dones
-
-    def multi_step_actor(self, obs_ns, num_steps):
-        """See documentation in ActorVenv.multi_step_actor"""
-        m = len(obs_ns)
-        assert m <= self.n, (m, self.n)
-        obs = np.empty((m,) + self.observation_space.shape)
-        rews = np.empty((m,))
-        dones = np.empty((m,), dtype=bool)
-        for worker in self._workers:
-            worker.multi_step_actor(obs_ns, num_steps)
-        for worker in self._workers:
-            worker.multi_step_actor_finish(obs, rews, dones)
         return obs, rews, dones
