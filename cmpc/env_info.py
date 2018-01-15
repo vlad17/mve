@@ -5,6 +5,8 @@ this single metadata class.
 """
 
 from contextlib import contextmanager, closing
+import hashlib
+import numpy as np
 
 from context import context
 import envs
@@ -46,18 +48,36 @@ def _env_class():
     else:
         raise ValueError('env {} unsupported'.format(env_name))
 
+def _next_seeds(n):
+    # deterministically generate seeds for envs
+    # not perfect due to correlation between generators,
+    # but we can't use urandom here to have replicable experiments
+    # https://stats.stackexchange.com/questions/233061
+    mt_state_size = 624
+    seeds = []
+    for _ in range(n):
+        state = np.random.randint(2 ** 32, size=mt_state_size)
+        digest = hashlib.sha224(state.tobytes()).digest()
+        seed = np.frombuffer(digest, dtype=np.uint32)[0]
+        seeds.append(int(seed))
+    return seeds
+
 def make_env():
     """
     Generates an unvectorized env from a standard string.
     Creates the experiment-flag specified name by default.
     """
-    return _env_class()()
+    env = _env_class()()
+    env.seed(_next_seeds(1)[0])
+    return env
 
 def make_venv(n):
     """
     Same as make_env, but returns a vectorized version of the env.
     """
-    return envs.ParallelGymVenv(n, _env_class())
+    venv = envs.ParallelGymVenv(n, _env_class())
+    venv.seed(_next_seeds(n))
+    return venv
 
 
 @contextmanager
