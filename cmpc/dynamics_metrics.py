@@ -65,6 +65,7 @@ class DynamicsMetrics:
 
     def __init__(self, planning_horizon, make_env, flags, discount):
         self._venv = env_info.make_venv(flags.evaluation_envs)
+        self._venv.reset()
         self._env = make_env()
         self._num_envs = flags.evaluation_envs
         self._horizon = planning_horizon

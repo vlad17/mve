@@ -5,6 +5,7 @@ this single metadata class.
 """
 
 from contextlib import contextmanager, closing
+import gym2
 import hashlib
 import numpy as np
 
@@ -37,6 +38,7 @@ def ob_space():
     """The specified environment's observation space."""
     return context().env_info.observation_space
 
+
 def _env_class():
     env_name = context().flags.experiment.env_name
     if env_name == 'hc':
@@ -45,8 +47,11 @@ def _env_class():
         return envs.FullyObservableAnt
     elif env_name == 'walker2d':
         return envs.FullyObservableWalker2d
+    elif env_name == 'hc2':
+        return gym2.FullyObservableHalfCheetah
     else:
         raise ValueError('env {} unsupported'.format(env_name))
+
 
 def _next_seeds(n):
     # deterministically generate seeds for envs
@@ -62,6 +67,7 @@ def _next_seeds(n):
         seeds.append(int(seed))
     return seeds
 
+
 def make_env():
     """
     Generates an unvectorized env from a standard string.
@@ -71,11 +77,15 @@ def make_env():
     env.seed(_next_seeds(1)[0])
     return env
 
+
 def make_venv(n):
     """
     Same as make_env, but returns a vectorized version of the env.
     """
-    venv = envs.ParallelGymVenv(n, _env_class())
+    if context().flags.experiment.env_name == 'hc2':
+        venv = gym2.VectorMJCEnv(n, _env_class())
+    else:
+        venv = envs.ParallelGymVenv(n, _env_class())
     venv.seed(_next_seeds(n))
     return venv
 

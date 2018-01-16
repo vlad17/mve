@@ -7,11 +7,14 @@ Account for model inaccuracies in MPC.
 Here are setup-specific requirements that you really, really have to do yourself:
 
 * MuJoCo 1.31, with the appropriate key available - [MuJoCo downloads](https://www.roboti.us/index.html)
+* MuJoCo 1.50 (for accelerated gym environments with `gym2`) - same as above
+* Both MuJoCo installations are expected in `~/.mujoco` or the environment variable `MUJOCO_DIRECTORY`, if defined.
 * Python 3.5 (`scripts/` assume this is the `python` and `pip` in `PATH`)
 
 Other system dependencies:
 
-* System dependencies for `gym` - [gym README](https://github.com/openai/gym/blob/master/README.rst).
+* System dependencies for `gym` - [gym README](https://github.com/openai/gym/blob/master/README.rst)
+* System dependencies for `gym2` - [gym2 README](https://github.com/vlad17/gym2/blob/master/README.md)
 
 Example conda installation:
 

@@ -6,14 +6,18 @@
 # assumed to be the path for the MuJoCo key and installation.
 #
 #   ./scripts/tests.sh # uses ~/.mujoco/ paths
-#   ./scripts/tests.sh mjkey.txt mjpro131 # uses specified paths
+#   MUJOCO_DIRECTORY=DIR ./scripts/tests.sh # uses DIR instead of ~/.mujoco
 
-set -euo pipefail
+set -eo pipefail
 
-if [[ "$#" -eq 2 ]]; then
-    export MUJOCO_PY_MJKEY_PATH=$(readlink -f "$1")
-    export MUJOCO_PY_MJPRO_PATH=$(readlink -f "$2")
+if [[ -z "${MUJOCO_DIRECTORY}" ]]; then
+    sleep 0
+else
+    export MUJOCO_PY_MJKEY_PATH=$(readlink -f "${MUJOCO_DIRECTORY}/mjkey.txt")
+    export MUJOCO_PY_MJPRO_PATH=$(readlink -f "${MUJOCO_DIRECTORY}/mjpro131")
 fi
+
+set -u
 
 box() {
     msg="* $1 *"
@@ -84,6 +88,7 @@ main() {
     cmds+=("python $main_random $random_flags")
     cmds+=("python $main_random $random_flags --env_name ant")
     cmds+=("python $main_random $random_flags --env_name walker2d")
+    cmds+=("python $main_random $random_flags --env_name hc2")
     # MPC
     cmds+=("python $main_cmpc $rs_mpc_flags")
     cmds+=("python $main_cmpc $short_mpc_flags")

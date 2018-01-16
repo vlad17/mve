@@ -1,18 +1,22 @@
 sudo: required
 language: python
 dist: trusty
+env:
 python:
 - '3.5'
 before_install:
 - echo $mjkey_pass | gpg --passphrase-fd 0 mjkey.txt.gpg
 - travis_retry wget https://www.roboti.us/download/mjpro131_linux.zip
 - unzip mjpro131_linux.zip
+- travis_retry wget https://www.roboti.us/download/mjpro150_linux.zip
+- unzip mjpro150_linux.zip
 install:
+- export MUJOCO_DIRECTORY=$PWD
 - travis_retry pip install --upgrade pylint
 - travis_retry ./scripts/ubuntu-install.sh
 script:
 - "./scripts/lint.sh"
-- "./scripts/fake-display.sh ./scripts/tests.sh mjkey.txt mjpro131"
+- "./scripts/fake-display.sh ./scripts/tests.sh"
 env:
   global:
   - secure: lBACYlkMvxQy33R9c7460EVoqK1GkAUd3AokZ/lfCJDebqJth28dacdrsv5apHYHXMFfUbLaaQGHMdpu5GbShXtoM6XY/oVpOKn54dd3CRH90krahbojOWIR5dmX2Faun6NWvr6glu+y/kKvc3J90mcmfAaPTY9VcLVksEnfsKbWPwYp7UURfScHb9n8URT5BwDSeZxoACdhL0ebZGWzmI4/5OUO99zcOnByNdo/JYqh/4O//HY2RPw5xfMAE5qvay0xB0Ky1Tn1uwI8ABIp6BlE5hX7k1S5DRaGYbx/QoPsKdhO2OjIvJqWQUwQeq0oVBV73AgQvqDU4D4BjAGHRNvZ6RNrjbHxKXLAZO1qGBLAZxKaJ9+H4skGiNwlAJZYdIjpSweu3BAOXjnys4wxnS/S9FKPkiaW7Q7HcS2Z7P9BM/2/BI56LfH5QAfm79c/YsXKzFcLGOpPHeDlWvPFkDzTct0IXH6EOQAiqKKa3MSNmEkOmpHS/nUUI0oWOSMsuwwndyCHUiQXHpLc+4i59YfYZvlDTDbtI35HPb6InCmKlwfxiR6gX4Ap4ALj4FonsXnHsEoTF+p9xQaL1pv4yKQNhOod42ZbobG9tVR7MJWoHmF63vbSM7Vnqg6fjSuhBQfvUMNAJ/PzeB1a1304w0X/UIoBeCzCvUvhHPZjBA8=

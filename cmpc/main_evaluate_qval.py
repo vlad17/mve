@@ -54,6 +54,7 @@ def _evaluate_oracle(learner, paths, offline_oracle_estimators):
     horizons_to_test = {0, 1, mixture_horizon // 2, mixture_horizon - 1}
     horizons_to_test = sorted(list(horizons_to_test))
     with closing(env_info.make_venv(par)) as evalvenv:
+        evalvenv.reset()
         for h in horizons_to_test:
             with timeit('  oracle sim iter ' + str(h)):
                 h_n = corrected_horizon(paths, h)

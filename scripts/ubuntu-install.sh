@@ -4,6 +4,13 @@
 #
 # ./scripts/ubuntu-install.sh
 
+if [[ -z "${MUJOCO_DIRECTORY}" ]]; then
+    sleep 0
+else
+    export MUJOCO_PY_MJKEY_PATH=$(readlink -f "${MUJOCO_DIRECTORY}/mjkey.txt")
+    export MUJOCO_PY_MJPRO_PATH=$(readlink -f "${MUJOCO_DIRECTORY}/mjpro131")
+fi
+
 set -euo pipefail
 
 pyv=$(python -c "import platform;print('.'.join(platform.python_version_tuple()[:2]))")
@@ -27,7 +34,7 @@ fi
 sudo apt-get -qq update
 sudo apt-get install -y \
      cmake zlib1g-dev libjpeg-dev xvfb libav-tools \
-     xorg-dev libboost-all-dev swig
+     xorg-dev libboost-all-dev swig libosmesa6-dev libglew-dev
 sudo apt-get install -y libsdl2-dev || sudo apt-get install -f
 
 pip install -r requirements.txt

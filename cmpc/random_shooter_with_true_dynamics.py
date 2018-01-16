@@ -27,6 +27,7 @@ class RandomShooterWithTrueDynamics(Controller):
         self._sims_per_state = flags().random_shooter.simulated_paths
         self._n_envs = flags().random_shooter.rs_n_envs
         self._rollout_envs = env_info.make_venv(self._n_envs)
+        self._rollout_envs.reset()
 
         self._mpc_horizon = mpc_horizon
 

@@ -77,6 +77,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             debug('using oracle Q estimator with {} steps', h)
             nenvs = flags().ddpg.oracle_nenvs_with_default()
             self._oracle_venv = env_info.make_venv(nenvs)
+            self._oracle_venv.reset()
             self._next_Q_ph_n = tf.placeholder(
                 tf.float32, shape=[None])
             next_Q_n = self._next_Q_ph_n
