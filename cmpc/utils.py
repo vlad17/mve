@@ -280,3 +280,15 @@ def discounted_rewards(rewards_hn):
     """
     discount = flags().experiment.discount
     return polyval(discount, rewards_hn)
+
+
+def flatgrad(opt, loss, variables):
+    """
+    Uses optimizer opt to compute a flat vector gradient of the given loss
+    with respect to all the given variables.
+    """
+    grads_and_vars = opt.compute_gradients(loss, var_list=variables)
+    grads = [grad for grad, var in grads_and_vars if var is not None]
+    flats = [tf.reshape(x, [-1]) for x in grads]
+    grad = tf.concat(flats, axis=0)
+    return grad

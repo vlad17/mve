@@ -2,6 +2,7 @@
 Evaluate the various q-value estimators for DDPG.
 """
 from contextlib import closing
+import multiprocessing as mp
 import os
 
 import tensorflow as tf
@@ -50,7 +51,7 @@ def _evaluate_oracle(learner, paths, offline_oracle_estimators):
 
     print('running diagnostics to verify estimated oracle')
     data = [['h', 'offline oracle mse', 'online oracle mse']]
-    par = flags().ddpg.oracle_nenvs_with_default()
+    par = mp.cpu_count() * 2
     horizons_to_test = {0, 1, mixture_horizon // 2, mixture_horizon - 1}
     horizons_to_test = sorted(list(horizons_to_test))
     with closing(env_info.make_venv(par)) as evalvenv:

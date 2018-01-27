@@ -81,13 +81,26 @@ class DDPGFlags(Flags):
                 ' set to this if 0)'),
             ArgSpec(
                 name='mixture_estimator',
-                default='',
+                default='oracle',
                 type=str,
-                help='use a mixture estimator for computing target Q '
-                'values. If None, do not mix with model-based estimates '
-                'at all. If oracle, use an oracle environment to compute '
+                help='Defines the mixture estimator used for computing Q'
+                'values. This is only used of a corresponding flag such '
+                'as --q_target_mixture is activated. '
+                'If oracle, use an oracle environment to compute '
                 'model_horizon-step rewards for mixing with the target '
-                'Q network'),
+                'Q network. No other options currently supported'),
+            ArgSpec(
+                name='q_target_mixture',
+                default=False,
+                action='store_true',
+                help='Use the mixture estimator instead of the target critic '
+                '(or, more precisely, on top of the target critic)'),
+            ArgSpec(
+                name='actor_critic_mixture',
+                default=False,
+                action='store_true',
+                help='Use the mixture estimator instead of the critic '
+                'which ddpg uses to maximize its policy with'),
             ArgSpec(
                 name='model_horizon',
                 default=1,
@@ -100,18 +113,12 @@ class DDPGFlags(Flags):
                 help='restore ddpg from the given path'),
             ArgSpec(
                 name='ddpg_min_buf_size',
-                default=500,
+                default=1,
                 type=int,
                 help='Minimum number of frames in replay buffer before '
                      'training')
         ]
         super().__init__('ddpg', 'DDPG', arguments)
-
-    def oracle_nenvs_with_default(self):
-        """The number of environments an oracle should use."""
-        par = self.oracle_nenvs
-        par = self.learner_batch_size if par == 0 else par
-        return par
 
     def nbatches(self, timesteps):
         """The number training batches, given this many timesteps."""

@@ -73,14 +73,15 @@ main() {
 
     experiment_flags="--exp_name basic_tests --verbose --horizon 5"
     random_flags="$experiment_flags --num_paths 8"
-    dynamics_flags="--dynamics_batches_per_timestep 1 --dyn_depth 1 --dyn_width 8 --dyn_min_buf_size 200"
+    dynamics_flags="--dynamics_batches_per_timestep 1 --dyn_depth 1 --dyn_width 8"
     mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 3"
     mpc_flags="$mpc_flags --evaluation_envs 10"
     short_mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 6"
     short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2 --evaluation_envs 10"
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
-    ddpg_only_flags="--learner_depth 1 --learner_width 1 --learner_batches_per_timestep 1 --oracle_nenvs 10"
-    ddpg_flags="$experiment_flags $ddpg_only_flags --learner_batch_size 16"
+    ddpg_only_flags="--learner_depth 1 --learner_width 1 --learner_batches_per_timestep 1 "
+    ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4"
+    ddpg_flags="$experiment_flags $ddpg_only_flags --episodes 2"
     tune_flags="--ray_addr $ray_addr"
 
     cmds=()
@@ -96,13 +97,16 @@ main() {
     cmds+=("python $main_cmpc $rs_mpc_flags --evaluation_envs 2")
     cmds+=("python $main_cmpc $rs_mpc_flags --discount 0.9")
     # DDPG
-    cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
-    cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4 --episodes 2")
-    cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4 --episodes 2")
-    cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2 --episodes 2")
-    cmds+=("python $main_ddpg $ddpg_flags --episodes 2")
-    cmds+=("python $main_ddpg $ddpg_flags --episodes 2 --mixture_estimator oracle")
-    cmds+=("python $main_ddpg $ddpg_flags --episodes 2 --ddpg_min_buf_size 200")
+    cmds+=("python $main_ddpg $ddpg_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4")
+    cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4")
+    cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2")
+    cmds+=("python $main_ddpg $ddpg_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --q_target_mixture")
+    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture")
+    mix_all="--mixture_estimator oracle --q_target_mixture --actor_critic_mixture"
+    cmds+=("python $main_ddpg $ddpg_flags $mix_all")
+    cmds+=("python $main_ddpg $ddpg_flags --ddpg_min_buf_size 200")
     # CMPC
     cloning="--mpc_optimizer random_shooter --rs_learner cloning"
     cloning="$cloning --cloning_learner_depth 1 --cloning_learner_width 1"
@@ -110,7 +114,7 @@ main() {
     cmds+=("python $main_cmpc $cloning $rs_mpc_flags")
     cmds+=("python $main_cmpc $cloning $rs_mpc_flags --cloning_min_buf_size 200")
     rs_ddpg="--mpc_optimizer random_shooter --rs_learner ddpg"
-    cmds+=("python $main_cmpc $rs_ddpg $rs_mpc_flags $ddpg_flags")
+    cmds+=("python $main_cmpc $rs_ddpg $rs_mpc_flags $ddpg_only_flags")
     rs_zero="--mpc_optimizer random_shooter --rs_learner zero"
     cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags")
     shooter_flags="--opt_horizon 1"
@@ -131,14 +135,14 @@ main() {
     expected_rb_save="data/saved_hc/3/checkpoints/persistable_dataset.ckpt-00000002"
     restore="--restore_dynamics $expected_dyn_save --restore_buffer $expected_rb_save"
     cmds+=("python $main_cmpc $rs_mpc_flags --exp_name restored $restore")
-    cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --episodes 2 --exp_name ddpg_save")
+    cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --exp_name ddpg_save")
     savedir="data/ddpg_save_hc/3/checkpoints"
     restore="--exp_name ddpg_restore --restore_buffer $savedir/persistable_dataset.ckpt-00000002"
     restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000002"
-    cmds+=("python $main_ddpg $ddpg_flags $restore --episodes 2")
+    cmds+=("python $main_ddpg $ddpg_flags $restore")
     # Plot tests
     restore_ddpg="--seed 3 --restore_ddpg $savedir/ddpg.ckpt-00000002"
-    eval_q_flags="--horizon 10 --mixture_horizon 5 $ddpg_flags --notex"
+    eval_q_flags="--horizon 10 --mixture_horizon 5 --notex"
     eval_q_flags="$eval_q_flags --episodes 3"
     cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags")
     cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags --evaluate_oracle_subsample 10")

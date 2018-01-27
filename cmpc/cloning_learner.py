@@ -49,7 +49,7 @@ class CloningLearnerFlags(Flags):
                 help='learned controller batch size'),
             ArgSpec(
                 name='cloning_min_buf_size',
-                default=500,
+                default=1,
                 type=int,
                 help='Minimum number of frames in replay buffer before '
                      'training')

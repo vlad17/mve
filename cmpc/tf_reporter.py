@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 
 import reporter
+from utils import flatgrad
 
 
 class TFReporter:
@@ -66,6 +67,15 @@ class TFReporter:
         self.scalar(name + '/2 norm', grad_l2)
         self.scalar(name + '/inf norm', grad_linf)
 
+    def direct_grads(self, name, minibatch_grad):
+        """Save explicitly-computed average gradients from a minibatch."""
+        grad = tf.reduce_mean(minibatch_grad, axis=0)
+        grad = tf.reshape(grad, [-1])
+        l2 = tf.norm(grad, ord=2)
+        linf = tf.norm(grad, ord=np.inf)
+        self.scalar(name + '/2 norm', l2)
+        self.scalar(name + '/inf norm', linf)
+
     def report(self, feed_dict):
         """Report the value of the tensors given the feed."""
         scalar_names, scalars = zip(*self._scalars)
@@ -85,10 +95,7 @@ class TFReporter:
 
 
 def _flatgrad_norms(opt, loss, variables):
-    grads_and_vars = opt.compute_gradients(loss, var_list=variables)
-    grads = [grad for grad, var in grads_and_vars if var is not None]
-    flats = [tf.reshape(x, [-1]) for x in grads]
-    grad = tf.concat(flats, axis=0)
+    grad = flatgrad(opt, loss, variables)
     l2 = tf.norm(grad, ord=2)
     linf = tf.norm(grad, ord=np.inf)
     return l2, linf
