@@ -6,7 +6,7 @@ This file contains amended environments with sufficient information
 to compute reward from observations to make the settings a proper
 fully-observable MDPs. Besides adding the additional dimensions to the
 observations space, the environments are equivalent to the OpenAI gym
-versions at commit f724a720061d76dc315b4737f19a33949cf7b687.
+versions at commit 4c460ba6c8959dd8e0a03b13a1ca817da6d4074f.
 """
 
 import numpy as np
@@ -14,6 +14,7 @@ import tensorflow as tf
 
 from .fully_observable import FullyObservable
 from .render_free_mjc import RenderFreeMJC
+
 
 class FullyObservableHalfCheetah(RenderFreeMJC, FullyObservable):
     """A fully-observable version of half cheetah."""
@@ -28,9 +29,9 @@ class FullyObservableHalfCheetah(RenderFreeMJC, FullyObservable):
 
     # gym code
     # def _step(self, action):
-    #     xposbefore = self.model.data.qpos[0, 0]
+    #     xposbefore = self.sim.data.qpos[0, 0]
     #     self.do_simulation(action, self.frame_skip)
-    #     xposafter = self.model.data.qpos[0, 0]
+    #     xposafter = self.sim.data.qpos[0, 0]
     #     ob = self._get_obs()
     #     reward_ctrl = - 0.1 * np.square(action).sum()
     #     reward_run = (xposafter - xposbefore)/self.dt
@@ -66,15 +67,15 @@ class FullyObservableHalfCheetah(RenderFreeMJC, FullyObservable):
     # gym code
     # def _get_obs(self):
     #     return np.concatenate([
-    #         self.model.data.qpos.flat[1:],
-    #         self.model.data.qvel.flat,
+    #         self.sim.data.qpos.flat[1:],
+    #         self.sim.data.qvel.flat,
     #     ])
 
     def _get_obs(self):
         return np.concatenate([
             # difference from gym: need qpos x value for reward
-            self.model.data.qpos.flat,
-            self.model.data.qvel.flat,
+            self.sim.data.qpos.flat,
+            self.sim.data.qvel.flat,
         ])
 
     # gym code

@@ -10,6 +10,10 @@ Here are setup-specific requirements that you really, really have to do yourself
 * MuJoCo 1.50 (for accelerated gym environments with `gym2`) - same as above
 * Both MuJoCo installations are expected in `~/.mujoco` or the environment variable `MUJOCO_DIRECTORY`, if defined.
 * Python 3.5 (`scripts/` assume this is the `python` and `pip` in `PATH`)
+* If you get any error messages relating to `glfw3`, then reinstall everything in a shell where the following environment variables are set (and for good measure in the shell where you're launching experiments):
+
+    export LD_LIBRARY_PATH=~/.mujoco/mjpro150/bin
+    export LIBRARY_PATH=~/.mujoco/mjpro150/bin
 
 Other system dependencies:
 

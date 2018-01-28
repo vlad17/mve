@@ -13,10 +13,31 @@ class RenderFreeMJC(gym.envs.mujoco.mujoco_env.MujocoEnv):
     """
     Don't render in a windowing environment.
     """
+
     def _render(self, mode='human', close=False):
-        if mode == 'human':
-            return None # don't make a window
-        return super()._render(mode, close)
+        if close:
+            if self.viewer is not None:
+                self.viewer = None  # pylint: disable=attribute-defined-outside-init
+            return None
+
+        if mode == 'rgb_array':
+            width, height = 640, 480
+            self._setup_render()
+            data = self.sim.render(width, height)
+            return data.reshape(height, width, 3)[::-1, :, :]
+        elif mode == 'human':
+            # avoid literally all GL pain by using off-screen renders
+            return None
+        return None
+
+    def _setup_render(self):
+        if self.sim._render_context_offscreen is None:  # pylint: disable=protected-access
+            self.sim.render(640, 480)
+            assert self.sim._render_context_offscreen is not None  # pylint: disable=protected-access
+            ctx = self.sim._render_context_offscreen  # pylint: disable=protected-access
+            ctx.cam.distance = self.sim.model.stat.extent * 0.5
+            ctx.cam.type = mujoco_py.const.CAMERA_TRACKING
+            ctx.cam.trackbodyid = 0
 
     def _step(self, action):
         raise NotImplementedError
@@ -24,10 +45,5 @@ class RenderFreeMJC(gym.envs.mujoco.mujoco_env.MujocoEnv):
     def reset_model(self):
         raise NotImplementedError
 
-    def _get_viewer(self):
-        if self.viewer is None:
-            self.viewer = mujoco_py.MjViewer(visible=False)
-            self.viewer.start()
-            self.viewer.set_model(self.model)
-            self.viewer_setup()
-        return self.viewer
+    def viewer_setup(self):
+        pass

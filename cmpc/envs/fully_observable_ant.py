@@ -9,6 +9,7 @@ import tensorflow as tf
 from .fully_observable import FullyObservable
 from .render_free_mjc import RenderFreeMJC
 
+
 class FullyObservableAnt(RenderFreeMJC, FullyObservable):
     """A fully-observable version of Ant"""
 
@@ -28,7 +29,7 @@ class FullyObservableAnt(RenderFreeMJC, FullyObservable):
     #     forward_reward = (xposafter - xposbefore)/self.dt
     #     ctrl_cost = .5 * np.square(a).sum()
     #     contact_cost = 0.5 * 1e-3 * np.sum(
-    #         np.square(np.clip(self.model.data.cfrc_ext, -1, 1)))
+    #         np.square(np.clip(self.sim.data.cfrc_ext, -1, 1)))
     #     survive_reward = 1.0
     #     reward = forward_reward - ctrl_cost - contact_cost + survive_reward
     #     state = self.state_vector()
@@ -80,8 +81,8 @@ class FullyObservableAnt(RenderFreeMJC, FullyObservable):
     # gym code
     # def _get_obs(self):
     #     return np.concatenate([
-    #         self.model.data.qpos.flat[1:],
-    #         self.model.data.qvel.flat,
+    #         self.sim.data.qpos.flat[1:],
+    #         self.sim.data.qvel.flat,
     #     ])
 
     def _get_obs(self):
@@ -91,9 +92,9 @@ class FullyObservableAnt(RenderFreeMJC, FullyObservable):
             self.get_body_com('torso')[:1],
             # difference from gym: need to add in qpos x value
             # so that states are re-settable
-            self.model.data.qpos.flat,
-            self.model.data.qvel.flat,
-            np.clip(self.model.data.cfrc_ext, -1, 1).flat,
+            self.sim.data.qpos.flat,
+            self.sim.data.qvel.flat,
+            np.clip(self.sim.data.cfrc_ext, -1, 1).flat,
         ])
 
     # gym code

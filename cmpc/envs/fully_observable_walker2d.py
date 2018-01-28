@@ -9,6 +9,7 @@ import tensorflow as tf
 from .fully_observable import FullyObservable
 from .render_free_mjc import RenderFreeMJC
 
+
 class FullyObservableWalker2d(RenderFreeMJC, FullyObservable):
     """A fully-observable version of Walker2d"""
 
@@ -22,9 +23,9 @@ class FullyObservableWalker2d(RenderFreeMJC, FullyObservable):
 
     # gym code
     # def _step(self, a):
-    #     posbefore = self.model.data.qpos[0, 0]
+    #     posbefore = self.sim.data.qpos[0, 0]
     #     self.do_simulation(a, self.frame_skip)
-    #     posafter, height, ang = self.model.data.qpos[0:3, 0]
+    #     posafter, height, ang = self.sim.data.qpos[0:3, 0]
     #     alive_bonus = 1.0
     #     reward = ((posafter - posbefore) / self.dt)
     #     reward += alive_bonus
@@ -68,13 +69,13 @@ class FullyObservableWalker2d(RenderFreeMJC, FullyObservable):
 
     # gym code
     # def _get_obs(self):
-    #     qpos = self.model.data.qpos
-    #     qvel = self.model.data.qvel
+    #     qpos = self.sim.data.qpos
+    #     qvel = self.sim.data.qvel
     #     return np.concatenate([qpos[1:], np.clip(qvel, -10, 10)]).ravel()
 
     def _get_obs(self):
-        qpos = self.model.data.qpos
-        qvel = self.model.data.qvel
+        qpos = self.sim.data.qpos
+        qvel = self.sim.data.qvel
         # Note that qpos has shape 9x1 and qvel has shape 9x1 (determined by
         # printing them out). The orignal Walker2dEnv returns the following:
         #
