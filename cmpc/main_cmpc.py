@@ -11,7 +11,6 @@ from dynamics import DynamicsFlags, NNDynamicsModel
 from dynamics_metrics import DynamicsMetricsFlags, DynamicsMetrics
 import env_info
 from experiment import experiment_main, ExperimentFlags
-from immutable_dataset import ImmutableDataset
 from flags import parse_args
 from mpc_flags import MPCFlags
 from persistable_dataset import (
@@ -66,8 +65,9 @@ def _train(args, venv, dyn_metrics, data, dyn_model, controller):
             data.add_paths(paths)
 
         with timeit('gathering statistics'):
-            most_recent = ImmutableDataset(paths)
-            most_recent.log_reward()
+            most_recent = Dataset.from_paths(paths)
+            reporter.add_summary_statistics(
+                'reward', [path.rewards.sum() for path in paths])
             dyn_metrics.log(most_recent)
             controller.log(most_recent)
 

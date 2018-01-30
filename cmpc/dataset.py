@@ -128,6 +128,21 @@ class Dataset(object):
         """
         return Dataset(get_ac_dim(env), get_ob_dim(env), max_horizon, maxlen)
 
+    @staticmethod
+    def from_paths(paths):
+        """
+        Generate a dataset from a collection of trajectories.
+        """
+        tot_transitions = sum(len(path.rewards) for path in paths)
+        ac_dim = paths[0].acs.shape[1]
+        ob_dim = paths[0].obs.shape[1]
+        plan_horizon = paths[0].planned_acs.shape[1]
+        dataset = Dataset(
+            ac_dim, ob_dim, paths[0].max_horizon, tot_transitions,
+            plan_horizon)
+        dataset.add_paths(paths)
+        return dataset
+
     @property
     def size(self):
         """

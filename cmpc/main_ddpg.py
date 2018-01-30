@@ -40,7 +40,7 @@ def _train(args):
 
             with timeit('gathering statistics'):
                 rewards = [path.rewards.sum() for path in paths]
-                reporter.add_summary_statistics('reward', rewards)
+                reporter.add_summary_statistics('sample reward', rewards)
 
             reporter.advance(paths)
             if args.experiment.should_render(itr):

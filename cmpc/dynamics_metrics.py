@@ -76,14 +76,10 @@ class DynamicsMetrics:
         # n = batch size, h = horizon, s = state dim
         return np.square(true_obs_nhs - pred_obs_nhs).mean(axis=2).mean(axis=0)
 
-    def log(self, data):
+    def log(self, data, prefix=''):
         """
-        Report H-step absolute and standardized dynamics accuracy.
+        Report H-step standardized dynamics accuracy.
         """
-        self._log_open_loop_prediction(data)
-        self._log_closed_loop_prediction(data)
-
-    def _log_open_loop_prediction(self, data):
         if data.planned_acs.size == 0:
             return
 
@@ -102,7 +98,7 @@ class DynamicsMetrics:
         planned_obs_nhs = data.planned_obs[mask]
 
         mse_h = self._mse_h(obs_nhs, planned_obs_nhs)
-        prefix = 'dynamics/open loop/'
+        prefix += 'dynamics/open loop/'
         self._print_mse_prefix(prefix, mse_h)
 
         obs_n1s = obs_ns[:, np.newaxis, :]
@@ -152,33 +148,6 @@ class DynamicsMetrics:
             hide = h not in [1, self._horizon]
             reporter.add_summary(print_str, mse, hide)
 
-    def _log_closed_loop_prediction(self, data):
-        obs, planned_obs = data.episode_plans()
-        mask = [ob.shape[0] > self._horizon for ob in obs]
-        if not all(mask):
-            log.debug('WARNING: {} early terminations during closed-loop'
-                      ' eval', len(mask) - sum(mask))
-        if not any(mask):
-            log.debug('skipping closed-loop {}-step dynamics logging '
-                      '(all episodes too short)', self._horizon)
-            return
-        obs = [ob for include, ob in zip(mask, obs) if include]
-        planned_obs = [pob for include, pob in zip(mask, planned_obs)
-                       if include]
-        # n = episode length - horizon - 1 since
-        # predictions start for second state
-        obs_hns = np.concatenate(
-            [_wrap_diagonally(ob, self._horizon)[:, 1:] for ob in obs],
-            axis=1)
-        obs_nhs = np.swapaxes(obs_hns, 0, 1)
-        planned_obs_nhs = np.concatenate(
-            [pob[:-self._horizon - 1] for pob in planned_obs],
-            axis=0)
-
-        prefix = 'dynamics/closed loop/'
-        mse_h = self._mse_h(obs_nhs, planned_obs_nhs)
-        self._print_mse_prefix(prefix, mse_h)
-
     def _eval_open_loop(self, states_ns, acs_nha):
         states_nhs, mask_n = rate_limit(
             self._num_envs, self._eval_open_loop_limited,
@@ -201,17 +170,3 @@ class DynamicsMetrics:
         """Close the internal simulation environment"""
         self._venv.close()
         self._env.close()
-
-
-def _wrap_diagonally(actions_na, horizon):
-    # "wrap" an n-by-a array into a horizon-(n-horizon)-a array res,
-    # satisfying the following property for all i, 0 <= i < n - horizon,
-    # all j, 0 <= j < a, and all k, 0 <= k <= horizon:
-    #
-    # res[k][i][j] = actions_na[i + k][j]
-    n, a = actions_na.shape
-    res = np.zeros((horizon, n - horizon, a))
-    for k in range(horizon):
-        end = n - horizon + k
-        res[k] = actions_na[k:end]
-    return res
