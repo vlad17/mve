@@ -126,7 +126,7 @@ def _evaluate_with_session(neps, venv, learner, controller):
 
     with timeit('offpol eval'):
         sample_fn = _sample_venv_fn(venv, controller)
-        ixs = np.random.randint(data.size, size=(512))
+        ixs = np.random.randint(data.size, size=(512,))
         obs = data.obs[ixs]
         offpol_qs = sample_fn(obs)
         offpol_estimators = []
@@ -141,13 +141,12 @@ def _evaluate_with_session(neps, venv, learner, controller):
     if subsample > 0:
         _evaluate_oracle(learner, paths, oracle_estimators)
 
-    info_str = r'(${}$ episodes, $\gamma={}$)'.format(
-        neps, flags().experiment.discount)
+    info_str = r'(${}$ samples, $\gamma={}$)'.format(
+        len(obs), flags().experiment.discount)
     oracle_sqerrs = [np.square(e - qs) for e in oracle_estimators]
     # _mean_errorbars(oracle_sqerrs, 'oracle onpol', 'blue', logy=True)
     offpol_sqerrs = [np.square(e - offpol_qs) for e in offpol_estimators]
-    _mean_errorbars(offpol_estimators, 'oracle offpol',
-                    'red', logy=True)
+    _mean_errorbars(offpol_sqerrs, 'oracle offpol', 'red', logy=True)
     plt.xlabel(r'horizon $h$')
     plt.ylabel(r'$Q$ MSE')
     plt.title(r'$(\hat Q_h-Q^{\pi_{\mathrm{target}}})^2$ MSE ' + info_str)
@@ -182,7 +181,7 @@ class EvaluationFlags(Flags):
             ArgSpec(
                 name='episodes',
                 type=int,
-                default=80,
+                default=32,
                 help='number episodes to evaluate with on')]
         super().__init__('evaluation', 'evaluation flags for ddpg', arguments)
 
