@@ -3,6 +3,7 @@
 import numpy as np
 
 import env_info
+from envs import NumpyReward
 from flags import Flags, ArgSpec
 import log
 import reporter
@@ -67,6 +68,7 @@ class DynamicsMetrics:
         self._venv = env_info.make_venv(flags.evaluation_envs)
         self._venv.reset()
         self._env = make_env()
+        self._np_reward = NumpyReward(self._env)
         self._num_envs = flags.evaluation_envs
         self._horizon = planning_horizon
         self._discount = discount
@@ -118,7 +120,7 @@ class DynamicsMetrics:
         prev_states_Ns = self._merge_axes(prev_states_nhs)
         acs_Ns = self._merge_axes(acs_nha)
         states_Ns = self._merge_axes(states_nhs)
-        rew_N = self._env.np_reward(prev_states_Ns, acs_Ns, states_Ns)
+        rew_N = self._np_reward.np_reward(prev_states_Ns, acs_Ns, states_Ns)
         rew_nh = self._split_axes(rew_N)
         rew_n = np.zeros(rew_nh.shape[0])
         for i in reversed(range(rew_nh.shape[1])):
