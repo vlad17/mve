@@ -88,7 +88,7 @@ class DDPGFlags(Flags):
                 'as --q_target_mixture is activated. '
                 'If oracle, use an oracle environment to compute '
                 'model_horizon-step rewards for mixing with the target '
-                'Q network. No other options currently supported'),
+                'Q network. If learned, use a learned dynamics model.'),
             ArgSpec(
                 name='q_target_mixture',
                 default=False,
@@ -116,7 +116,7 @@ class DDPGFlags(Flags):
                 default=1,
                 type=int,
                 help='Minimum number of frames in replay buffer before '
-                     'training')
+                     'training'),
         ]
         super().__init__('ddpg', 'DDPG', arguments)
 
@@ -125,6 +125,16 @@ class DDPGFlags(Flags):
         nbatches = self.learner_batches_per_timestep * timesteps
         nbatches = max(int(nbatches), 1)
         return nbatches
+
+    def expect_dynamics(self, dyn):
+        """
+        Check if a dynamics model was provided in learned value mixture
+        estimation.
+        """
+        if self.mixture_estimator == 'learned':
+            assert dyn is not None, 'expecting a dynamics model'
+        else:
+            assert dyn is None, 'should not be getting a dynamics model'
 
 
 class DDPGLearner(Learner, TFNode):
@@ -137,7 +147,8 @@ class DDPGLearner(Learner, TFNode):
     and ddpg.models.Critic, respectively.
     """
 
-    def __init__(self):
+    def __init__(self, dynamics=None):
+        flags().ddpg.expect_dynamics(dynamics)
         self._batch_size = flags().ddpg.learner_batch_size
         self.actor = Actor(
             width=flags().ddpg.learner_width,
@@ -152,7 +163,7 @@ class DDPGLearner(Learner, TFNode):
                           discount=flags().experiment.discount,
                           actor_lr=flags().ddpg.actor_lr,
                           critic_lr=flags().ddpg.critic_lr,
-                          scope='ddpg',
+                          scope='ddpg', learned_dynamics=dynamics,
                           explore_stddev=flags().ddpg.explore_stddev)
         TFNode.__init__(self, 'ddpg', flags().ddpg.restore_ddpg)
 

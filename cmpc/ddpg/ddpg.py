@@ -1,9 +1,13 @@
 """DDPG training."""
 
+import types
+
 import tensorflow as tf
 import numpy as np
 
 from context import flags
+from dataset import Dataset
+from dynamics_metrics import DynamicsMetrics
 import env_info
 from log import debug
 import reporter
@@ -34,7 +38,8 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
     """
 
     def __init__(self, actor, critic, discount=0.99, scope='ddpg',
-                 actor_lr=1e-3, critic_lr=1e-3, explore_stddev=0.2):
+                 actor_lr=1e-3, critic_lr=1e-3, explore_stddev=0.2,
+                 learned_dynamics=None):
 
         self._reporter = TFReporter()
 
@@ -60,8 +65,8 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             learning_rate=actor_lr, beta1=0.9, beta2=0.999, epsilon=1e-8)
         if flags().ddpg.actor_critic_mixture:
             assert flags().ddpg.mixture_estimator == 'oracle', \
-                'only oracle estimator handled, got {}'.format(
-                    flags().ddpg.mixture_estimator)
+                'only oracle estimator handled for actor-critic mix, ' \
+                'got {}'.format(flags().ddpg.mixture_estimator)
             # h-step observations
             h = flags().ddpg.model_horizon
             debug('using oracle Q estimator with {} steps for actor grad', h)
@@ -146,18 +151,48 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         next_Q_n = critic.tf_target_critic(
             self.obs1_ph_ns, actor.tf_target_action(self.obs1_ph_ns))
         if flags().ddpg.q_target_mixture:
-            assert flags().ddpg.mixture_estimator == 'oracle', \
-                'only oracle estimator handled, got {}'.format(
-                    flags().ddpg.mixture_estimator)
             # h-step observations
             h = flags().ddpg.model_horizon
-            debug('using oracle Q estimator with {} steps as target critic', h)
-            nenvs = flags().ddpg.learner_batch_size
-            self._oracle_q_target_venv = env_info.make_venv(nenvs)
-            self._oracle_q_target_venv.reset()
-            self._next_Q_ph_n = tf.placeholder(
-                tf.float32, shape=[None])
-            next_Q_n = self._next_Q_ph_n
+            if flags().ddpg.mixture_estimator == 'oracle':
+                debug('using oracle Q estimator with {} steps as '
+                      'target critic', h)
+                nenvs = flags().ddpg.learner_batch_size
+                self._oracle_q_target_venv = env_info.make_venv(nenvs)
+                self._oracle_q_target_venv.reset()
+                self._next_Q_ph_n = tf.placeholder(
+                    tf.float32, shape=[None])
+                next_Q_n = self._next_Q_ph_n
+            elif flags().ddpg.mixture_estimator == 'learned':
+                assert learned_dynamics is not None
+                next_Q_n = _tf_model_value_expand(
+                    h, self.obs1_ph_ns,
+                    actor.tf_target_action, critic.tf_target_critic,
+                    learned_dynamics, back_prop=False)
+                self._dyn_metrics = DynamicsMetrics(
+                    h, env_info.make_env, flags().dynamics_metrics, discount)
+                self._unroll_states_ph_ns = tf.placeholder(
+                    tf.float32, shape=[None, env_info.ob_dim()])
+                n = tf.shape(self._unroll_states_ph_ns)[0]
+                with tf.variable_scope('scratch-ddpg' + scope):
+                    actions_hna = tf.get_variable(
+                        'dynamics_actions', initializer=tf.zeros(
+                            [h, n, env_info.ac_dim()]),
+                        dtype=tf.float32, trainable=False, collections=[],
+                        validate_shape=False)
+                    states_hns = tf.get_variable(
+                        'dynamics_states', initializer=tf.zeros(
+                            [h, n, env_info.ob_dim()]),
+                        dtype=tf.float32, trainable=False, collections=[],
+                        validate_shape=False)
+                self._unroll_loop = _tf_unroll(
+                    h, self._unroll_states_ph_ns,
+                    actor.tf_action, learned_dynamics,
+                    actions_hna, states_hns)
+                self._initializer = [
+                    actions_hna.initializer, states_hns.initializer]
+            else:
+                raise ValueError('unrecognized mixture estimator {}'
+                                 .format(flags().ddpg.mixture_estimator))
         target_Q_n = self.rewards_ph_n + (1. - self.terminals1_ph_n) * (
             discount * next_Q_n)
         self._reporter.stats('target Q', target_Q_n)
@@ -300,7 +335,8 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             self.terminals1_ph_n: terminals,
             self.rewards_ph_n: rewards,
             self.actions_ph_na: acs}
-        if flags().ddpg.q_target_mixture:
+        if flags().ddpg.q_target_mixture and \
+           flags().ddpg.mixture_estimator == 'oracle':
             model_expanded_Q = self._oracle_Q(next_obs)
             feed_dict[self._next_Q_ph_n] = model_expanded_Q
         if flags().ddpg.actor_critic_mixture:
@@ -309,6 +345,8 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
     def train(self, data, nbatches, batch_size):
         """Run nbatches training iterations of DDPG"""
+        if hasattr(self, '_dyn_metrics'):
+            self._eval_dynamics(data, 'ddpg before/')
         batches = data.sample_many(nbatches, batch_size)
         for i, batch in enumerate(batches, 1):
             feed_dict = self._sample(batch)
@@ -328,6 +366,8 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             self._reporter.report(batch)
 
         self._evaluate()
+        if hasattr(self, '_dyn_metrics'):
+            self._eval_dynamics(data, 'ddpg after/')
 
     def _oracle_Q(self, next_obs):
         h = flags().ddpg.model_horizon
@@ -379,3 +419,77 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         feed_dict[self._dr_ph_na] = dr_an.T
         feed_dict[self._expanded_obs_ph_ns] = obs1_ens[-1]
         feed_dict[self._expanded_terminals_ph_n] = done_en[-1].astype(float)
+
+    def _eval_dynamics(self, data, prefix):
+        # TODO: should really be a separate setting for number of eval samples
+        eval_samples = min(flags().dynamics_metrics.evaluation_envs * 10,
+                           data.size)
+        ixs = np.random.randint(data.size, size=(eval_samples,))
+
+        proto_path = types.SimpleNamespace()
+        proto_path.max_horizon = data.max_horizon
+        for attr in ['obs', 'next_obs', 'rewards', 'acs', 'terminals']:
+            val = getattr(data, attr)
+            val = val[ixs]
+            setattr(proto_path, attr, val)
+
+        tf.get_default_session().run(
+            self._initializer, feed_dict={
+                self._unroll_states_ph_ns: proto_path.obs})
+
+        acs_hna, obs_hns = tf.get_default_session().run(
+            self._unroll_loop, feed_dict={
+                self._unroll_states_ph_ns: proto_path.obs})
+
+        proto_path.planned_acs = np.swapaxes(acs_hna, 0, 1)
+        proto_path.planned_obs = np.swapaxes(obs_hns, 0, 1)
+        sampled = Dataset.from_paths([proto_path])
+        self._dyn_metrics.log(sampled, prefix)
+
+# TODO: create general methods for these patterns and abstract from
+# random shooter code as well
+
+
+def _tf_model_value_expand(h, initial_states_ns, act, critique, dynamics,
+                           back_prop=False):
+    n = tf.shape(initial_states_ns)[0]
+    # discount isn't used in a numerically stable way here, consider unrolloing
+    # all the rewards and then applying horner's method.
+    discount = flags().experiment.discount
+    reward_fn = env_info.reward_fn()
+
+    def _body(t, rewards_n, states_ns):
+        actions_na = act(states_ns)
+        next_states_ns = dynamics.predict_tf(states_ns, actions_na)
+        curr_reward = reward_fn(states_ns, actions_na, next_states_ns)
+        t_fl = tf.to_float(t)
+        next_rewards_n = rewards_n + tf.pow(discount, t_fl) * curr_reward
+        return [t + 1, next_rewards_n, next_states_ns]
+
+    _, final_rewards_n, final_states_ns = tf.while_loop(
+        lambda t, _, __: t < h, _body,
+        [0, tf.zeros((n,)), initial_states_ns],
+        back_prop=back_prop)
+
+    h_fl = tf.to_float(h)
+    final_critic_n = tf.pow(discount, h_fl) * critique(
+        final_states_ns, act(final_states_ns))
+    return final_rewards_n + final_critic_n
+
+
+def _tf_unroll(h, initial_states_ns, act, dynamics, acs_hna, states_hns):
+    def _body(t, state_ns):
+        action_na = act(state_ns)
+        save_action_op = tf.scatter_update(acs_hna, t, action_na)
+        next_state_ns = dynamics.predict_tf(state_ns, action_na)
+        save_state_op = tf.scatter_update(
+            states_hns, t, next_state_ns)
+        with tf.control_dependencies([save_action_op, save_state_op]):
+            return [t + 1, next_state_ns]
+
+    loop_vars = [0, initial_states_ns]
+    loop, _ = tf.while_loop(lambda t, _: t < h, _body,
+                            loop_vars, back_prop=False)
+
+    with tf.control_dependencies([loop]):
+        return acs_hna.read_value(), states_hns.read_value()

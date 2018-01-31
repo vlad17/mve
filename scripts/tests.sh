@@ -79,8 +79,8 @@ main() {
     short_mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 6"
     short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2 --evaluation_envs 10"
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
-    ddpg_only_flags="--learner_depth 1 --learner_width 1 --learner_batches_per_timestep 1 "
-    ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4"
+    ddpg_only_flags="--learner_depth 1 --learner_width 8 --learner_batches_per_timestep 1 "
+    ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4 --evaluation_envs 10"
     ddpg_flags="$experiment_flags $ddpg_only_flags --episodes 2"
     tune_flags="--ray_addr $ray_addr"
 
@@ -103,6 +103,7 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2")
     cmds+=("python $main_ddpg $ddpg_flags")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --q_target_mixture")
+    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture $dynamics_flags")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture")
     mix_all="--mixture_estimator oracle --q_target_mixture --actor_critic_mixture"
     cmds+=("python $main_ddpg $ddpg_flags $mix_all")

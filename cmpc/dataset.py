@@ -131,7 +131,8 @@ class Dataset(object):
     @staticmethod
     def from_paths(paths):
         """
-        Generate a dataset from a collection of trajectories.
+        Generate a dataset from a collection of trajectories (with size
+        equal to the total amount of trajectories given).
         """
         tot_transitions = sum(len(path.rewards) for path in paths)
         ac_dim = paths[0].acs.shape[1]

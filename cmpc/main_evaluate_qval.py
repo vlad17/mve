@@ -10,6 +10,8 @@ import numpy as np
 
 from context import flags
 from ddpg_learner import DDPGLearner, DDPGFlags
+from dynamics import DynamicsFlags
+from dynamics_metrics import DynamicsMetricsFlags
 import env_info
 from experiment import ExperimentFlags, experiment_main
 from flags import (parse_args, Flags, ArgSpec)
@@ -160,6 +162,7 @@ class EvaluationFlags(Flags):
 
 
 if __name__ == "__main__":
-    _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags()]
+    _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags(),
+              DynamicsFlags(), DynamicsMetricsFlags()]
     _args = parse_args(_flags)
     experiment_main(_args, _evaluate)
