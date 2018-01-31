@@ -81,6 +81,13 @@ class ExperimentFlags(Flags):
             type=float,
             default=0.99,
             help='discount factor for the reward calculations')
+        yield ArgSpec(
+            name='reward_scaling',
+            default=-1,
+            type=float,
+            help='Amount to scale all rewards by. Pass -1 to use default'
+                 'reward scaling, based on environment.'
+        )
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',

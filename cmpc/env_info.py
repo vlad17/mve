@@ -5,6 +5,7 @@ this single metadata class.
 """
 
 from contextlib import contextmanager, closing
+from gym.core import RewardWrapper
 import gym2
 import hashlib
 import numpy as np
@@ -75,7 +76,7 @@ def make_env():
     """
     env = _env_class()()
     env.seed(_next_seeds(1)[0])
-    return env
+    return _RewardScalingWrapper(env)
 
 
 def make_venv(n):
@@ -87,7 +88,7 @@ def make_venv(n):
     else:
         venv = envs.ParallelGymVenv(n, _env_class())
     venv.seed(_next_seeds(n))
-    return venv
+    return _RewardScalingWrapper(venv)
 
 
 @contextmanager
@@ -100,3 +101,37 @@ def create():
         context().env_info = env
         yield
     context().env_info = None
+
+
+class _RewardScalingWrapper(RewardWrapper):
+    """Wrapper that scales rewards based on environments."""
+
+    def __init__(self, *args, **kwargs):
+        super(_RewardScalingWrapper, self).__init__(*args, **kwargs)
+        self.reward_scale = _get_reward_scale()
+
+    def _reward(self, reward):
+        return reward * self.reward_scale
+
+    def __getattr__(self, item):
+        return getattr(self.env, item)
+
+
+def _get_reward_scale():
+    """Get reward scaling based on current environment and reward scaling."""
+    env_name = context().flags.experiment.env_name
+    reward_scaling = context().flags.experiment.reward_scaling
+    if reward_scaling <= 0:
+        return _get_reward_scale_by_env(env_name)
+    return reward_scaling
+
+
+def _get_reward_scale_by_env(env_name):
+    """Return default reward scaling for each environment."""
+    if env_name == 'hc':
+        return 0.05
+    elif env_name == 'ant':
+        return 0.3
+    elif env_name == 'walker':
+        return 0.05
+    return 1.0
