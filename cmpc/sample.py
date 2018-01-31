@@ -8,13 +8,17 @@ from context import flags
 from dataset import Path
 
 
-def sample_venv(venv, controller):
+def sample_venv(venv, controller, init_obs=None):
     """
     Given a n-way vectorized environment `venv`, generate n paths/rollouts with
     maximum horizon `horizon` using controller `controller`.
     """
     max_horizon = flags().experiment.horizon
-    obs_n = venv.reset()
+    if init_obs is None:
+        obs_n = venv.reset()
+    else:
+        venv.set_state_from_ob(init_obs)
+        obs_n = init_obs
     paths = [Path(venv, obs, max_horizon, controller.planning_horizon())
              for obs in obs_n]
     active_n = np.ones(len(obs_n), dtype=bool)

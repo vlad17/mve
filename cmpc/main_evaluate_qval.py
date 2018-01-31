@@ -9,6 +9,7 @@ import tensorflow as tf
 import numpy as np
 
 from context import flags
+from dataset import Dataset
 from ddpg_learner import DDPGLearner, DDPGFlags
 import env_info
 from experiment import ExperimentFlags, experiment_main
@@ -16,9 +17,12 @@ from flags import (parse_args, Flags, ArgSpec)
 import tfnode
 from plot import plt, savefig, activate_tex
 from qvalues import qvals, oracle_q, offline_oracle_q, corrected_horizon
+from persistable_dataset import (
+    add_dataset_to_persistance_registry, PersistableDatasetFlags)
 import reporter
 from sample import sample_venv
-from utils import timeit, as_controller, print_table, make_session_as_default
+from utils import (timeit, as_controller, print_table, make_session_as_default,
+                   discounted_rewards, rate_limit)
 
 
 def _mean_errorbars(vals, label, color, logy=False, ci=None):
@@ -85,13 +89,25 @@ def _evaluate(_):
 
     with make_session_as_default():
         tf.global_variables_initializer().run()
-        tf.get_default_graph().finalize()
         tfnode.restore_all()
         controller = as_controller(learner.actor.target_act)
         _evaluate_with_session(neps, venv, learner, controller)
 
 
+def _sample_venv_fn(venv, controller):
+    def _sample(obs):
+        paths = sample_venv(venv, controller, obs)
+        rewards_nh = np.concatenate([path.rewards for path in paths])
+        return [discounted_rewards(rewards_nh.T)]
+    return lambda obs: rate_limit(venv.n, _sample, obs)[0]
+
+
 def _evaluate_with_session(neps, venv, learner, controller):
+    data = Dataset.from_env(venv, flags().experiment.horizon,
+                            flags().experiment.bufsize)
+    add_dataset_to_persistance_registry(data, flags().persistable_dataset)
+    tfnode.restore_all()
+
     with timeit('running controller evaluation (target actor)'):
         paths = sample_venv(venv, controller)
         qs = np.concatenate(qvals(paths, flags().experiment.discount))
@@ -105,11 +121,21 @@ def _evaluate_with_session(neps, venv, learner, controller):
     with timeit('target oracle-n Q, for n = 1, ..., {}'
                 .format(mixture_horizon)):
         oracle_estimators = []
-        zero_estimators = []
-        zero_qs = np.zeros_like(ddpg_qs)
         for h in range(mixture_horizon):
             oracle_estimators.append(offline_oracle_q(paths, ddpg_qs, h))
-            zero_estimators.append(offline_oracle_q(paths, zero_qs, h))
+
+    with timeit('offpol eval'):
+        sample_fn = _sample_venv_fn(venv, controller)
+        ixs = np.random.randint(data.size, size=(512))
+        obs = data.obs[ixs]
+        offpol_qs = sample_fn(obs)
+        offpol_estimators = []
+        for h in range(mixture_horizon):
+            print('  offpol oracle', h)
+            offpol_estimators.append(oracle_q(
+                learner.critic.target_critique, learner.actor.target_act,
+                obs, learner.actor.target_act(obs),
+                venv, np.full(len(obs), h, dtype=int)))
 
     subsample = flags().evaluation.evaluate_oracle_subsample
     if subsample > 0:
@@ -118,12 +144,14 @@ def _evaluate_with_session(neps, venv, learner, controller):
     info_str = r'(${}$ episodes, $\gamma={}$)'.format(
         neps, flags().experiment.discount)
     oracle_sqerrs = [np.square(e - qs) for e in oracle_estimators]
-    _mean_errorbars(oracle_sqerrs, 'oracle', 'blue', logy=True)
-    zero_sqerrs = [np.square(e - qs) for e in zero_estimators]
-    _mean_errorbars(zero_sqerrs, 'pure model', 'red', logy=True)
+    # _mean_errorbars(oracle_sqerrs, 'oracle onpol', 'blue', logy=True)
+    offpol_sqerrs = [np.square(e - offpol_qs) for e in offpol_estimators]
+    _mean_errorbars(offpol_estimators, 'oracle offpol',
+                    'red', logy=True)
     plt.xlabel(r'horizon $h$')
     plt.ylabel(r'$Q$ MSE')
     plt.title(r'$(\hat Q_h-Q^{\pi_{\mathrm{target}}})^2$ MSE ' + info_str)
+    print(os.path.join(reporter.logging_directory(), 'mse.pdf'))
     savefig(os.path.join(reporter.logging_directory(), 'mse.pdf'))
 
 
@@ -154,12 +182,13 @@ class EvaluationFlags(Flags):
             ArgSpec(
                 name='episodes',
                 type=int,
-                default=10,
+                default=80,
                 help='number episodes to evaluate with on')]
         super().__init__('evaluation', 'evaluation flags for ddpg', arguments)
 
 
 if __name__ == "__main__":
-    _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags()]
+    _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags(),
+              PersistableDatasetFlags()]
     _args = parse_args(_flags)
     experiment_main(_args, _evaluate)
