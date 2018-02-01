@@ -110,25 +110,42 @@ def _evaluate_with_session(neps, venv, learner, controller):
 
     with timeit('running controller evaluation (target actor)'):
         paths = sample_venv(venv, controller)
-        qs = np.concatenate(qvals(paths, flags().experiment.discount))
+
+    nsamp = (2 ** 10,)
 
     with timeit('target Q'):
-        acs = np.concatenate([path.acs for path in paths])
         obs = np.concatenate([path.obs for path in paths])
-        ddpg_qs = learner.critic.target_critique(obs, acs)
+        ixs = np.random.randint(len(obs), size=nsamp)
+        obs = obs[ixs]
 
     mixture_horizon = flags().evaluation.mixture_horizon
-    with timeit('target oracle-n Q, for n = 1, ..., {}'
+    sample_fn = _sample_venv_fn(venv, controller)
+    with timeit('onpol oracle-n Q, for n = 1, ..., {}'
                 .format(mixture_horizon)):
-        oracle_estimators = []
+        onpol_qs = np.zeros(len(obs))
+        for i in range(10):
+            lo = i * len(obs) // 10
+            hi = (i + 1) * len(obs) // 10
+            with timeit('{:5d} of {:5d} samples'.format(hi, len(obs))):
+                onpol_qs[lo:hi] = sample_fn(obs[lo:hi])
+        onpol_estimators = []
         for h in range(mixture_horizon):
-            oracle_estimators.append(offline_oracle_q(paths, ddpg_qs, h))
+            print('  onpol oracle', h)
+            onpol_estimators.append(oracle_q(
+                learner.critic.target_critique, learner.actor.target_act,
+                obs, learner.actor.target_act(obs),
+                venv, np.full(len(obs), h, dtype=int)))
 
     with timeit('offpol eval'):
-        sample_fn = _sample_venv_fn(venv, controller)
-        ixs = np.random.randint(data.size, size=(512,))
+        ixs = np.random.randint(data.size, size=nsamp)
+        onpol_obs = obs
         obs = data.obs[ixs]
-        offpol_qs = sample_fn(obs)
+        offpol_qs = np.zeros(len(obs))
+        for i in range(10):
+            lo = i * len(obs) // 10
+            hi = (i + 1) * len(obs) // 10
+            with timeit('{:5d} of {:5d} samples'.format(hi, len(obs))):
+                offpol_qs[lo:hi] = sample_fn(obs[lo:hi])
         offpol_estimators = []
         for h in range(mixture_horizon):
             print('  offpol oracle', h)
@@ -143,8 +160,8 @@ def _evaluate_with_session(neps, venv, learner, controller):
 
     info_str = r'(${}$ samples, $\gamma={}$)'.format(
         len(obs), flags().experiment.discount)
-    oracle_sqerrs = [np.square(e - qs) for e in oracle_estimators]
-    # _mean_errorbars(oracle_sqerrs, 'oracle onpol', 'blue', logy=True)
+    oracle_sqerrs = [np.square(e - onpol_qs) for e in onpol_estimators]
+    _mean_errorbars(oracle_sqerrs, 'oracle onpol', 'blue', logy=True)
     offpol_sqerrs = [np.square(e - offpol_qs) for e in offpol_estimators]
     _mean_errorbars(offpol_sqerrs, 'oracle offpol', 'red', logy=True)
     plt.xlabel(r'horizon $h$')
