@@ -42,7 +42,7 @@ def _train(_):
 
 
 def _loop(sampler, data, learner, dynamics):
-    for itr in range(flags().run.episodes):
+    for itr in range(flags().run.timesteps // sampler.nsteps()):
         if dynamics:
             with timeit('dynamics fit'):
                 dynamics.fit(data, 0 if itr == 0 else sampler.nsteps())
@@ -68,10 +68,10 @@ class RunFlags(Flags):
     def __init__(self):
         arguments = [
             ArgSpec(
-                name='episodes',
+                name='timesteps',
                 type=int,
-                default=300,
-                help='number episodes to train on')]
+                default=1000000,
+                help='number timesteps to train on')]
         super().__init__('run', 'run flags for ddpg', arguments)
 
 
