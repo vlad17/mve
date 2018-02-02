@@ -50,6 +50,8 @@ def _env_class():
         return envs.FullyObservableWalker2d
     elif env_name == 'hc2':
         return gym2.FullyObservableHalfCheetah
+    elif env_name == 'acrobot':
+        return envs.ContinuousAcrobot
     else:
         raise ValueError('env {} unsupported'.format(env_name))
 
