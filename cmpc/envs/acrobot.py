@@ -9,6 +9,7 @@ The differences from the gym implementation of Acrobot (at its commit
 
 * numba acceleration for computation
 * allow for a continuous range of control
+* dense reward signal (reward = height instead of indicator of height > 1)
 """
 
 import math
@@ -98,9 +99,8 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         """
         theta0 = tf.atan2(next_state[:, 1], next_state[:, 0])
         theta1 = tf.atan2(next_state[:, 3], next_state[:, 2])
-        is_terminal = tf.to_float((-tf.cos(theta0) - tf.cos(theta0 + theta1))
-                                  > 1.)
-        return (1. - is_terminal) * -1.
+        height = -tf.cos(theta0) - tf.cos(theta0 + theta1)
+        return height
 
     def np_reward(self, state, action, next_state):
         """
@@ -108,8 +108,8 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         """
         theta0 = np.arctan2(next_state[:, 1], next_state[:, 0])
         theta1 = np.arctan2(next_state[:, 3], next_state[:, 2])
-        is_terminal = ((-tf.cos(theta0) - tf.cos(theta0 + theta1)) > 1.)
-        return (1. - is_terminal) * -1.
+        height = -tf.cos(theta0) - tf.cos(theta0 + theta1)
+        return height
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -140,17 +140,17 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         ns[2] = bound(ns[2], -self.MAX_VEL_1, self.MAX_VEL_1)
         ns[3] = bound(ns[3], -self.MAX_VEL_2, self.MAX_VEL_2)
         self.state = ns
-        terminal = self._terminal()
-        reward = -1. if not terminal else 0.
+        reward = self._height()
+        terminal = reward > 1
         return (self._get_ob(), reward, terminal, {})
 
     def _get_ob(self):
         s = self.state
         return np.array([cos(s[0]), np.sin(s[0]), cos(s[1]), sin(s[1]), s[2], s[3]])
 
-    def _terminal(self):
+    def _height(self):
         s = self.state
-        return bool(-np.cos(s[0]) - np.cos(s[1] + s[0]) > 1.)
+        return -np.cos(s[0]) - np.cos(s[1] + s[0])
 
     # @profile
     def render(self, mode='human', close=False):
