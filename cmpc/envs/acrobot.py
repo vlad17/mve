@@ -20,10 +20,10 @@ from numpy import sin, cos, pi
 from scipy import integrate
 from numba import jit
 import tensorflow as tf
-from fully_observable import FullyObservable  # TODO make local
+from .fully_observable import FullyObservable
 from gym.envs.classic_control import rendering
 
-from vector_env import VectorEnv  # TODO make local
+from .vector_env import VectorEnv
 
 __copyright__ = "Copyright 2013, RLPy http://acl.mit.edu/RLPy"
 __credits__ = ["Alborz Geramifard", "Robert H. Klein", "Christoph Dann",
