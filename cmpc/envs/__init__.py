@@ -5,4 +5,4 @@ from .fully_observable_ant import FullyObservableAnt
 from .fully_observable_walker2d import FullyObservableWalker2d
 from .parallel_gym_venv import ParallelGymVenv
 from .numpy_reward import NumpyReward
-from .acrobot import ContinuousAcrobot
+from .acrobot import ContinuousAcrobot, VectorizedContinuousAcrobot

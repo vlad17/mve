@@ -18,7 +18,7 @@ from gym.utils import seeding
 import numpy as np
 from numpy import sin, cos, pi
 from scipy import integrate
-from numba import jit
+from numba import jit, prange
 import tensorflow as tf
 from .fully_observable import FullyObservable
 
@@ -81,6 +81,7 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         self.viewer = None
         high = np.array([1.0, 1.0, 1.0, 1.0, self.MAX_VEL_1, self.MAX_VEL_2])
         low = -high
+        self.n = n
         self.observation_space = spaces.Box(low=low, high=high)
         self.action_space = spaces.Box(
             low=np.array([-1.0]), high=np.array([1.0]))
@@ -88,7 +89,7 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         # only do one step of rk4 integration
         # could in theory make this [0, self.dt / N, 2 * self.dt / N, ...]
         self._integration_ts = np.array([0, self.dt])
-        self._work_ks = np.empty((4, 5))  # Runge-Kutta workspace coeffs
+        self._work_ks = np.empty((n, 4, 5))  # Runge-Kutta workspace coeffs
         # need 4 vectors (axis 0)
         # with a dim for each state (4 dims + one action/control dimension)
         self._seed_uncorr(n)
@@ -132,7 +133,7 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         # @profile
     def _step(self, a):
         s = self.state
-        torque = a
+        torque = np.asarray(a, dtype=float)
 
         # Now, augment the state with our force action so it can be passed to
         # _dsdt
@@ -243,6 +244,7 @@ def wrap(x, m, M):
     For example, m = -180, M = 180 (degrees), x = 360 --> returns 0.
     """
     diff = M - m
+    # TODO being lazy here, use appropriate numpy mod
     while np.any(x > M):
         x[x > M] = x[x > M] - diff
     while np.any(x < m):
@@ -260,10 +262,10 @@ def bound(x, m, M=None):
         M = m[1]
         m = m[0]
     # bound x between min (m) and Max (M)
-    return min(max(x, m), M)
+    return np.minimum(np.maximum(x, m), M)
 
 
-@jit('void(double[:], double[:])', nopython=True)
+@jit('void(double[:], double[:])', nopython=True, nogil=True)
 def _dsdt(s_augmented, out):
     LINK_LENGTH_1 = 1.  # [m]
     LINK_MASS_1 = 1.  #: [kg] mass of link 1
@@ -303,22 +305,25 @@ def _dsdt(s_augmented, out):
     out[4] = 0.
 
 
-@jit('void(double[:, :], double[:], double[:,:])', nopython=True)
-def rk4_acro(y0, ts, work_ks):
+@jit('void(double[:, :], double[:], double[:,:,:])', nopython=True, nogil=True)
+def rk4_acro(y0, ts, all_work_ks):
     """
     RK4 integration procedure that returns the last point at the end of the ts.
 
     Specialized to acrobot derivative.
 
-    Work_ks should be an array for scratch work of dimension 4 x len(y0).
+    the shape of ys is iters x d where d is the ODE dim and iters are the various
+    instances of the same problem we're solving.
+
+    Work_ks should be an array for scratch work of dimension iters x 4 x d
 
     returns the endpoint in-place by editing the initial condition
     """
     # make multiple work_ks; parallelize numba?
-    iters = len(y0)
-    for k in range(iters):
+    for k in range(len(y0)):
         y = y0[k]
         derivs = _dsdt
+        work_ks = all_work_ks[k]
         for i in range(len(ts) - 1):
             thist = ts[i]
             dt = ts[i + 1] - thist
