@@ -63,3 +63,37 @@ def sample(env, controller, render=False):
         if done:
             break
     return path
+
+
+class Sampler:
+    """Stateful sampler for shorter periods between parameter updates."""
+
+    def __init__(self, env):
+        self.env = env
+        self.update_every = flags().ddpg.ddpg_update_every
+        self.ob = env.reset()
+
+    def sample(self, controller, data, render=False, env=None):
+        """
+        Given a single environment env, perform a rollout up to update_every
+        steps, possibly rendering, with the given controller.
+        """
+        controller.reset(1)
+        sample_reward = 0
+
+        if env is None:
+            env = self.env
+
+        for _ in range(self.update_every):
+            if render:
+                env.render()
+            ac, plan_ac, plan_ob = controller.act(self.ob[np.newaxis, ...])
+            self.ob, reward, done, _ = env.step(ac[0])
+            data.next(self.ob, reward, done, ac[0],
+                      None if plan_ac is None else plan_ac[0],
+                      None if plan_ob is None else plan_ob[0])
+            sample_reward += reward
+            if done:
+                self.ob = env.reset()
+                data.first(self.ob)
+        return [sample_reward], [self.update_every]

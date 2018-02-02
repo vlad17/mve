@@ -117,6 +117,15 @@ class DDPGFlags(Flags):
                 type=int,
                 help='Minimum number of frames in replay buffer before '
                      'training'),
+            ArgSpec(  # TODO: add sampler to all algos so this can be moved to
+                      # experiment flags
+                name='ddpg_update_every',
+                type=int,
+                default=500,
+                help='update parameters every update_every steps, which may be'
+                     'entirely contained in one episode or stretched across '
+                     'many'
+            )
         ]
         super().__init__('ddpg', 'DDPG', arguments)
 

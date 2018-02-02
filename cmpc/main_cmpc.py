@@ -71,7 +71,7 @@ def _train(args, venv, dyn_metrics, data, dyn_model, controller):
             dyn_metrics.log(most_recent)
             controller.log(most_recent)
 
-        reporter.advance(paths)
+        reporter.advance_with_paths(paths)
 
         if args.experiment.should_render(itr):
             with args.experiment.render_env(itr + 1) as render_env:

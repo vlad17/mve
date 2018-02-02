@@ -18,12 +18,13 @@ import tfnode
 from persistable_dataset import (
     add_dataset_to_persistance_registry, PersistableDatasetFlags)
 import reporter
-from sample import sample
-from utils import timeit, as_controller, timesteps, make_session_as_default
+from sample import Sampler
+from utils import timeit, as_controller, make_session_as_default
 
 
 def _train(_):
     with closing(env_info.make_env()) as env:
+        sampler = Sampler(env)
         data = Dataset.from_env(env, flags().experiment.horizon,
                                 flags().experiment.bufsize)
         add_dataset_to_persistance_registry(data, flags().persistable_dataset)
@@ -37,32 +38,31 @@ def _train(_):
             tf.get_default_graph().finalize()
             tfnode.restore_all()
 
-            _loop(env, data, learner, dynamics)
+            _loop(sampler, data, learner, dynamics)
 
 
-def _loop(env, data, learner, dynamics):
-    paths = []
+def _loop(sampler, data, learner, dynamics):
+    steps = []
     for itr in range(flags().run.episodes):
         if dynamics:
             with timeit('dynamics fit'):
-                dynamics.fit(data, timesteps(paths))
+                dynamics.fit(data, sum(steps))
 
         with timeit('learner fit'):
-            learner.fit(data, timesteps(paths))
+            learner.fit(data, sum(steps))  # TODO: breaking abstraction! :O
 
         with timeit('sample learner'):
             controller = as_controller(learner.act)
-            paths = [sample(env, controller, render=False)]
-            data.add_paths(paths)
+            rewards, steps = sampler.sample(controller, data, render=False)
 
         with timeit('gathering statistics'):
-            rewards = [path.rewards.sum() for path in paths]
-            reporter.add_summary_statistics('reward', rewards)
+            reporter.add_summary_statistics('sample reward', rewards)
 
-        reporter.advance(paths)
+        reporter.advance_with_timesteps(steps)
         if flags().experiment.should_render(itr):
             with flags().experiment.render_env(itr + 1) as render_env:
-                sample(render_env, controller, render=True)
+                sampler.sample(
+                    controller, data, render=True, env=render_env)
         if flags().experiment.should_save(itr):
             tfnode.save_all(itr + 1)
 

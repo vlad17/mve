@@ -86,7 +86,7 @@ class ExperimentFlags(Flags):
             default=-1,
             type=float,
             help='Amount to scale all rewards by. Pass -1 to use default'
-                 'reward scaling, based on environment.'
+            'reward scaling, based on environment.'
         )
 
     def __init__(self):
