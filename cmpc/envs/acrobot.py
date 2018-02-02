@@ -9,7 +9,6 @@ The differences from the gym implementation of Acrobot (at its commit
 
 * numba acceleration for computation
 * allow for a continuous range of control
-* dense reward signal (reward = height instead of indicator of height > 1)
 """
 
 import math
@@ -59,9 +58,10 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
     An angle of 0 corresponds to having the same angle between the two links.
     A state of [1, 0, 1, 0, ..., ...] means that both links point downwards.
 
-    The action is applying torque in the interval [-1, 1] on the joint between
-    the two pendulum links.
-
+    The action is a deterministic choice from a "preference space" [0,1]^3.
+    If the i-th entry of the action is the maximum argument, then
+    the torque [-1, 0, 1][i] is applied. This could be made into a probibalisitc
+    choice by softmaxing the vector but then the dynamics wouldn't be determinsitic.
     """
     metadata = {
         'render.modes': ['human', 'rgb_array'],
@@ -84,7 +84,8 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         self.n = n
         self.observation_space = spaces.Box(low=low, high=high)
         self.action_space = spaces.Box(
-            low=np.array([-1.0]), high=np.array([1.0]))
+            low=np.zeros(3),
+            high=np.ones(3))
         self.state = np.empty((n, 4))  # 4 non-control latent state dims
         # only do one step of rk4 integration
         # could in theory make this [0, self.dt / N, 2 * self.dt / N, ...]
@@ -103,7 +104,7 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         theta0 = tf.atan2(next_state[:, 1], next_state[:, 0])
         theta1 = tf.atan2(next_state[:, 3], next_state[:, 2])
         height = -tf.cos(theta0) - tf.cos(theta0 + theta1)
-        return height
+        return -1. * tf.to_float(height <= 1.)
 
     def np_reward(self, state, action, next_state):
         """
@@ -112,7 +113,7 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         theta0 = np.arctan2(next_state[:, 1], next_state[:, 0])
         theta1 = np.arctan2(next_state[:, 3], next_state[:, 2])
         height = -tf.cos(theta0) - tf.cos(theta0 + theta1)
-        return height
+        return -1 * (height <= 1.)
 
     def _seed(self, seed=None):
         seeds = seed
@@ -133,7 +134,8 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         # @profile
     def _step(self, a):
         s = self.state
-        torque = np.asarray(a, dtype=float)
+        preferences = np.asarray(a)
+        torque = np.array([-1., 0., 1.])[preferences.argmax(axis=1)].reshape(-1, 1)
 
         # Now, augment the state with our force action so it can be passed to
         # _dsdt
@@ -147,8 +149,8 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         ns[:, 2] = bound(ns[:, 2], -self.MAX_VEL_1, self.MAX_VEL_1)
         ns[:, 3] = bound(ns[:, 3], -self.MAX_VEL_2, self.MAX_VEL_2)
         self.state = ns
-        reward = self._height()
-        terminal = reward > 1
+        terminal = self._height() > 1
+        reward = -1 * (1 - terminal)
         return (self._get_ob(), reward, terminal, {})
 
     def _get_ob(self):
