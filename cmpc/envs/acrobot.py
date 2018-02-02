@@ -20,8 +20,10 @@ from numpy import sin, cos, pi
 from scipy import integrate
 from numba import jit
 import tensorflow as tf
-from .fully_observable import FullyObservable
+from fully_observable import FullyObservable  # TODO make local
 from gym.envs.classic_control import rendering
+
+from vector_env import VectorEnv  # TODO make local
 
 __copyright__ = "Copyright 2013, RLPy http://acl.mit.edu/RLPy"
 __credits__ = ["Alborz Geramifard", "Robert H. Klein", "Christoph Dann",
@@ -35,9 +37,10 @@ __author__ = "Christoph Dann <cdann@cdann.de>"
 # The above was then copied from openai.gym
 
 
-class ContinuousAcrobot(core.Env, FullyObservable):
+class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
     """
-    2-link pendulum as described in Sutton and Barto
+    2-link pendulum as described in Sutton and Barto (vectorized
+    implementation)
 
     Acrobot is a 2-link pendulum with only the second joint actuated.
 
@@ -75,21 +78,21 @@ class ContinuousAcrobot(core.Env, FullyObservable):
     domain_fig = None
     actions_num = 3
 
-    def __init__(self):
+    def __init__(self, n):
         self.viewer = None
         high = np.array([1.0, 1.0, 1.0, 1.0, self.MAX_VEL_1, self.MAX_VEL_2])
         low = -high
         self.observation_space = spaces.Box(low=low, high=high)
         self.action_space = spaces.Box(
             low=np.array([-1.0]), high=np.array([1.0]))
-        self.state = None
-        self.seed()
+        self.state = np.empty((n, 4))  # 4 non-control latent state dims
         # only do one step of rk4 integration
         # could in theory make this [0, self.dt / N, 2 * self.dt / N, ...]
         self._integration_ts = np.array([0, self.dt])
         self._work_ks = np.empty((4, 5))  # Runge-Kutta workspace coeffs
         # need 4 vectors (axis 0)
         # with a dim for each state (4 dims + one action/control dimension)
+        self._seed_uncorr(n)
 
     def tf_reward(self, state, action, next_state):
         """
@@ -111,34 +114,38 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         height = -tf.cos(theta0) - tf.cos(theta0 + theta1)
         return height
 
-    def seed(self, seed=None):
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
+    def _seed(self, seed=None):
+        seeds = seed
+        self.np_random, seeds = zip(*[seeding.np_random(x) for x in seeds])
+        return seeds
 
-    def reset(self):
-        self.state = self.np_random.uniform(low=-0.1, high=0.1, size=(4,))
+    def _reset(self):
+        self.state = np.asarray([
+            np_random.uniform(low=-0.1, high=0.1, size=(4,))
+            for np_random in self.np_random])
         return self._get_ob()
 
     def set_state_from_ob(self, ob):
-        s0 = math.atan2(ob[1], ob[0])
-        s1 = math.atan2(ob[3], ob[2])
-        self.state = np.array([s0, s1, ob[4], ob[5]])
+        s0 = np.arctan2(ob[:, 1], ob[:, 0])
+        s1 = np.arctan2(ob[:, 3], ob[:, 2])
+        self.state = np.array([s0, s1, ob[:, 4], ob[:, 5]]).T
 
         # @profile
-    def step(self, a):
+    def _step(self, a):
         s = self.state
-        torque = a[0]
+        torque = a
 
         # Now, augment the state with our force action so it can be passed to
         # _dsdt
-        s_augmented = np.append(s, torque)
+        ns = np.concatenate([s, torque], axis=1)
 
-        ns = self._rk4(s_augmented)[:4]
+        self._rk4(ns)
+        ns = ns[:, :4]
 
-        ns[0] = wrap(ns[0], -pi, pi)
-        ns[1] = wrap(ns[1], -pi, pi)
-        ns[2] = bound(ns[2], -self.MAX_VEL_1, self.MAX_VEL_1)
-        ns[3] = bound(ns[3], -self.MAX_VEL_2, self.MAX_VEL_2)
+        ns[:, 0] = wrap(ns[:, 0], -pi, pi)
+        ns[:, 1] = wrap(ns[:, 1], -pi, pi)
+        ns[:, 2] = bound(ns[:, 2], -self.MAX_VEL_1, self.MAX_VEL_1)
+        ns[:, 3] = bound(ns[:, 3], -self.MAX_VEL_2, self.MAX_VEL_2)
         self.state = ns
         reward = self._height()
         terminal = reward > 1
@@ -146,17 +153,52 @@ class ContinuousAcrobot(core.Env, FullyObservable):
 
     def _get_ob(self):
         s = self.state
-        return np.array([cos(s[0]), np.sin(s[0]), cos(s[1]), sin(s[1]), s[2], s[3]])
+        return np.array([
+            cos(s[:, 0]), np.sin(s[:, 0]),
+            cos(s[:, 1]), sin(s[:, 1]),
+            s[:, 2], s[:, 3]]).T
 
     def _height(self):
         s = self.state
-        return -np.cos(s[0]) - np.cos(s[1] + s[0])
+        return -np.cos(s[:, 0]) - np.cos(s[:, 1] + s[:, 0])
 
-    # @profile
+    def close(self):
+        if self.viewer:
+            self.viewer.close()
+
+            #@profile
+
+    def _rk4(self, y0):
+        """
+        Runge-Kutta, 4th-order. only returns endpoint
+        """
+        return rk4_acro(y0, self._integration_ts, self._work_ks)
+
+
+class ContinuousAcrobot(core.Env, FullyObservable):
+
+    def __init__(self):
+        self._venv = VectorizedContinuousAcrobot(1)
+        self.observation_space = self._venv.observation_space
+        self.action_space = self._venv.action_space
+
+    def _seed(self, seed=None):
+        return self._venv.seed([seed])[0]
+
+    def _reset(self):
+        return self._venv.reset()[0]
+
+    def _step(self, action):
+        ob, rew, done, _ = self._venv.step(np.asarray(action)[np.newaxis, ...])
+        return ob[0], rew[0], done[0], {}
+
+    def _close(self):
+        self._venv.close()
+
     def render(self, mode='human', close=False):
         if mode == 'human':
             return None
-        s = self.state
+        s = self._venv.state[0]
 
         if self.viewer is None:
             self.viewer = rendering.Viewer(500, 500)
@@ -190,18 +232,6 @@ class ContinuousAcrobot(core.Env, FullyObservable):
 
         return self.viewer.render(return_rgb_array=True)
 
-    def close(self):
-        if self.viewer:
-            self.viewer.close()
-
-            #@profile
-
-    def _rk4(self, y0):
-        """
-        Runge-Kutta, 4th-order. only returns endpoint
-        """
-        return rk4_acro(y0, self._integration_ts, self._work_ks)
-
 
 def wrap(x, m, M):
     """
@@ -213,10 +243,10 @@ def wrap(x, m, M):
     For example, m = -180, M = 180 (degrees), x = 360 --> returns 0.
     """
     diff = M - m
-    while x > M:
-        x = x - diff
-    while x < m:
-        x = x + diff
+    while np.any(x > M):
+        x[x > M] = x[x > M] - diff
+    while np.any(x < m):
+        x[x < m] = x[x < m] + diff
     return x
 
 
@@ -273,7 +303,7 @@ def _dsdt(s_augmented, out):
     out[4] = 0.
 
 
-@jit('double[:](double[:], double[:], double[:,:])', nopython=True)
+@jit('void(double[:, :], double[:], double[:,:])', nopython=True)
 def rk4_acro(y0, ts, work_ks):
     """
     RK4 integration procedure that returns the last point at the end of the ts.
@@ -281,18 +311,22 @@ def rk4_acro(y0, ts, work_ks):
     Specialized to acrobot derivative.
 
     Work_ks should be an array for scratch work of dimension 4 x len(y0).
-    """
-    y = y0
-    derivs = _dsdt
-    for i in range(len(ts) - 1):
-        thist = ts[i]
-        dt = ts[i + 1] - thist
-        dt2 = dt / 2.0
 
-        derivs(y, work_ks[0])
-        derivs(y + dt2 * work_ks[0], work_ks[1])
-        derivs(y + dt2 * work_ks[1], work_ks[2])
-        derivs(y + dt * work_ks[2], work_ks[3])
-        y += dt / 6.0 * (work_ks[0] + 2 * work_ks[1]
-                         + 2 * work_ks[2] + work_ks[3])
-    return y
+    returns the endpoint in-place by editing the initial condition
+    """
+    # make multiple work_ks; parallelize numba?
+    iters = len(y0)
+    for k in range(iters):
+        y = y0[k]
+        derivs = _dsdt
+        for i in range(len(ts) - 1):
+            thist = ts[i]
+            dt = ts[i + 1] - thist
+            dt2 = dt / 2.0
+
+            derivs(y, work_ks[0])
+            derivs(y + dt2 * work_ks[0], work_ks[1])
+            derivs(y + dt2 * work_ks[1], work_ks[2])
+            derivs(y + dt * work_ks[2], work_ks[3])
+            y += dt / 6.0 * (work_ks[0] + 2 * work_ks[1]
+                             + 2 * work_ks[2] + work_ks[3])
