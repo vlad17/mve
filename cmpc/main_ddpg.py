@@ -18,7 +18,7 @@ import tfnode
 from persistable_dataset import (
     add_dataset_to_persistance_registry, PersistableDatasetFlags)
 import reporter
-from sample import Sampler
+from sample import sample, Sampler
 from utils import timeit, as_controller, make_session_as_default
 
 
@@ -42,27 +42,22 @@ def _train(_):
 
 
 def _loop(sampler, data, learner, dynamics):
-    steps = []
     for itr in range(flags().run.episodes):
         if dynamics:
             with timeit('dynamics fit'):
-                dynamics.fit(data, sum(steps))
+                dynamics.fit(data, 0 if itr == 0 else sampler.nsteps())
 
         with timeit('learner fit'):
-            learner.fit(data, sum(steps))  # TODO: breaking abstraction! :O
+            learner.fit(data, sampler.nsteps())
 
         with timeit('sample learner'):
             controller = as_controller(learner.act)
-            rewards, steps = sampler.sample(controller, data, render=False)
+            n_episodes = sampler.sample(controller, data)
 
-        with timeit('gathering statistics'):
-            reporter.add_summary_statistics('sample reward', rewards)
-
-        reporter.advance_with_steps(steps)
+        reporter.advance(sampler.nsteps(), n_episodes)
         if flags().experiment.should_render(itr):
             with flags().experiment.render_env(itr + 1) as render_env:
-                sampler.sample(
-                    controller, data, render=True, env=render_env)
+                sample(render_env, controller, render=True)
         if flags().experiment.should_save(itr):
             tfnode.save_all(itr + 1)
 

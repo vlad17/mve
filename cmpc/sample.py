@@ -73,27 +73,27 @@ class Sampler:
         self.update_every = flags().ddpg.ddpg_update_every
         self.ob = env.reset()
 
-    def sample(self, controller, data, render=False, env=None):
+    def sample(self, controller, data):
         """
         Given a single environment env, perform a rollout up to update_every
         steps, possibly rendering, with the given controller.
         """
         controller.reset(1)
-        sample_reward = 0
-
-        if env is None:
-            env = self.env
+        sample_reward = n_episodes = 0
 
         for _ in range(self.update_every):
-            if render:
-                env.render()
             ac, plan_ac, plan_ob = controller.act(self.ob[np.newaxis, ...])
-            self.ob, reward, done, _ = env.step(ac[0])
-            data.next(self.ob, reward, done, ac[0],
+            next_ob, reward, done, _ = self.env.step(ac[0])
+            data.next(self.ob, next_ob, reward, done, ac[0],
                       None if plan_ac is None else plan_ac[0],
                       None if plan_ob is None else plan_ob[0])
             sample_reward += reward
+            self.ob = next_ob
             if done:
-                self.ob = env.reset()
-                data.first(self.ob)
-        return [sample_reward], [self.update_every]
+                self.ob = self.env.reset()
+                n_episodes += 1
+        return n_episodes
+
+    def nsteps(self):
+        """Number of steps taken each sample."""
+        return self.update_every

@@ -222,20 +222,16 @@ class Dataset(object):
         """
         return max(self.size // batch_size, 1)
 
-    def first(self, ob):
-        """Update RingBuffers using initial state."""
-        self._obs.append(ob)
-
-    def next(self, next_ob, reward, done, action, planned_acs, planned_obs):
+    def next(
+            self, ob, next_ob, reward, done, action, planned_acs, planned_obs):
         """Update RingBuffers directly using results of a step."""
-        self._obs.append(next_ob)
+        self._obs.append(ob)
+        self._next_obs.append(next_ob)
         self._rewards.append(reward)
         self._acs.append(action)
         self._terminals.append(done)
         self._planned_acs.append(planned_acs)
         self._planned_obs.append(planned_obs)
-        if not done:
-            self._next_obs.append(next_ob)
 
     def sample_many(self, nbatches, batch_size):
         """

@@ -121,7 +121,7 @@ class DDPGFlags(Flags):
                       # experiment flags
                 name='ddpg_update_every',
                 type=int,
-                default=500,
+                default=100,
                 help='update parameters every update_every steps, which may be'
                      'entirely contained in one episode or stretched across '
                      'many'
