@@ -8,9 +8,7 @@ The differences from the gym implementation of Acrobot (at its commit
 4c460ba6c8959dd8e0a03b13a1ca817da6d4074f) are mainly the following:
 
 * numba acceleration for computation
-* allow for a continuous range of control by making the usual action space,
-  which is between 3 actions (torque is -1, 0, or 1) into a 3-dimensional
-  action space in [0,1]^3. The largest value is chosen as the action.
+* allow for a continuous range of control
 """
 
 import math
@@ -81,10 +79,8 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         high = np.array([1.0, 1.0, 1.0, 1.0, self.MAX_VEL_1, self.MAX_VEL_2])
         low = -high
         self.observation_space = spaces.Box(low=low, high=high)
-
         self.action_space = spaces.Box(
-            low=np.zeros(3),
-            high=np.ones(3))
+            low=np.array([-1.0]), high=np.array([1.0]))
         self.state = None
         self.seed()
         # only do one step of rk4 integration
@@ -131,7 +127,7 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         # @profile
     def step(self, a):
         s = self.state
-        torque = [-1, 0, 1][a.argmax()]
+        torque = a[0]
 
         # Now, augment the state with our force action so it can be passed to
         # _dsdt
