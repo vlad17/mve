@@ -148,8 +148,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         current_Q_n = critic.tf_critic(
             self.obs0_ph_ns, self.actions_ph_na)
         self._reporter.stats('critic Q', current_Q_n)
-        next_Q_n = critic.tf_target_critic(
-            self.obs1_ph_ns, actor.tf_target_action(self.obs1_ph_ns))
         if flags().ddpg.q_target_mixture:
             # h-step observations
             h = flags().ddpg.model_horizon
@@ -159,9 +157,48 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                 nenvs = flags().ddpg.learner_batch_size
                 self._oracle_q_target_venv = env_info.make_venv(nenvs)
                 self._oracle_q_target_venv.reset()
-                self._next_Q_ph_n = tf.placeholder(
-                    tf.float32, shape=[None])
-                next_Q_n = self._next_Q_ph_n
+                # the i-th element here is the i-th state after obs1;
+                # so h == 0 should equal to obs1_ph_ns
+                self._obs_ph_hns = tf.placeholder(
+                    tf.float32, shape=[h, None, env_info.ob_dim()])
+                # the action taken at the i-th state above above
+                self._acs_ph_hna = tf.placeholder(
+                    tf.float32, shape=[h, None, env_info.ac_dim()])
+                # the resulting done indicator from playing that action
+                self._done_ph_hn = tf.placeholder(
+                    tf.float32, shape=[h, None])
+                # the reward resulting from that action
+                self._rew_ph_hn = tf.placeholder(
+                    tf.float32, shape=[h, None])
+                # this should be the final state resulting from playing
+                # self._acs_ph_hna[h-1] on self._obs_ph_hns[h-1]
+                self._final_ob_ph_ns = tf.placeholder(
+                    tf.float32, shape=[None, env_info.ob_dim()])
+                # assume early termination implies reward is 0 from that point
+                # on and state is the same
+                final_acs_na = actor.tf_action(self._final_ob_ph_ns)
+                future_Q_n = critic.tf_target_critic(
+                    self._final_ob_ph_ns, final_acs_na)
+                target_Q_hn = [None] * h
+                # big TF graph, could be while loop
+                for t in reversed(range(h)):
+                    target_Q_hn[t] = self._rew_ph_hn[t] + (
+                        (1. - self._done_ph_hn[t]) * discount *
+                        future_Q_n)
+                    future_Q_n = target_Q_hn[t]
+                residual_loss = tf.losses.mean_squared_error(
+                    self.rewards_ph_n + (1. - self.terminals1_ph_n) *
+                    discount * target_Q_hn[0],
+                    current_Q_n)
+                for t in range(h):
+                    predicted_Q_n = critic.tf_critic(
+                        self._obs_ph_hns[t], self._acs_ph_hna[t])
+                    if t > 0:
+                        weights = 1.0 - self._done_ph_hn[t - 1]
+                    else:
+                        weights = 1.0 - self.terminals1_ph_n
+                    residual_loss += tf.losses.mean_squared_error(
+                        target_Q_hn[t], predicted_Q_n, weights=weights)
             elif flags().ddpg.mixture_estimator == 'learned':
                 assert learned_dynamics is not None
                 next_Q_n = _tf_model_value_expand(
@@ -190,16 +227,24 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                     actions_hna, states_hns)
                 self._initializer = [
                     actions_hna.initializer, states_hns.initializer]
+                raise ValueError('still need to implement multi-TD-k loss for '
+                                 'learned dynamics')
+                # TODO should be able to dedup with above branch via
+                # placeholders
             else:
                 raise ValueError('unrecognized mixture estimator {}'
                                  .format(flags().ddpg.mixture_estimator))
-        target_Q_n = self.rewards_ph_n + (1. - self.terminals1_ph_n) * (
-            discount * next_Q_n)
-        self._reporter.stats('target Q', target_Q_n)
+        else:
+            next_Q_n = critic.tf_target_critic(
+                self.obs1_ph_ns, actor.tf_target_action(self.obs1_ph_ns))
+            target_Q_n = self.rewards_ph_n + (1. - self.terminals1_ph_n) * (
+                discount * next_Q_n)
+            residual_loss = tf.losses.mean_squared_error(
+                target_Q_n, current_Q_n)
+            self._reporter.stats('target Q', target_Q_n)
 
         reg_loss = sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-        self._critic_loss = tf.losses.mean_squared_error(
-            target_Q_n, current_Q_n) + reg_loss
+        self._critic_loss = residual_loss + reg_loss
         self._reporter.scalar('critic loss', self._critic_loss)
 
         opt = tf.train.AdamOptimizer(
@@ -337,8 +382,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             self.actions_ph_na: acs}
         if flags().ddpg.q_target_mixture and \
            flags().ddpg.mixture_estimator == 'oracle':
-            model_expanded_Q = self._oracle_Q(next_obs)
-            feed_dict[self._next_Q_ph_n] = model_expanded_Q
+            self._oracle_expand_states(feed_dict)
         if flags().ddpg.actor_critic_mixture:
             self._oracle_expand_actions(feed_dict)
         return feed_dict
@@ -368,6 +412,41 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         self._evaluate()
         if hasattr(self, '_dyn_metrics'):
             self._eval_dynamics(data, 'ddpg after/')
+
+    def _oracle_expand_states(self, feed_dict):
+        h = flags().ddpg.model_horizon
+        n = flags().ddpg.learner_batch_size
+        initial_states_ns = feed_dict[self.obs1_ph_ns]
+        active_n = ~feed_dict[self.terminals1_ph_n].astype(bool)
+
+        obs_hns = np.empty((h, n, env_info.ob_dim()))
+        acs_hna = np.empty((h, n, env_info.ac_dim()))
+        done_hn = np.empty((h, n))
+        rew_hn = np.empty((h, n))
+
+        venv = self._oracle_q_target_venv
+        assert n == venv.n, (n, venv.n)
+        obs_ns = initial_states_ns
+        venv.set_state_from_ob(obs_ns)
+
+        for t in range(h):
+            obs_hns[t] = obs_ns
+            acs_na = self._actor.target_act(obs_ns)
+            obs_ns, reward_n, done_n, _ = venv.step(acs_na)
+            acs_hna[t] = acs_na
+            done_hn[t] = done_n
+            rew_hn[t] = reward_n
+            were_not_active = ~active_n
+            done_hn[t, were_not_active] = 1.
+            rew_hn[t, were_not_active] = 0.
+            obs_ns[were_not_active] = obs_hns[t, were_not_active]
+            active_n &= ~done_n
+
+        feed_dict[self._obs_ph_hns] = obs_hns
+        feed_dict[self._acs_ph_hna] = acs_hna
+        feed_dict[self._done_ph_hn] = done_hn
+        feed_dict[self._rew_ph_hn] = rew_hn
+        feed_dict[self._final_ob_ph_ns] = obs_ns
 
     def _oracle_Q(self, next_obs):
         h = flags().ddpg.model_horizon

@@ -7,7 +7,7 @@ tensorflow>=1.4
 # GPU
 # tensorflow-gpu>=1.4
 mujoco-py>=1.50
-gym[all]==0.9.5
+gym==0.9.5
 ray==0.2.2
 cloudpickle==0.4.1
 terminaltables
