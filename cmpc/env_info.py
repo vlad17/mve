@@ -87,7 +87,7 @@ def make_venv(n):
     """
     if context().flags.experiment.env_name == 'hc2':
         venv = gym2.VectorMJCEnv(n, _env_class())
-    elif context.flags.experiment.env_name == 'acrobot':
+    elif context().flags.experiment.env_name == 'acrobot':
         venv = envs.VectorizedContinuousAcrobot(n)
     else:
         venv = envs.ParallelGymVenv(n, _env_class())
