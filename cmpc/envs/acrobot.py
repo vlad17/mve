@@ -21,7 +21,6 @@ from scipy import integrate
 from numba import jit
 import tensorflow as tf
 from .fully_observable import FullyObservable
-from gym.envs.classic_control import rendering
 
 from .vector_env import VectorEnv
 
@@ -196,6 +195,7 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         self._venv.close()
 
     def render(self, mode='human', close=False):
+        from gym.envs.classic_control import rendering
         if mode == 'human':
             return None
         s = self._venv.state[0]
