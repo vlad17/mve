@@ -67,13 +67,13 @@ def advance_with_paths(paths):
     context().reporter.advance(ts, episodes)
 
 
-def advance_with_timesteps(timesteps):
+def advance_with_steps(steps):
     """
     We advance by the number of timesteps and episodes taken in the timesteps
     list that was passed in.
     """
-    ts = sum(timesteps)
-    episodes = len(timesteps)
+    ts = sum(steps)
+    episodes = len(steps)
     context().reporter.advance(ts, episodes)
 
 

@@ -58,7 +58,7 @@ def _loop(sampler, data, learner, dynamics):
         with timeit('gathering statistics'):
             reporter.add_summary_statistics('sample reward', rewards)
 
-        reporter.advance_with_timesteps(steps)
+        reporter.advance_with_steps(steps)
         if flags().experiment.should_render(itr):
             with flags().experiment.render_env(itr + 1) as render_env:
                 sampler.sample(
