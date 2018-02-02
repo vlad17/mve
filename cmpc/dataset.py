@@ -228,13 +228,14 @@ class Dataset(object):
 
     def next(self, next_ob, reward, done, action, planned_acs, planned_obs):
         """Update RingBuffers directly using results of a step."""
-        self._next_obs.append(next_ob)
+        self._obs.append(next_ob)
         self._rewards.append(reward)
         self._acs.append(action)
+        self._terminals.append(done)
         self._planned_acs.append(planned_acs)
         self._planned_obs.append(planned_obs)
         if not done:
-            self._obs.append(next_ob)
+            self._next_obs.append(next_ob)
 
     def sample_many(self, nbatches, batch_size):
         """
