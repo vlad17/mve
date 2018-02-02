@@ -89,7 +89,7 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         self.state = np.empty((n, 4))  # 4 non-control latent state dims
         # only do one step of rk4 integration
         # could in theory make this [0, self.dt / N, 2 * self.dt / N, ...]
-        self._integration_ts = np.array([0, self.dt])
+        self._integration_ts = np.array([0., self.dt])
         self._work_ks = np.empty((n, 4, 5))  # Runge-Kutta workspace coeffs
         # need 4 vectors (axis 0)
         # with a dim for each state (4 dims + one action/control dimension)
@@ -140,7 +140,6 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         # Now, augment the state with our force action so it can be passed to
         # _dsdt
         ns = np.concatenate([s, torque], axis=1)
-
         self._rk4(ns)
         ns = ns[:, :4]
 
@@ -183,6 +182,7 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         self._venv = VectorizedContinuousAcrobot(1)
         self.observation_space = self._venv.observation_space
         self.action_space = self._venv.action_space
+        self.viewer = None
 
     def _seed(self, seed=None):
         return self._venv.seed([seed])[0]
@@ -198,6 +198,10 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         self._venv.close()
 
     def render(self, mode='human', close=False):
+        if close:
+            if self.viewer is not None:
+                self.viewer = None
+            return
         from gym.envs.classic_control import rendering
         if mode == 'human':
             return None
@@ -306,8 +310,21 @@ def _dsdt(s_augmented, out):
     out[3] = ddtheta2
     out[4] = 0.
 
+@jit('void(double[:], double[:], double[:,:])', nopython=True, nogil=True)
+def rk4_acro_loop(y, ts, work_ks):
+   for i in range(len(ts) - 1):
+       thist = ts[i]
+       dt = ts[i + 1] - thist
+       dt2 = dt / 2.0
 
-@jit('void(double[:, :], double[:], double[:,:,:])', nopython=True, nogil=True)
+       _dsdt(y, work_ks[0])
+       _dsdt(y + dt2 * work_ks[0], work_ks[1])
+       _dsdt(y + dt2 * work_ks[1], work_ks[2])
+       _dsdt(y + dt * work_ks[2], work_ks[3])
+       y += dt / 6.0 * (work_ks[0] + 2 * work_ks[1]
+                        + 2 * work_ks[2] + work_ks[3])
+
+@jit('void(double[:, :], double[:], double[:,:,:])', nopython=True, parallel=True)
 def rk4_acro(y0, ts, all_work_ks):
     """
     RK4 integration procedure that returns the last point at the end of the ts.
@@ -321,19 +338,7 @@ def rk4_acro(y0, ts, all_work_ks):
 
     returns the endpoint in-place by editing the initial condition
     """
-    # make multiple work_ks; parallelize numba?
-    for k in range(len(y0)):
+    for k in prange(len(y0)):
         y = y0[k]
-        derivs = _dsdt
         work_ks = all_work_ks[k]
-        for i in range(len(ts) - 1):
-            thist = ts[i]
-            dt = ts[i + 1] - thist
-            dt2 = dt / 2.0
-
-            derivs(y, work_ks[0])
-            derivs(y + dt2 * work_ks[0], work_ks[1])
-            derivs(y + dt2 * work_ks[1], work_ks[2])
-            derivs(y + dt * work_ks[2], work_ks[3])
-            y += dt / 6.0 * (work_ks[0] + 2 * work_ks[1]
-                             + 2 * work_ks[2] + work_ks[3])
+        rk4_acro_loop(y, ts, work_ks)
