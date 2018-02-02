@@ -7,6 +7,7 @@ import env_info
 from experiment import ExperimentFlags, experiment_main
 from flags import (Flags, parse_args, ArgSpec)
 from random_policy import RandomPolicy
+from utils import timesteps
 from sample import sample_venv
 import reporter
 
@@ -26,7 +27,7 @@ def _train(args):
     paths = sample_venv(venv, random_policy)
     rewards = [path.rewards.sum() for path in paths]
     reporter.add_summary_statistics('reward', rewards)
-    reporter.advance(paths)
+    reporter.advance(timesteps(paths), len(paths))
 
 
 if __name__ == "__main__":

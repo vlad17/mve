@@ -10,7 +10,7 @@ import numpy as np
 import tensorflow as tf
 
 from context import context
-from utils import create_tf_config, print_table, timesteps
+from utils import create_tf_config, print_table
 
 
 @contextmanager
@@ -53,7 +53,7 @@ def add_summary_statistics(name, values, hide=False):
     context().reporter.add_summary_statistics(name, values, hide)
 
 
-def advance(paths):
+def advance(ts, episodes):
     """
     Advance the iteration and print statistics as recorded by the current
     reported. The statistics are only printed if the reporter was specified
@@ -62,8 +62,6 @@ def advance(paths):
     We advance by the number of timesteps and episodes taken in the paths
     list that was passed in.
     """
-    ts = timesteps(paths)
-    episodes = len(paths)
     context().reporter.advance(ts, episodes)
 
 
