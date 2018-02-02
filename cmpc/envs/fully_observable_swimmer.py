@@ -45,15 +45,16 @@ class FullyObservableSwimmer(RenderFreeMJC, FullyObservable):
 
     def np_reward(self, state, action, next_state):
         reward = 0
-        reward = self._incremental_reward(state, action, next_state, reward,
-                                          lambda x: np.sum(x, axis=1))
+        reward = self._incremental_reward(
+            state, action, next_state, reward,
+            lambda x: np.sum(np.square(x)))
         return reward
 
     def tf_reward(self, state, action, next_state):
         curr_reward = tf.zeros([tf.shape(state)[0]])
         return self._incremental_reward(
             state, action, next_state, curr_reward,
-            lambda x: tf.reduce_sum(x, axis=1))
+            lambda x: tf.reduce_sum(tf.square(x), axis=1))
 
     def _step(self, action):
         reward, state_after = self._mjc_step(action)
@@ -68,7 +69,8 @@ class FullyObservableSwimmer(RenderFreeMJC, FullyObservable):
 
     def _get_obs(self):
         return np.concatenate([
-            # difference from gym: need qpos x value for reward
+            # difference from gym: need qpos x value for reward and keep the
+            # first value so that both iters have the same length
             self.sim.data.qpos.flat,
             self.sim.data.qvel.flat,
         ])
