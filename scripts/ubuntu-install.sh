@@ -42,5 +42,6 @@ sudo apt-get install -y \
      xorg-dev libboost-all-dev swig libosmesa6-dev libglew-dev
 sudo apt-get install -y libsdl2-dev || sudo apt-get install -f
 
+conda install libgcc
 conda install numba
 pip install -r requirements.txt
