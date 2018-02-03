@@ -81,7 +81,7 @@ main() {
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
     ddpg_only_flags="--learner_depth 1 --learner_width 8 --learner_batches_per_timestep 1 "
     ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4 --evaluation_envs 10"
-    ddpg_flags="$experiment_flags $ddpg_only_flags --episodes 2"
+    ddpg_flags="$experiment_flags $ddpg_only_flags --timesteps 200"
     tune_flags="--ray_addr $ray_addr"
 
     cmds=()

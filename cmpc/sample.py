@@ -46,6 +46,8 @@ def sample(env, controller, render=False):
     """
     Given a single environment env, perform a rollout up to max_horizon
     steps, possibly rendering, with the given controller.
+
+    Is guaranteed to complete an episode before returning a path.
     """
     max_horizon = flags().experiment.horizon
     ob = env.reset()
@@ -66,7 +68,15 @@ def sample(env, controller, render=False):
 
 
 class Sampler:
-    """Stateful sampler for shorter periods between parameter updates."""
+    """Stateful sampler for shorter periods between parameter updates.
+
+    Is NOT guaranteed to complete any episode or finish at most one episode. It
+    may finish any from 0 to 10 episodes.
+
+    As a result, when using the sampler, recognize calling `sample` once does
+    not correspond to executing a single episode and refactor your game loop
+    accordingly.
+    """
 
     def __init__(self, env):
         self.env = env
