@@ -106,6 +106,7 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --q_target_mixture")
     # cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture $dynamics_flags")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture")
+    cmds+=("python $main_ddpg $ddpg_flags --ddpg_update_every 200")
     mix_all="--mixture_estimator oracle --q_target_mixture --actor_critic_mixture"
     cmds+=("python $main_ddpg $ddpg_flags $mix_all")
     cmds+=("python $main_ddpg $ddpg_flags --ddpg_min_buf_size 200")
