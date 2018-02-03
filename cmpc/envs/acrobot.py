@@ -11,16 +11,14 @@ The differences from the gym implementation of Acrobot (at its commit
 * allow for a continuous range of control
 """
 
-import math
-from gym import core, spaces
-from gym.utils import seeding
+from numba import jit, prange
 import numpy as np
 from numpy import sin, cos, pi
-from scipy import integrate
-from numba import jit, prange
 import tensorflow as tf
-from .fully_observable import FullyObservable
+from gym import core, spaces
+from gym.utils import seeding
 
+from .fully_observable import FullyObservable
 from .vector_env import VectorEnv
 
 __copyright__ = "Copyright 2013, RLPy http://acl.mit.edu/RLPy"
@@ -35,7 +33,7 @@ __author__ = "Christoph Dann <cdann@cdann.de>"
 # The above was then copied from openai.gym
 
 
-class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
+class VectorizedContinuousAcrobot(VectorEnv):
     """
     2-link pendulum as described in Sutton and Barto (vectorized
     implementation)
@@ -53,15 +51,18 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
 
     thetaDot corresponds to the angular velocity of the corresponding joint.
 
-    For the first link, an angle of 0 corresponds to the link pointing downwards.
+    For the first link, an angle of 0 corresponds to the link pointing
+    downwards.
     The angle of the second link is relative to the angle of the first link.
     An angle of 0 corresponds to having the same angle between the two links.
     A state of [1, 0, 1, 0, ..., ...] means that both links point downwards.
 
     The action is a deterministic choice from a "preference space" [0,1]^3.
     If the i-th entry of the action is the maximum argument, then
-    the torque [-1, 0, 1][i] is applied. This could be made into a probibalisitc
-    choice by softmaxing the vector but then the dynamics wouldn't be determinsitic.
+    the torque [-1, 0, 1][i] is applied. This could be made into a
+    probibalistic
+    choice by softmaxing the vector but then the dynamics wouldn't be
+    determinsitic.
     """
     metadata = {
         'render.modes': ['human', 'rgb_array'],
@@ -80,7 +81,7 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
     def __init__(self, n):
         self.viewer = None
         high = np.array([1.0, 1.0, 1.0, 1.0, self.MAX_VEL_1, self.MAX_VEL_2])
-        low = -high
+        low = -1 * high
         self.n = n
         self.observation_space = spaces.Box(low=low, high=high)
         self.action_space = spaces.Box(
@@ -93,27 +94,8 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         self._work_ks = np.empty((n, 4, 5))  # Runge-Kutta workspace coeffs
         # need 4 vectors (axis 0)
         # with a dim for each state (4 dims + one action/control dimension)
+        self.np_random = None
         self._seed_uncorr(n)
-
-    def tf_reward(self, state, action, next_state):
-        """
-        Given tensors(with the 0th dimension as the batch dimension) for a
-        transition during a rollout, this returns the corresponding reward
-        as a rank - 1 tensor(vector).
-        """
-        theta0 = tf.atan2(next_state[:, 1], next_state[:, 0])
-        theta1 = tf.atan2(next_state[:, 3], next_state[:, 2])
-        height = -tf.cos(theta0) - tf.cos(theta0 + theta1)
-        return -1. * tf.to_float(height <= 1.)
-
-    def np_reward(self, state, action, next_state):
-        """
-        Numpy analogoue for tf_reward.
-        """
-        theta0 = np.arctan2(next_state[:, 1], next_state[:, 0])
-        theta1 = np.arctan2(next_state[:, 3], next_state[:, 2])
-        height = -tf.cos(theta0) - tf.cos(theta0 + theta1)
-        return -1 * (height <= 1.)
 
     def _seed(self, seed=None):
         seeds = seed
@@ -126,16 +108,16 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
             for np_random in self.np_random])
         return self._get_ob()
 
-    def set_state_from_ob(self, ob):
-        s0 = np.arctan2(ob[:, 1], ob[:, 0])
-        s1 = np.arctan2(ob[:, 3], ob[:, 2])
-        self.state = np.array([s0, s1, ob[:, 4], ob[:, 5]]).T
+    def set_state_from_ob(self, obs):
+        s0 = np.arctan2(obs[:, 1], obs[:, 0])
+        s1 = np.arctan2(obs[:, 3], obs[:, 2])
+        self.state = np.array([s0, s1, obs[:, 4], obs[:, 5]]).T
 
-        # @profile
-    def _step(self, a):
+    def _step(self, action):
         s = self.state
-        preferences = np.asarray(a)
-        torque = np.array([-1., 0., 1.])[preferences.argmax(axis=1)].reshape(-1, 1)
+        preferences = np.asarray(action)
+        torque = np.array(
+            [-1., 0., 1.])[preferences.argmax(axis=1)].reshape(-1, 1)
 
         # Now, augment the state with our force action so it can be passed to
         # _dsdt
@@ -163,26 +145,62 @@ class VectorizedContinuousAcrobot(VectorEnv, FullyObservable):
         s = self.state
         return -np.cos(s[:, 0]) - np.cos(s[:, 1] + s[:, 0])
 
-    def close(self):
+    def _close(self):
         if self.viewer:
             self.viewer.close()
-
-            #@profile
 
     def _rk4(self, y0):
         """
         Runge-Kutta, 4th-order. only returns endpoint
         """
-        return rk4_acro(y0, self._integration_ts, self._work_ks)
+        return _rk4_acro(y0, self._integration_ts, self._work_ks)
+
+    def multi_step(self, acs_hna):
+        h, m = acs_hna.shape[:2]
+        assert m <= self.n, (m, self.n)
+        obs = np.empty((h, m,) + self.observation_space.shape)
+        rews = np.empty((h, m,))
+        dones = np.empty((h, m,), dtype=bool)
+        for i in range(h):
+            acs_na = acs_hna[i]
+            obs[i], rews[i], dones[i], _ = self.step(acs_na)
+        return obs, rews, dones
 
 
 class ContinuousAcrobot(core.Env, FullyObservable):
+    """
+    A single continuous acrobot environment. See documentation of
+    VectorizedContinuousAcrobot for class details.
+    """
 
     def __init__(self):
         self._venv = VectorizedContinuousAcrobot(1)
         self.observation_space = self._venv.observation_space
         self.action_space = self._venv.action_space
         self.viewer = None
+
+    def tf_reward(self, state, action, next_state):
+        """
+        Given tensors(with the 0th dimension as the batch dimension) for a
+        transition during a rollout, this returns the corresponding reward
+        as a rank - 1 tensor(vector).
+        """
+        theta0 = tf.atan2(next_state[:, 1], next_state[:, 0])
+        theta1 = tf.atan2(next_state[:, 3], next_state[:, 2])
+        height = -tf.cos(theta0) - tf.cos(theta0 + theta1)
+        return -1. * tf.to_float(height <= 1.)
+
+    def np_reward(self, state, action, next_state):
+        """
+        Numpy analogoue for tf_reward.
+        """
+        theta0 = np.arctan2(next_state[:, 1], next_state[:, 0])
+        theta1 = np.arctan2(next_state[:, 3], next_state[:, 2])
+        height = -tf.cos(theta0) - tf.cos(theta0 + theta1)
+        return -1 * (height <= 1.)
+
+    def set_state_from_ob(self, ob):
+        self._venv.set_state_from_ob(np.asarray(ob)[np.newaxis, ...])
 
     def _seed(self, seed=None):
         return self._venv.seed([seed])[0]
@@ -242,25 +260,21 @@ class ContinuousAcrobot(core.Env, FullyObservable):
 
 def wrap(x, m, M):
     """
-    :param x: a scalar
     :param m: minimum possible value in range
     :param M: maximum possible value in range
     Wraps ``x`` so m <= x <= M; but unlike ``bound()`` which
-    truncates, ``wrap()`` wraps x around the coordinate system defined by m,M.\n
+    truncates, ``wrap()`` wraps x around the coordinate system defined by m,M.
     For example, m = -180, M = 180 (degrees), x = 360 --> returns 0.
     """
     diff = M - m
-    # TODO being lazy here, use appropriate numpy mod
-    while np.any(x > M):
-        x[x > M] = x[x > M] - diff
-    while np.any(x < m):
-        x[x < m] = x[x < m] + diff
+    x = np.fmod(x, diff)
+    x[x > M] -= diff
+    x[x < m] += diff
     return x
 
 
 def bound(x, m, M=None):
     """
-    :param x: scalar
     Either have m as scalar, so bound(x,m,M) which returns m <= x <= M *OR*
     have m as length 2 vector, bound(x,m, <IGNORED>) returns m[0] <= x <= m[1].
     """
@@ -301,7 +315,8 @@ def _dsdt(s_augmented, out):
     phi1 = - m2 * l1 * lc2 * dtheta2 ** 2 * np.sin(theta2) \
         - 2 * m2 * l1 * lc2 * dtheta2 * dtheta1 * np.sin(theta2)  \
         + (m1 * lc1 + m2 * l1) * g * np.cos(theta1 - np.pi / 2) + phi2
-    ddtheta2 = (a + d2 / d1 * phi1 - m2 * l1 * lc2 * dtheta1 ** 2 * np.sin(theta2) - phi2) \
+    ddtheta2 = (a + d2 / d1 * phi1 - m2 * l1 * lc2 * dtheta1 ** 2 * np.sin(
+        theta2) - phi2) \
         / (m2 * lc2 ** 2 + I2 - d2 ** 2 / d1)
     ddtheta1 = -(d2 * ddtheta2 + phi1) / d1
     out[0] = dtheta1
@@ -310,35 +325,42 @@ def _dsdt(s_augmented, out):
     out[3] = ddtheta2
     out[4] = 0.
 
+
 @jit('void(double[:], double[:], double[:,:])', nopython=True, nogil=True)
-def rk4_acro_loop(y, ts, work_ks):
-   for i in range(len(ts) - 1):
-       thist = ts[i]
-       dt = ts[i + 1] - thist
-       dt2 = dt / 2.0
+def _rk4_acro_loop(y, ts, work_ks):
+    """
+    Helper. see _rk4_acro.
+    """
+    for i in range(len(ts) - 1):
+        thist = ts[i]
+        dt = ts[i + 1] - thist
+        dt2 = dt / 2.0
 
-       _dsdt(y, work_ks[0])
-       _dsdt(y + dt2 * work_ks[0], work_ks[1])
-       _dsdt(y + dt2 * work_ks[1], work_ks[2])
-       _dsdt(y + dt * work_ks[2], work_ks[3])
-       y += dt / 6.0 * (work_ks[0] + 2 * work_ks[1]
-                        + 2 * work_ks[2] + work_ks[3])
+        _dsdt(y, work_ks[0])
+        _dsdt(y + dt2 * work_ks[0], work_ks[1])
+        _dsdt(y + dt2 * work_ks[1], work_ks[2])
+        _dsdt(y + dt * work_ks[2], work_ks[3])
+        y += dt / 6.0 * (work_ks[0] + 2 * work_ks[1]
+                         + 2 * work_ks[2] + work_ks[3])
 
-@jit('void(double[:, :], double[:], double[:,:,:])', nopython=True, parallel=True)
-def rk4_acro(y0, ts, all_work_ks):
+
+@jit('void(double[:, :], double[:], double[:,:,:])', nopython=True,
+     parallel=True)
+def _rk4_acro(y0, ts, all_work_ks):
     """
     RK4 integration procedure that returns the last point at the end of the ts.
 
     Specialized to acrobot derivative.
 
-    the shape of ys is iters x d where d is the ODE dim and iters are the various
+    the shape of ys is iters x d where d is the ODE dim and iters are the
+    various
     instances of the same problem we're solving.
 
     Work_ks should be an array for scratch work of dimension iters x 4 x d
 
     returns the endpoint in-place by editing the initial condition
     """
-    for k in prange(len(y0)):
+    for k in prange(len(y0)):  # pylint: disable=not-an-iterable
         y = y0[k]
         work_ks = all_work_ks[k]
-        rk4_acro_loop(y, ts, work_ks)
+        _rk4_acro_loop(y, ts, work_ks)
