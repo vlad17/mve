@@ -91,6 +91,7 @@ main() {
     cmds+=("python $main_random $random_flags --env_name walker2d")
     cmds+=("python $main_random $random_flags --env_name hc2")
     cmds+=("python $main_random $random_flags --env_name swimmer")
+    cmds+=("python $main_random $random_flags --env_name acrobot")
     # MPC
     cmds+=("python $main_cmpc $rs_mpc_flags")
     cmds+=("python $main_cmpc $short_mpc_flags")
@@ -102,7 +103,7 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4")
     cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4")
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2")
-    cmds+=("python $main_ddpg $ddpg_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --env_name acrobot")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --q_target_mixture")
     # cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture $dynamics_flags")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture")
