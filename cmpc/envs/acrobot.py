@@ -219,7 +219,7 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         if close:
             if self.viewer is not None:
                 self.viewer = None
-            return
+            return None
         from gym.envs.classic_control import rendering
         if mode == 'human':
             return None
