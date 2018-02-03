@@ -202,6 +202,8 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                     residual_loss += tf.losses.mean_squared_error(
                         target_Q_hn[t], predicted_Q_n, weights=weights)
             elif flags().ddpg.mixture_estimator == 'learned':
+                debug('using learned-dynamics Q estimator with {} steps as '
+                      'target critic', h)
                 assert learned_dynamics is not None
                 # --- this section is purely for dynamics accuracy recording
                 self._dyn_metrics = DynamicsMetrics(
