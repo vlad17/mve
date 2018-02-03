@@ -26,8 +26,7 @@ install:
 - conda config --set always_yes yes --set changeps1 no
 - conda update -q conda
 - conda info -a
-# Replace dep1 dep2 ... with your dependencies
-- conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION dep1 dep2 ...
+- conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION
 - source activate test-environment
 - travis_retry ./scripts/ubuntu-install.sh
 script:
