@@ -81,7 +81,7 @@ main() {
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
     ddpg_only_flags="--learner_depth 1 --learner_width 8 --learner_batches_per_timestep 1 "
     ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4 --evaluation_envs 10"
-    ddpg_flags="$experiment_flags $ddpg_only_flags --episodes 2"
+    ddpg_flags="$experiment_flags $ddpg_only_flags --timesteps 200"
     tune_flags="--ray_addr $ray_addr"
 
     cmds=()
@@ -106,6 +106,7 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --q_target_mixture")
     # cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture $dynamics_flags")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture")
+    cmds+=("python $main_ddpg $ddpg_flags --ddpg_update_every 200")
     mix_all="--mixture_estimator oracle --q_target_mixture --actor_critic_mixture"
     cmds+=("python $main_ddpg $ddpg_flags $mix_all")
     cmds+=("python $main_ddpg $ddpg_flags --ddpg_min_buf_size 200")

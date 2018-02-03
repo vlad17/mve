@@ -46,6 +46,8 @@ def sample(env, controller, render=False):
     """
     Given a single environment env, perform a rollout up to max_horizon
     steps, possibly rendering, with the given controller.
+
+    Is guaranteed to complete an episode before returning a path.
     """
     max_horizon = flags().experiment.horizon
     ob = env.reset()
@@ -63,3 +65,45 @@ def sample(env, controller, render=False):
         if done:
             break
     return path
+
+
+class Sampler:
+    """Stateful sampler for shorter periods between parameter updates.
+
+    Is NOT guaranteed to complete any episode or finish at most one episode. It
+    may finish any from 0 to 10 episodes.
+
+    As a result, when using the sampler, recognize calling `sample` once does
+    not correspond to executing a single episode and refactor your game loop
+    accordingly.
+    """
+
+    def __init__(self, env):
+        self.env = env
+        self.update_every = flags().ddpg.ddpg_update_every
+        self.ob = env.reset()
+
+    def sample(self, controller, data):
+        """
+        Given a single environment env, perform a rollout up to update_every
+        steps, possibly rendering, with the given controller.
+        """
+        controller.reset(1)
+        sample_reward = n_episodes = 0
+
+        for _ in range(self.update_every):
+            ac, plan_ac, plan_ob = controller.act(self.ob[np.newaxis, ...])
+            next_ob, reward, done, _ = self.env.step(ac[0])
+            data.next(self.ob, next_ob, reward, done, ac[0],
+                      None if plan_ac is None else plan_ac[0],
+                      None if plan_ob is None else plan_ob[0])
+            sample_reward += reward
+            self.ob = next_ob
+            if done:
+                self.ob = self.env.reset()
+                n_episodes += 1
+        return n_episodes
+
+    def nsteps(self):
+        """Number of steps taken each sample."""
+        return self.update_every
