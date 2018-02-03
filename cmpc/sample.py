@@ -80,8 +80,14 @@ class Sampler:
 
     def __init__(self, env):
         self.env = env
+        # TODO: instead of making a ddpg-specific flag for update_every here,
+        # make update_every an argument passed to __init__ for this object
+        # and then let the caller figure out how to get update_every into
+        # this class.
         self.update_every = flags().ddpg.ddpg_update_every
         self.ob = env.reset()
+        self.max_horizon = flags().experiment.horizon
+        self.current_timestep = 0
 
     def sample(self, controller, data):
         """
@@ -94,6 +100,9 @@ class Sampler:
         for _ in range(self.update_every):
             ac, plan_ac, plan_ob = controller.act(self.ob[np.newaxis, ...])
             next_ob, reward, done, _ = self.env.step(ac[0])
+            self.current_timestep += 1
+            if self.current_timestep == self.max_horizon:
+                done = True
             data.next(self.ob, next_ob, reward, done, ac[0],
                       None if plan_ac is None else plan_ac[0],
                       None if plan_ob is None else plan_ob[0])
@@ -102,6 +111,7 @@ class Sampler:
             if done:
                 self.ob = self.env.reset()
                 n_episodes += 1
+                self.current_timestep = 0
         return n_episodes
 
     def nsteps(self):
