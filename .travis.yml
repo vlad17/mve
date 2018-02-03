@@ -10,7 +10,6 @@ before_install:
 - unzip mjpro150_linux.zip -d ~/.mujoco
 - mv mjkey.txt ~/.mujoco
 install:
-- travis_retry pip install --upgrade pylint
 - export LD_LIBRARY_PATH=$HOME/.mujoco/mjpro150/bin
 - export LIBRARY_PATH=$HOME/.mujoco/mjpro150/bin
 # conda-on-travis recipe
@@ -29,6 +28,7 @@ install:
 - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION
 - source activate test-environment
 - travis_retry ./scripts/ubuntu-install.sh
+- travis_retry pip install --upgrade pylint
 script:
 - "./scripts/lint.sh"
 - "./scripts/fake-display.sh ./scripts/tests.sh"
