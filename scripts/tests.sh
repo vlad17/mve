@@ -104,7 +104,7 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2")
     cmds+=("python $main_ddpg $ddpg_flags --env_name acrobot")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --q_target_mixture")
-    # cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture $dynamics_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture $dynamics_flags")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture")
     cmds+=("python $main_ddpg $ddpg_flags --ddpg_update_every 200")
     mix_all="--mixture_estimator oracle --q_target_mixture --actor_critic_mixture"
