@@ -83,9 +83,9 @@ class ExperimentFlags(Flags):
             help='discount factor for the reward calculations')
         yield ArgSpec(
             name='reward_scaling',
-            default=-1,
+            default=1,
             type=float,
-            help='Amount to scale all rewards by. Pass -1 to use default'
+            help='Amount to scale all rewards by. Pass -1 to use hard-coded '
             'reward scaling, based on environment.'
         )
 
@@ -198,5 +198,5 @@ def experiment_main(flags, experiment_fn):
             seed_everything(seed)
             context().flags = flags
             with reporter.create(logdir_seed, flags.experiment.verbose), \
-                 env_info.create():
+                    env_info.create():
                 experiment_fn(flags)
