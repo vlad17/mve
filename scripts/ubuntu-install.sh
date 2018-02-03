@@ -19,6 +19,11 @@ if [ "$pyv" != "3.5" ] ; then
     exit 1
 fi
 
+if [ -z "$CONDA_DEFAULT_ENV" ] ; then
+    echo "expecting to be in a conda env"
+    exit 1
+fi
+
 distrib=$(lsb_release -a 2>/dev/null | grep "Distributor ID" | awk '{print $3}')
 release=$(lsb_release -a 2>/dev/null | grep "Release" | awk '{print $2}')
 if [ "$distrib" != "Ubuntu" ] ; then
@@ -37,4 +42,5 @@ sudo apt-get install -y \
      xorg-dev libboost-all-dev swig libosmesa6-dev libglew-dev
 sudo apt-get install -y libsdl2-dev || sudo apt-get install -f
 
+conda install numba
 pip install -r requirements.txt
