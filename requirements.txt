@@ -12,3 +12,4 @@ ray==0.2.2
 cloudpickle==0.4.1
 terminaltables
 git+git://github.com/vlad17/gym2.git@master#egg=gym2
+numba
