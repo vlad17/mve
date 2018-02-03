@@ -82,6 +82,8 @@ class Sampler:
         self.env = env
         self.update_every = flags().ddpg.ddpg_update_every
         self.ob = env.reset()
+        self.max_horizon = flags().experiment.horizon
+        self.current_timestep = 0
 
     def sample(self, controller, data):
         """
@@ -94,6 +96,9 @@ class Sampler:
         for _ in range(self.update_every):
             ac, plan_ac, plan_ob = controller.act(self.ob[np.newaxis, ...])
             next_ob, reward, done, _ = self.env.step(ac[0])
+            self.current_timestep += 1
+            if self.current_timestep == self.max_horizon:
+                done = True
             data.next(self.ob, next_ob, reward, done, ac[0],
                       None if plan_ac is None else plan_ac[0],
                       None if plan_ob is None else plan_ob[0])
@@ -102,6 +107,7 @@ class Sampler:
             if done:
                 self.ob = self.env.reset()
                 n_episodes += 1
+                self.current_timestep = 0
         return n_episodes
 
     def nsteps(self):
