@@ -8,7 +8,7 @@ Here are setup-specific requirements that you really, really have to do yourself
 
 * MuJoCo 1.50, with the appropriate key available - [MuJoCo downloads](https://www.roboti.us/index.html)
 * Both MuJoCo installations are expected in `~/.mujoco` or the environment variable `MUJOCO_DIRECTORY`, if defined.
-* An [Anaconda](https://www.anaconda.com/download/#linux) Python 3.5 (`scripts/` assume this is the `python` and `pip` in `PATH`). Anaconda is necessary for the numba dependency. On old systems this may also require a `conda install libgcc`.
+* Python 3.5 (`scripts/` assume this is the `python` and `pip` in `PATH`)
 * If you get any error messages relating to `glfw3`, then reinstall everything in a shell where the following environment variables are set (and for good measure in the shell where you're launching experiments):
 
 ```
@@ -27,14 +27,12 @@ Example installation:
     # ... you install system packages here
     conda create -y -n gpu-py3.5 python=3.5
     source activate gpu-py3.5
-    conda install numba
     pip install -r <( sed 's/tensorflow/tensorflow-gpu/' requirements.txt )
     
     # CPU version
     # ... you install system packages here
     conda create -y -n cpu-py3.5 python=3.5
     source activate cpu-py3.5
-    conda install numba
     pip install -r requirements.txt
     
     # Lazy version (defaults to CPU)
