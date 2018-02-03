@@ -80,6 +80,10 @@ class Sampler:
 
     def __init__(self, env):
         self.env = env
+        # TODO: instead of making a ddpg-specific flag for update_every here,
+        # make update_every an argument passed to __init__ for this object
+        # and then let the caller figure out how to get update_every into
+        # this class.
         self.update_every = flags().ddpg.ddpg_update_every
         self.ob = env.reset()
         self.max_horizon = flags().experiment.horizon
