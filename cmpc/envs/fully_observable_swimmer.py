@@ -47,7 +47,7 @@ class FullyObservableSwimmer(RenderFreeMJC, FullyObservable):
         reward = 0
         reward = self._incremental_reward(
             state, action, next_state, reward,
-            lambda x: np.sum(np.square(x)))
+            lambda x: np.sum(np.square(x), axis=1))
         return reward
 
     def tf_reward(self, state, action, next_state):
