@@ -178,6 +178,7 @@ class ContinuousAcrobot(core.Env, FullyObservable):
         self.observation_space = self._venv.observation_space
         self.action_space = self._venv.action_space
         self.viewer = None
+        self.metadata = self._venv.metadata
 
     def tf_reward(self, state, action, next_state):
         """
