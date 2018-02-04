@@ -90,6 +90,7 @@ main() {
     cmds+=("python $main_random $random_flags --env_name ant")
     cmds+=("python $main_random $random_flags --env_name walker2d")
     cmds+=("python $main_random $random_flags --env_name hc2")
+    cmds+=("python $main_random $random_flags --env_name swimmer")
     cmds+=("python $main_random $random_flags --env_name acrobot")
     # MPC
     cmds+=("python $main_cmpc $rs_mpc_flags")

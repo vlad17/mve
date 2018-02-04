@@ -50,6 +50,8 @@ def _env_class():
         return envs.FullyObservableWalker2d
     elif env_name == 'hc2':
         return gym2.FullyObservableHalfCheetah
+    elif env_name == 'swimmer':
+        return envs.FullyObservableSwimmer
     elif env_name == 'acrobot':
         import envs.acrobot as acrobot  # see note in envs.__init__
         return acrobot.ContinuousAcrobot
