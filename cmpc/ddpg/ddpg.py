@@ -176,8 +176,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                     tf.float32, shape=[None, env_info.ob_dim()])
                 # assume early termination implies reward is 0 from that point
                 # on and state is the same
-                # TODO(!!) -- final_acs_na should use tf_target_action
-                final_acs_na = actor.tf_action(self._final_ob_ph_ns)
+                final_acs_na = actor.tf_target_action(self._final_ob_ph_ns)
                 future_Q_n = critic.tf_target_critic(
                     self._final_ob_ph_ns, final_acs_na)
                 target_Q_hn = [None] * h
