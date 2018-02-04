@@ -168,16 +168,16 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                 # the i-th element here is the i-th state after obs1;
                 # so h == 0 should equal to obs1_ph_ns
                 self._obs_ph_hns = tf.placeholder(
-                    tf.float32, shape=[h, n, env_info.ob_dim()])
+                    tf.float32, shape=[h, None, env_info.ob_dim()])
                 # the action taken at the i-th state above above
                 self._acs_ph_hna = tf.placeholder(
-                    tf.float32, shape=[h, n, env_info.ac_dim()])
+                    tf.float32, shape=[h, None, env_info.ac_dim()])
                 # the resulting done indicator from playing that action
                 self._done_ph_hn = tf.placeholder(
-                    tf.float32, shape=[h, n])
+                    tf.float32, shape=[h, None])
                 # the reward resulting from that action
                 self._rew_ph_hn = tf.placeholder(
-                    tf.float32, shape=[h, n])
+                    tf.float32, shape=[h, None])
                 # this should be the final state resulting from playing
                 # self._acs_ph_hna[h-1] on self._obs_ph_hns[h-1]
                 self._final_ob_ph_ns = tf.placeholder(
