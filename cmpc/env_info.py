@@ -53,7 +53,8 @@ def _env_class():
     elif env_name == 'swimmer':
         return envs.FullyObservableSwimmer
     elif env_name == 'acrobot':
-        return envs.ContinuousAcrobot
+        import envs.acrobot as acrobot  # see note in envs.__init__
+        return acrobot.ContinuousAcrobot
     else:
         raise ValueError('env {} unsupported'.format(env_name))
 
@@ -90,7 +91,8 @@ def make_venv(n):
     if context().flags.experiment.env_name == 'hc2':
         venv = gym2.VectorMJCEnv(n, _env_class())
     elif context().flags.experiment.env_name == 'acrobot':
-        venv = envs.VectorizedContinuousAcrobot(n)
+        import envs.acrobot as acrobot  # see note in envs.__init__
+        venv = acrobot.VectorizedContinuousAcrobot(n)
     else:
         venv = envs.ParallelGymVenv(n, _env_class())
     venv.seed(_next_seeds(n))

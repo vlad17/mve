@@ -6,4 +6,8 @@ from .fully_observable_walker2d import FullyObservableWalker2d
 from .fully_observable_swimmer import FullyObservableSwimmer
 from .parallel_gym_venv import ParallelGymVenv
 from .numpy_reward import NumpyReward
-from .acrobot import ContinuousAcrobot, VectorizedContinuousAcrobot
+
+# acrobot is intentionally NOT imported by defualt because its numba jit
+# dependence creates an OpenMP thread pool which creates too many threads
+# after forks. So users should import envs.acrobot on demand (knowing that
+# doing so will create lots of threads).

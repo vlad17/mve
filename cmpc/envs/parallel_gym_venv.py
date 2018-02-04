@@ -11,12 +11,14 @@ tasks in the distributed TF graph.
 from contextlib import closing
 from functools import partial
 import multiprocessing as mp
+import os
 import sys
 
 import numpy as np
 
 from .serial_gym_venv import SerialGymVenv
 from .vector_env import VectorEnv
+
 
 def _child_loop(parent_conn, conn, id_str, venv_gen):
     parent_conn.close()
@@ -148,11 +150,15 @@ class ParallelGymVenv(VectorEnv):
     child process, uses venv_generator(m) as the vectorized child
     environment.
 
-    Defaults to (number of CPUs) parallelism.
+    Default parallelism determined in this order:
+    * parallelism argument
+    * OMP_NUM_THREADS env variable
+    * number of CPUs on system
     """
 
     def __init__(self, n, scalar_env_gen, parallelism=None):
-        num_workers = parallelism or mp.cpu_count()
+        num_workers = parallelism or int(os.getenv('OMP_NUM_THREADS', '0'))
+        num_workers = num_workers or mp.cpu_count()
         num_workers = max(min(num_workers, n), 1)
         self._workers = [_Worker(num_workers, i, n, scalar_env_gen)
                          for i in range(num_workers)]
