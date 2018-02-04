@@ -628,7 +628,7 @@ def _tf_compute_model_value_expansion(
 
     # we accumulate error in reverse
     next_Q_n = final_Q_n
-    accum_loss = 0
+    accum_loss = 0.
     for t in reversed(range(h)):
         target_Q_n = rew_hn[t] + discount * next_Q_n
         curr_Q_n = critic.tf_critic(obs_hns[t], acs_hna[t])
