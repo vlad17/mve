@@ -83,10 +83,13 @@ class Actor:
 
         self._states_ph_ns = tf.placeholder(
             tf.float32, [None, env_info.ob_dim()])
-        # result unimportant, just generate the corresponding graph variables
-        self._acs_na = self.tf_action(self._states_ph_ns)
-        self._target_acs_na = self.tf_target_action(self._states_ph_ns)
-        self._perturb_acs_na = self.tf_perturbed_action(self._states_ph_ns)
+
+        self._acs_na = self._tf_action(
+            self._states_ph_ns, 'actor', reuse=None)
+        self._target_acs_na = self._tf_action(
+            self._states_ph_ns, 'target_actor', reuse=None)
+        self._perturb_acs_na = self._tf_action(
+            self._states_ph_ns, 'perturbed_actor', reuse=None)
 
         self.variables = trainable_vars(self._scope, 'actor')
 
@@ -125,19 +128,19 @@ class Actor:
 
     def tf_action(self, states_ns):
         """Return the current actor's actions for the given states in TF."""
-        return self._tf_action(states_ns, 'actor')
+        return self._tf_action(states_ns, 'actor', reuse=True)
 
     def tf_perturbed_action(self, states_ns):
         """Return the current perturbed actor's actions for the given states"""
-        return self._tf_action(states_ns, 'perturbed_actor')
+        return self._tf_action(states_ns, 'perturbed_actor', reuse=True)
 
     def tf_target_action(self, states_ns):
         """Return the target actor's actions for the given states in TF."""
-        return self._tf_action(states_ns, 'target_actor')
+        return self._tf_action(states_ns, 'target_actor', reuse=True)
 
-    def _tf_action(self, states_ns, child_scope):
+    def _tf_action(self, states_ns, child_scope, reuse):
         states_ns = scale_from_box(self._ob_space, states_ns)
-        with tf.variable_scope(self._scope, reuse=tf.AUTO_REUSE):
+        with tf.variable_scope(self._scope, reuse=reuse):
             relative_acs = build_mlp(
                 states_ns, scope=child_scope, **self._common_mlp_kwargs)
         return scale_to_box(self._ac_space, relative_acs)
@@ -167,9 +170,10 @@ class Critic:
             tf.float32, [None, env_info.ob_dim()])
         self._acs_ph_na = tf.placeholder(
             tf.float32, [None, env_info.ac_dim()])
-        self._q_n = self.tf_critic(self._states_ph_ns, self._acs_ph_na)
-        self._target_q_n = self.tf_target_critic(
-            self._states_ph_ns, self._acs_ph_na)
+        self._q_n = self._tf_critic(
+            self._states_ph_ns, self._acs_ph_na, 'critic', None)
+        self._target_q_n = self._tf_critic(
+            self._states_ph_ns, self._acs_ph_na, 'target_critic', None)
 
         self.variables = trainable_vars(self._scope, 'critic')
 
@@ -190,18 +194,18 @@ class Critic:
             self._states_ph_ns: states_ns,
             self._acs_ph_na: acs_na})
 
-    def _tf_critic(self, states_ns, acs_na, scope):
+    def _tf_critic(self, states_ns, acs_na, scope, reuse):
         states_ns = scale_from_box(self._ob_space, states_ns)
         acs_na = scale_from_box(self._ac_space, acs_na)
-        with tf.variable_scope(self._scope, reuse=tf.AUTO_REUSE):
+        with tf.variable_scope(self._scope, reuse=reuse):
             inputs = tf.concat([states_ns, acs_na], axis=1)
             out = build_mlp(inputs, scope=scope, **self._common_mlp_kwargs)
         return tf.squeeze(out, axis=1)
 
     def tf_critic(self, states_ns, acs_na):
         """Return the current critic's Q-valuation."""
-        return self._tf_critic(states_ns, acs_na, 'critic')
+        return self._tf_critic(states_ns, acs_na, 'critic', True)
 
     def tf_target_critic(self, states_ns, acs_na):
         """Return the target critic's Q-valuation."""
-        return self._tf_critic(states_ns, acs_na, 'target_critic')
+        return self._tf_critic(states_ns, acs_na, 'target_critic', True)

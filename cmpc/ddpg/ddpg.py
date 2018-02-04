@@ -43,24 +43,17 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
         self._reporter = TFReporter()
 
-        # Oh, you think you can replace None below with the known
-        # batch size flags().ddpg.learner_batch_size, you silly goose?
-        # Not unless you want to have a nice 12-hour debugging session!
-        # actor.tf_* methods are all built with scope-dependent
-        # tf.get_variable calls, which are sensitive to the SHAPE of
-        # the neural network input. Other places already have None-sized
-        # placeholders, so the "true" actor network is used only when
-        # the input shape is also None.
+        n = flags().ddpg.learner_batch_size
         self.obs0_ph_ns = tf.placeholder(
-            tf.float32, shape=[None, env_info.ob_dim()])
+            tf.float32, shape=[n, env_info.ob_dim()])
         self.obs1_ph_ns = tf.placeholder(
-            tf.float32, shape=[None, env_info.ob_dim()])
+            tf.float32, shape=[n, env_info.ob_dim()])
         self.terminals1_ph_n = tf.placeholder(
-            tf.float32, shape=[None])
+            tf.float32, shape=[n])
         self.rewards_ph_n = tf.placeholder(
-            tf.float32, shape=[None])
+            tf.float32, shape=[n])
         self.actions_ph_na = tf.placeholder(
-            tf.float32, shape=[None, env_info.ac_dim()])
+            tf.float32, shape=[n, env_info.ac_dim()])
 
         # actor maximizes current Q or oracle Q
         act_obs0 = actor.tf_action(self.obs0_ph_ns)
@@ -118,11 +111,11 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
             # TODO: multistep this will need to be a list of placeholders
             self._dr_ph_na = tf.placeholder(
-                tf.float32, shape=[None, env_info.ac_dim()])
+                tf.float32, shape=[n, env_info.ac_dim()])
             self._expanded_obs_ph_ns = tf.placeholder(
-                tf.float32, shape=[None, env_info.ob_dim()])
+                tf.float32, shape=[n, env_info.ob_dim()])
             self._expanded_terminals_ph_n = tf.placeholder(
-                tf.float32, shape=[None])
+                tf.float32, shape=[n])
             self._actor_loss = -1 * tf.reduce_mean(
                 tf.reduce_sum(act_obs0 * self._dr_ph_na, axis=1) +
                 (1 - self._expanded_terminals_ph_n) * discount *
@@ -168,20 +161,20 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                 # the i-th element here is the i-th state after obs1;
                 # so h == 0 should equal to obs1_ph_ns
                 self._obs_ph_hns = tf.placeholder(
-                    tf.float32, shape=[h, None, env_info.ob_dim()])
+                    tf.float32, shape=[h, n, env_info.ob_dim()])
                 # the action taken at the i-th state above above
                 self._acs_ph_hna = tf.placeholder(
-                    tf.float32, shape=[h, None, env_info.ac_dim()])
+                    tf.float32, shape=[h, n, env_info.ac_dim()])
                 # the resulting done indicator from playing that action
                 self._done_ph_hn = tf.placeholder(
-                    tf.float32, shape=[h, None])
+                    tf.float32, shape=[h, n])
                 # the reward resulting from that action
                 self._rew_ph_hn = tf.placeholder(
-                    tf.float32, shape=[h, None])
+                    tf.float32, shape=[h, n])
                 # this should be the final state resulting from playing
                 # self._acs_ph_hna[h-1] on self._obs_ph_hns[h-1]
                 self._final_ob_ph_ns = tf.placeholder(
-                    tf.float32, shape=[None, env_info.ob_dim()])
+                    tf.float32, shape=[n, env_info.ob_dim()])
                 # assume early termination implies reward is 0 from that point
                 # on and state is the same
                 final_acs_na = actor.tf_target_action(self._final_ob_ph_ns)
