@@ -10,7 +10,7 @@
 set -euo pipefail
 
 lint() {
-    PYTHONPATH=cmpc pylint --disable=locally-disabled,fixme "$@"
+    PYTHONPATH=cmpc pylint --disable=locally-disabled,fixme,too-many-return-statements "$@"
 }
 
 main() {
