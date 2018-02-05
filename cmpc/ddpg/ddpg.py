@@ -43,6 +43,14 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
         self._reporter = TFReporter()
 
+        # Oh, you think you can replace None below with the known
+        # batch size flags().ddpg.learner_batch_size, you silly goose?
+        # Not unless you want to have a nice 12-hour debugging session!
+        # actor.tf_* methods are all built with scope-dependent
+        # tf.get_variable calls, which are sensitive to the SHAPE of
+        # the neural network input. Other places already have None-sized
+        # placeholders, so the "true" actor network is used only when
+        # the input shape is also None.
         self.obs0_ph_ns = tf.placeholder(
             tf.float32, shape=[None, env_info.ob_dim()])
         self.obs1_ph_ns = tf.placeholder(
@@ -200,6 +208,8 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                     residual_loss += tf.losses.mean_squared_error(
                         target_Q_hn[t], predicted_Q_n, weights=weights)
             elif flags().ddpg.mixture_estimator == 'learned':
+                debug('using learned-dynamics Q estimator with {} steps as '
+                      'target critic', h)
                 assert learned_dynamics is not None
                 # --- this section is purely for dynamics accuracy recording
                 self._dyn_metrics = DynamicsMetrics(
@@ -227,7 +237,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                 # --- end section for dyn acc diagnostics
 
                 residual_loss = _tf_compute_model_value_expansion(
-                    scope,
                     self.obs0_ph_ns,
                     self.actions_ph_na,
                     self.rewards_ph_n,
@@ -580,7 +589,6 @@ def _tf_unroll(h, initial_states_ns, act, dynamics, acs_hna, states_hns):
 
 
 def _tf_compute_model_value_expansion(
-        scope,
         obs0_ns,
         acs0_na,
         rew0_n,
@@ -590,52 +598,45 @@ def _tf_compute_model_value_expansion(
         critic,
         dynamics):
     h = flags().ddpg.model_horizon
-    n = flags().ddpg.learner_batch_size
-    s = env_info.ob_dim()
-    a = env_info.ac_dim()
     reward_fn = env_info.reward_fn()
     discount = flags().experiment.discount
 
-    with tf.variable_scope(scope), tf.variable_scope('learned-dyn-tdk'):
-        # the i-th states along the first axis here (of length h) correspond
-        # to the states that occur after the obs1 state (the resulting state
-        # from the real-data transitions). Thus at position 0 we have
-        # exactly obs1 but at position i we have the predicted state i steps
-        # past obs1.
-        obs_hns = tf.get_variable(
-            'simulated_states', shape=[h, n, s], trainable=False)
-        # the action taken at the i-th step above
-        acs_hna = tf.get_variable(
-            'simulated_actions', shape=[h, n, a], trainable=False)
-        # after playing the corresponding action in the corresponding state
-        # we get this reward
-        rew_hn = tf.get_variable(
-            'simulated_rewards', shape=[h, n], trainable=False)
+    # the i-th states along the first axis here (of length h) correspond
+    # to the states that occur after the obs1 state (the resulting state
+    # from the real-data transitions). Thus at position 0 we have
+    # exactly obs1 but at position i we have the predicted state i steps
+    # past obs1.
+    obs_hns = []
+    # the action taken at the i-th step above
+    acs_hna = []
+    # after playing the corresponding action in the corresponding state
+    # we get this reward
+    rew_hn = []
 
-    # TODO: this can probably be a tf.scan
-    def _sim_body(t, curr_ob_ns):
-        save_state_op = tf.scatter_update(obs_hns, t, curr_ob_ns)
+    # We could use tf.while_loop here, but TF actually handles a
+    # static graph much better. Since we know h ahead of time we should use
+    # it.
+
+    curr_ob_ns = obs1_ns
+    for _ in range(h):
+        obs_hns.append(curr_ob_ns)
         ac_na = actor.tf_target_action(curr_ob_ns)
-        save_action_op = tf.scatter_update(acs_hna, t, ac_na)
+        acs_hna.append(ac_na)
         next_ob_ns = dynamics.predict_tf(curr_ob_ns, ac_na)
         curr_reward_n = reward_fn(curr_ob_ns, ac_na, next_ob_ns)
-        save_reward_op = tf.scatter_update(rew_hn, t, curr_reward_n)
-        save_ops = [save_state_op, save_action_op, save_reward_op]
-        with tf.control_dependencies(save_ops):
-            return [t + 1, next_ob_ns]
+        rew_hn.append(curr_reward_n)
+        curr_ob_ns = next_ob_ns
 
     # final_ob_ns should be the final state resulting from playing
     # acs_hna[h-1] on obs_hns[h-1]
-    _, final_ob_ns = tf.while_loop(
-        lambda t, _: t < h, _sim_body, [0, obs1_ns], back_prop=False)
+    final_ob_ns = curr_ob_ns
     final_ac_na = actor.tf_target_action(final_ob_ns)
     final_Q_n = critic.tf_target_critic(final_ob_ns, final_ac_na)
 
     # we accumulate error in reverse
-    # this could be a tf.foldr, if foldr supported tuples of
-    # tensor accumulators rather than single accumulators
-
-    def _loss_body(t, accum_loss, next_Q_n):
+    next_Q_n = final_Q_n
+    accum_loss = 0.
+    for t in reversed(range(h)):
         target_Q_n = rew_hn[t] + discount * next_Q_n
         curr_Q_n = critic.tf_critic(obs_hns[t], acs_hna[t])
         # the dynamics model doesn't predict terminal states
@@ -645,11 +646,7 @@ def _tf_compute_model_value_expansion(
         curr_residual_loss = tf.losses.mean_squared_error(
             target_Q_n, curr_Q_n, weights=weights)
         accum_loss += curr_residual_loss
-        return [t - 1, accum_loss, target_Q_n]
-
-    _, accum_loss, next_Q_n = tf.while_loop(
-        lambda t, _, __: t >= 0, _loss_body, [h - 1, 0., final_Q_n],
-        back_prop=True)
+        next_Q_n = target_Q_n
 
     # compute the full-trajectory TD-h error on obs0 now
     target_Q_n = rew0_n + discount * (1 - terminals1_n) * next_Q_n
