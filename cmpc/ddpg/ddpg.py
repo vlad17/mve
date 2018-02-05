@@ -37,7 +37,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
     and critic networks with the DDPG algorithm
     """
 
-    def __init__(self, actor, critic, discount=0.99, scope='ddpg',
+    def __init__(self, actor, critic, discount=0.99, scope='ddpg',  # pylint: disable=too-many-branches
                  actor_lr=1e-3, critic_lr=1e-3, explore_stddev=0.2,
                  learned_dynamics=None):
 
@@ -205,8 +205,9 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                         weights = 1.0 - self._done_ph_hn[t - 1]
                     else:
                         weights = 1.0 - self.terminals1_ph_n
-                    residual_loss += tf.losses.mean_squared_error(
-                        target_Q_hn[t], predicted_Q_n, weights=weights)
+                    if not flags().ddpg.drop_tdk:
+                        residual_loss += tf.losses.mean_squared_error(
+                            target_Q_hn[t], predicted_Q_n, weights=weights)
             elif flags().ddpg.mixture_estimator == 'learned':
                 debug('using learned-dynamics Q estimator with {} steps as '
                       'target critic', h)
@@ -645,7 +646,8 @@ def _tf_compute_model_value_expansion(
         weights = 1.0 - terminals1_n
         curr_residual_loss = tf.losses.mean_squared_error(
             target_Q_n, curr_Q_n, weights=weights)
-        accum_loss += curr_residual_loss
+        if not flags().ddpg.drop_tdk:
+            accum_loss += curr_residual_loss
         next_Q_n = target_Q_n
 
     # compute the full-trajectory TD-h error on obs0 now

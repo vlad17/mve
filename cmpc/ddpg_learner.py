@@ -117,6 +117,13 @@ class DDPGFlags(Flags):
                 type=int,
                 help='Minimum number of frames in replay buffer before '
                      'training'),
+            ArgSpec(
+                name='drop_tdk',
+                default=False,
+                action='store_true',
+                help='By default model-based value expansion corrects for '
+                'off-distribution error with the TD-k trick. This disables '
+                'use of the trick for diagnostics training'),
             ArgSpec(  # TODO: add sampler to all algos so this can be moved to
                       # experiment flags
                 name='ddpg_update_every',
