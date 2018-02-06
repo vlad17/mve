@@ -68,14 +68,20 @@ class ExperimentFlags(Flags):
             name='render_every',
             type=int,
             default=0,
-            help='if possible, render an episode every render_every episodes. '
-            'If set to 0 then no rendering.')
+            help='if possible, render an episode every render_every timesteps.'
+            ' If set to 0 then no rendering.')
+        yield ArgSpec(
+            name='evaluate_every',
+            type=int,
+            default=0,
+            help='evaluate diagnostics episode every evaluate_every timesteps.'
+            ' If set to 0 then no evaluating.')
         yield ArgSpec(
             name='save_every',
             type=int,
-            default=500,
-            help='save all persistable TF variables ever save_every episodes. '
-            'Do not save if set to 0')
+            default=0,
+            help='save all persistent TF variables every save_every timesteps.'
+            ' Do not save if set to 0')
         yield ArgSpec(
             name='discount',
             type=float,
@@ -88,14 +94,26 @@ class ExperimentFlags(Flags):
             help='Amount to scale all rewards by. Pass -1 to use hard-coded '
             'reward scaling, based on environment.'
         )
+        yield ArgSpec(
+            name='timesteps',
+            default=1000000,
+            type=int,
+            help='approximate number of timesteps to collect')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',
                          list(ExperimentFlags._generate_arguments()))
+        self._num_rendered = 0
+        self._num_saved = 0
+        self._num_evaluated = 0
+        self._last_rendered = -1
+        self._last_saved = -1
+        self._last_evaluated = -1
 
     @contextmanager
-    def render_env(self, uid):
-        """Create a renderable env (context)."""
+    def render_env(self):
+        """Create a renderable env (context). Only call at most once per ts"""
+        uid = reporter.timestep()
         with closing(env_info.make_env()) as env:
             limited_env = wrappers.TimeLimit(
                 env, max_episode_steps=self.horizon)
@@ -110,21 +128,57 @@ class ExperimentFlags(Flags):
         env_name = self.env_name
         return "{}_{}".format(exp_name, env_name)
 
-    def should_render(self, iteration):
-        """Given a 0-indexed iteration, should we render it?"""
+    def should_continue(self):
+        """
+        Returns true iff we have not yet collected all the allotted timesteps.
+        Should be called at most once per timestep.
+        """
+        return reporter.timestep() < self.timesteps
+
+    def should_render(self):
+        """
+        Should we render in the current timestep?
+        """
         if self.render_every == 0:
             return False
-        if iteration == 0:
+        if reporter.timestep() == self._last_rendered:
             return True
-        return (iteration + 1) % self.render_every == 0
+        next_render = self._num_rendered * self.render_every
+        if reporter.timestep() >= next_render:
+            self._num_rendered += 1
+            self._last_rendered = reporter.timestep()
+            return True
+        return False
 
-    def should_save(self, iteration):
-        """Given a 0-indexed iteration, should we save it?"""
+    def should_save(self):
+        """
+        Should we save in the current timestep?
+        """
         if self.save_every == 0:
             return False
-        if iteration == 0:
+        if reporter.timestep() == self._last_saved:
             return True
-        return (iteration + 1) % self.save_every == 0
+        next_save = self._num_saved * self.save_every
+        if reporter.timestep() >= next_save:
+            self._num_saved += 1
+            self._last_saved = reporter.timestep()
+            return True
+        return False
+
+    def should_evaluate(self):
+        """
+        Should we evaluate in the current timestep?
+        """
+        if self.evaluate_every == 0:
+            return False
+        if reporter.timestep() == self._last_evaluated:
+            return True
+        next_evaluate = self._num_evaluated * self.evaluate_every
+        if reporter.timestep() >= next_evaluate:
+            self._num_evaluated += 1
+            self._last_evaluated = reporter.timestep()
+            return True
+        return False
 
 
 def _make_data_directory(name):

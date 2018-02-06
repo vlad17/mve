@@ -13,7 +13,7 @@ from dynamics import DynamicsFlags, NNDynamicsModel
 from dynamics_metrics import DynamicsMetricsFlags
 import env_info
 from experiment import ExperimentFlags, experiment_main
-from flags import (parse_args, Flags, ArgSpec)
+from flags import parse_args
 import tfnode
 from persistable_dataset import (
     add_dataset_to_persistance_registry, PersistableDatasetFlags)
@@ -46,41 +46,30 @@ def _train(_):
 
 
 def _loop(sampler, data, learner, dynamics):
-    for itr in range(flags().run.timesteps // sampler.nsteps()):
+    while flags().experiment.should_continue():
+        steps_sampled = 0 if data.size == 0 else sampler.nsteps()
+
         if dynamics:
             with timeit('dynamics fit'):
-                dynamics.fit(data, 0 if itr == 0 else sampler.nsteps())
+                dynamics.fit(data, steps_sampled)
 
         with timeit('learner fit'):
-            learner.fit(data, sampler.nsteps())
+            learner.fit(data, steps_sampled)
 
         with timeit('sample learner'):
             controller = as_controller(learner.act)
             n_episodes = sampler.sample(controller, data)
 
         reporter.advance(sampler.nsteps(), n_episodes)
-        if flags().experiment.should_render(itr):
-            with flags().experiment.render_env(itr + 1) as render_env:
+        if flags().experiment.should_render():
+            with flags().experiment.render_env() as render_env:
                 sample(render_env, controller, render=True)
-        if flags().experiment.should_save(itr):
-            tfnode.save_all(itr + 1)
-
-
-class RunFlags(Flags):
-    """Flags relevant for running DDPG over multiple iterations."""
-
-    def __init__(self):
-        arguments = [
-            ArgSpec(
-                name='timesteps',
-                type=int,
-                default=1000000,
-                help='number timesteps to train on')]
-        super().__init__('run', 'run flags for ddpg', arguments)
+        if flags().experiment.should_save():
+            tfnode.save_all(reporter.timestep())
 
 
 if __name__ == "__main__":
-    _flags = [ExperimentFlags(), RunFlags(), PersistableDatasetFlags(),
+    _flags = [ExperimentFlags(), PersistableDatasetFlags(),
               DDPGFlags(), DynamicsFlags(), DynamicsMetricsFlags()]
     _args = parse_args(_flags)
     experiment_main(_args, _train)

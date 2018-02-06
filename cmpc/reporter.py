@@ -36,6 +36,14 @@ def create(logdir, verbose):
     context().reporter = None
 
 
+def timestep():
+    """
+    Returns the current global number of timesteps that have been
+    collected.
+    """
+    return context().reporter.timestep()
+
+
 def add_summary(name, value, hide=False):
     """
     Add a known floating-point value summary to the current reporter.
@@ -149,6 +157,13 @@ class _Reporter:
         self._latest_statistics = {}
         self.logdir = logdir
         self._hidden = set()
+
+    def timestep(self):
+        """
+        Returns the current global number of timesteps that have been
+        collected.
+        """
+        return self._global_step
 
     def add_summary(self, name, value, hide):
         """

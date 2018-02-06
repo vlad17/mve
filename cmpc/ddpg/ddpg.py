@@ -432,8 +432,9 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
     def train(self, data, nbatches, batch_size, timesteps):
         """Run nbatches training iterations of DDPG"""
-        if hasattr(self, '_dyn_metrics'):
-            self._eval_dynamics(data, 'ddpg before/')
+        if flags().experiment.should_evaluate():
+            if hasattr(self, '_dyn_metrics'):
+                self._eval_dynamics(data, 'ddpg before/')
 
         if flags().ddpg.imaginary_buffer > 0:
             with timeit('generating imaginary data'):
@@ -453,13 +454,15 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                       'action noise {:.4g}',
                       i, nbatches, cl, al, an)
 
-        if data.size:
-            batch = self._sample(next(data.sample_many(1, batch_size)))
-            self._reporter.report(batch)
+        if flags().experiment.should_evaluate():
+            if data.size:
+                batch = self._sample(next(data.sample_many(1, batch_size)))
+                self._reporter.report(batch)
 
-        self._evaluate()
-        if hasattr(self, '_dyn_metrics'):
-            self._eval_dynamics(data, 'ddpg after/')
+            self._evaluate()
+
+            if hasattr(self, '_dyn_metrics'):
+                self._eval_dynamics(data, 'ddpg after/')
 
     def _oracle_expand_states(self, feed_dict):
         h = flags().ddpg.model_horizon

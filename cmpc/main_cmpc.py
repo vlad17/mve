@@ -53,7 +53,7 @@ def _train(args, venv, dyn_metrics, data, dyn_model, controller):
     tfnode.restore_all()
     paths = []
 
-    for itr in range(args.mpc.onpol_iters):
+    while args.experiment.should_continue():
         with timeit('dynamics fit'):
             dyn_model.fit(data, timesteps(paths))
 
@@ -73,12 +73,12 @@ def _train(args, venv, dyn_metrics, data, dyn_model, controller):
 
         reporter.advance(timesteps(paths), len(paths))
 
-        if args.experiment.should_render(itr):
-            with args.experiment.render_env(itr + 1) as render_env:
+        if args.experiment.should_render():
+            with args.experiment.render_env() as render_env:
                 sample(render_env, controller, render=True)
 
-        if args.experiment.should_save(itr):
-            tfnode.save_all(itr + 1)
+        if args.experiment.should_save():
+            tfnode.save_all(reporter.timestep())
 
 
 def flags_to_parse():

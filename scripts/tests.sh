@@ -46,12 +46,12 @@ main() {
     }
     trap note_failure EXIT
 
-    tune_params_json='[{"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_batches_per_timestep": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_batches_per_timestep": 1, "evaluation_envs": 10}, {"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_batches_per_timestep": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_batches_per_timestep": 1, "evaluation_envs": 10}]'
-    tune_params_run="python ../cmpc/main_cmpc.py --rs_learner ddpg --horizon 5 --simulated_paths 2"
+    tune_params_json='[{"smoothing": 3, "timesteps": 40, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_batches_per_timestep": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_batches_per_timestep": 1, "evaluation_envs": 10}, {"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_batches_per_timestep": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_batches_per_timestep": 1, "evaluation_envs": 10, "timesteps": 40}]'
+    tune_params_run="python ../cmpc/main_cmpc.py --verbose --rs_learner ddpg --horizon 5 --simulated_paths 2"
     tune_params_run="$tune_params_run --mpc_horizon 3 --onpol_paths 3 --onpol_iters 4"
     tune_params_run="$tune_params_run --learner_depth 1 --learner_width 10 --learner_batches_per_timestep 1"
     tune_params_run="$tune_params_run --dyn_depth 1 --dyn_width 8 --dynamics_batches_per_timestep 1"
-    tune_params_run="$tune_params_run --evaluation_envs 10"
+    tune_params_run="$tune_params_run --evaluation_envs 10 --timesteps 40"
     
     if [ -d _test ] ; then
         rm -rf _test
@@ -71,7 +71,8 @@ main() {
     cmpc_plot_dyn="../cmpc/plot_dynamics.py"
     eval_q="../cmpc/main_evaluate_qval.py"
 
-    experiment_flags="--exp_name basic_tests --verbose --horizon 5"
+    experiment_flags_no_ts="--exp_name basic_tests --verbose --horizon 5"
+    experiment_flags="$experiment_flags_no_ts --timesteps 40"
     random_flags="$experiment_flags --num_paths 8"
     dynamics_flags="--dynamics_batches_per_timestep 1 --dyn_depth 1 --dyn_width 8"
     mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 3"
@@ -81,7 +82,7 @@ main() {
     rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
     ddpg_only_flags="--learner_depth 1 --learner_width 8 --learner_batches_per_timestep 1 "
     ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4 --evaluation_envs 10"
-    ddpg_flags="$experiment_flags $ddpg_only_flags --timesteps 200"
+    ddpg_flags="$experiment_flags_no_ts $ddpg_only_flags --timesteps 200"
     tune_flags="--ray_addr $ray_addr"
 
     cmds=()
@@ -137,18 +138,18 @@ main() {
     cmds+=("python $main_cmpc $mpc_flags $colocation_flags --coloc_opt_horizon 2")
     cmds+=("python $main_cmpc $mpc_flags $colocation_flags")
     # Test recovery
-    cmds+=("python $main_cmpc $rs_mpc_flags --exp_name saved --save_every 2")
-    expected_dyn_save="data/saved_hc/3/checkpoints/dynamics.ckpt-00000002"
-    expected_rb_save="data/saved_hc/3/checkpoints/persistable_dataset.ckpt-00000002"
+    cmds+=("python $main_cmpc $rs_mpc_flags --exp_name saved --save_every 15")
+    expected_dyn_save="data/saved_hc/3/checkpoints/dynamics.ckpt-00000045"
+    expected_rb_save="data/saved_hc/3/checkpoints/persistable_dataset.ckpt-00000045"
     restore="--restore_dynamics $expected_dyn_save --restore_buffer $expected_rb_save"
     cmds+=("python $main_cmpc $rs_mpc_flags --exp_name restored $restore")
     cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --exp_name ddpg_save")
     savedir="data/ddpg_save_hc/3/checkpoints"
-    restore="--exp_name ddpg_restore --restore_buffer $savedir/persistable_dataset.ckpt-00000002"
-    restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000002"
+    restore="--exp_name ddpg_restore --restore_buffer $savedir/persistable_dataset.ckpt-00000200"
+    restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000200"
     cmds+=("python $main_ddpg $ddpg_flags $restore")
     # Plot tests
-    restore_ddpg="--seed 3 --restore_ddpg $savedir/ddpg.ckpt-00000002"
+    restore_ddpg="--seed 3 --restore_ddpg $savedir/ddpg.ckpt-00000200"
     eval_q_flags="--horizon 10 --mixture_horizon 5 --notex"
     eval_q_flags="$eval_q_flags --episodes 3"
     cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags")
