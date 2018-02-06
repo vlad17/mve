@@ -202,11 +202,20 @@ class AssignableStatistic:
     dynamics.
 
     This class keeps track of the mean and std as given.
+
+    This class also does some funny business when the standard
+    deviation it's given ever falls below epsilon: at this point
+    standard deviation is no longer used in normalization.
     """
 
-    def __init__(self, suffix, initial_mean, initial_std):
+    def __init__(self, suffix, initial_mean, initial_std, epsilon=1e-4):
         initial_mean = np.asarray(initial_mean).astype('float32')
-        initial_std = np.asarray(initial_std).astype('float32')
+        initial_std = np.asarray(initial_std).copy().astype('float32')
+        self._avoid_std_normalization = np.zeros(initial_std.shape, dtype=bool)
+        self._epsilon = epsilon
+        below_eps = initial_std < epsilon
+        initial_std[np.where(below_eps)] = 1.0
+        self._avoid_std_normalization[np.where(below_eps)] = True
         self._mean_var = tf.get_variable(
             name='mean_' + suffix, trainable=False,
             initializer=initial_mean)
@@ -223,6 +232,10 @@ class AssignableStatistic:
         """
         Update the stateful statistics using the default session.
         """
+        std = np.copy(std)
+        below_eps = std < self._epsilon
+        self._avoid_std_normalization[np.where(below_eps)] = True
+        std[np.where(self._avoid_std_normalization)] = 1.0
         tf.get_default_session().run(
             self._assign_both, feed_dict={
                 self._mean_ph: mean,
