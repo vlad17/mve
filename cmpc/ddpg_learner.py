@@ -31,6 +31,15 @@ class DDPGFlags(Flags):
                 ' Default is no regularization, but OpenAI baselines'
                 ' magic uses 0.01'),
             ArgSpec(
+                name='imaginary_buffer',
+                type=float,
+                default=0.0,
+                help='Use imaginary data in a supplementary buffer, '
+                'for TD-1 training. This flag specifies the ratio of '
+                'imaginary to real data that should be collected (rollouts '
+                'are of length H). The same ratio specifies the training '
+                'rate on imaginary to real data.'),
+            ArgSpec(
                 name='learner_depth',
                 type=int,
                 default=2,
@@ -147,7 +156,8 @@ class DDPGFlags(Flags):
         Check if a dynamics model was provided in learned value mixture
         estimation.
         """
-        if self.mixture_estimator == 'learned':
+        if self.mixture_estimator == 'learned' or \
+                self.imaginary_buffer > 0:
             assert dyn is not None, 'expecting a dynamics model'
         else:
             assert dyn is None, 'should not be getting a dynamics model'
@@ -196,4 +206,4 @@ class DDPGLearner(Learner, TFNode):
         if data.size < flags().ddpg.ddpg_min_buf_size:
             return
         nbatches = flags().ddpg.nbatches(timesteps)
-        self._ddpg.train(data, nbatches, self._batch_size)
+        self._ddpg.train(data, nbatches, self._batch_size, timesteps)

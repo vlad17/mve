@@ -14,7 +14,7 @@ import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
 from qvalues import qvals, offline_oracle_q, oracle_q
-from utils import scale_from_box, as_controller, flatgrad
+from utils import scale_from_box, as_controller, flatgrad, timeit
 
 
 def _tf_seq(a, b_fn):
@@ -352,6 +352,26 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         self._critic = critic
         self._venv = env_info.make_venv(10)
 
+        # Sloppily shoving imaginary data for training in here as well.
+        # TODO: move this to a separate file (along with lots of other stuff
+        # like exploration) when you have time.
+        if flags().ddpg.imaginary_buffer > 0:
+            assert learned_dynamics is not None
+            assert not flags().ddpg.q_target_mixture
+            assert not flags().ddpg.actor_critic_mixture
+            self._imdata = Dataset.from_env(
+                self._venv, flags().experiment.horizon,
+                flags().experiment.bufsize)
+            self._simulation_states_ph_ns = tf.placeholder(
+                tf.float32, shape=[None, env_info.ob_dim()])
+            self._sim_actions_na = actor.tf_action(
+                self._simulation_states_ph_ns)
+            self._sim_next_states_ns = learned_dynamics.predict_tf(
+                self._simulation_states_ph_ns, self._sim_actions_na)
+            self._sim_rewards_n = env_info.reward_fn()(
+                self._simulation_states_ph_ns, self._sim_actions_na,
+                self._sim_next_states_ns)
+
     def _evaluate(self):
         # runs out-of-band trials for less noise performance evaluation
         paths = sample_venv(self._venv, as_controller(self._actor.target_act))
@@ -402,11 +422,24 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             self._oracle_expand_actions(feed_dict)
         return feed_dict
 
-    def train(self, data, nbatches, batch_size):
+    def _batch_generator(self, data, nbatches, batch_size):
+        real_gen = data.sample_many(nbatches, batch_size)
+        yield from real_gen
+        if flags().ddpg.imaginary_buffer > 0:
+            im_batches = int(flags().ddpg.imaginary_buffer * nbatches)
+            fake_gen = self._imdata.sample_many(im_batches, batch_size)
+            yield from fake_gen
+
+    def train(self, data, nbatches, batch_size, timesteps):
         """Run nbatches training iterations of DDPG"""
         if hasattr(self, '_dyn_metrics'):
             self._eval_dynamics(data, 'ddpg before/')
-        batches = data.sample_many(nbatches, batch_size)
+
+        if flags().ddpg.imaginary_buffer > 0:
+            with timeit('generating imaginary data'):
+                self._generate_data(data, timesteps)
+
+        batches = self._batch_generator(data, nbatches, batch_size)
         for i, batch in enumerate(batches, 1):
             feed_dict = self._sample(batch)
             tf.get_default_session().run(self._optimize, feed_dict)
@@ -539,6 +572,23 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         proto_path.planned_obs = np.swapaxes(obs_hns, 0, 1)
         sampled = Dataset.from_paths([proto_path])
         self._dyn_metrics.log(sampled, prefix)
+
+    def _generate_data(self, data, timesteps):
+        im_to_real_ratio = flags().ddpg.imaginary_buffer
+        h = flags().ddpg.model_horizon
+        timesteps = int((im_to_real_ratio * timesteps) // h)
+        sample_ix = np.random.randint(data.size, size=timesteps)
+        obs = data.obs[sample_ix]
+
+        for _ in range(h):
+            acs, next_obs, rews = tf.get_default_session().run(
+                [self._sim_actions_na,
+                 self._sim_next_states_ns,
+                 self._sim_rewards_n], feed_dict={
+                     self._simulation_states_ph_ns: obs})
+            for o, a, n, r in zip(obs, acs, next_obs, rews):
+                self._imdata.next(o, n, r, False, a, None, None)
+            obs = next_obs
 
 # TODO: create general methods for these patterns and abstract from
 # random shooter code as well

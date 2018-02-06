@@ -101,6 +101,7 @@ main() {
     cmds+=("python $main_cmpc $rs_mpc_flags --discount 0.9")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --imaginary_buffer 1.0")
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4")
     cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4")
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2")

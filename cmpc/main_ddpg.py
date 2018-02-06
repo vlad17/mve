@@ -28,10 +28,14 @@ def _train(_):
         data = Dataset.from_env(env, flags().experiment.horizon,
                                 flags().experiment.bufsize)
         add_dataset_to_persistance_registry(data, flags().persistable_dataset)
-        if flags().ddpg.mixture_estimator == 'learned':
+        need_dynamics = (
+            flags().ddpg.mixture_estimator == 'learned' or
+            flags().ddpg.imaginary_buffer > 0)
+        if need_dynamics:
             dynamics = NNDynamicsModel(env, data, flags().dynamics)
         else:
             dynamics = None
+
         learner = DDPGLearner(dynamics=dynamics)
         with make_session_as_default():
             tf.global_variables_initializer().run()
