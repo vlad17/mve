@@ -88,12 +88,6 @@ main() {
     cmds=()
     # Random
     cmds+=("python $main_random $random_flags")
-    cmds+=("python $main_random $random_flags --env_name ant")
-    cmds+=("python $main_random $random_flags --env_name walker2d")
-    cmds+=("python $main_random $random_flags --env_name hc2")
-    cmds+=("python $main_random $random_flags --env_name hopper")
-    cmds+=("python $main_random $random_flags --env_name swimmer")
-    cmds+=("python $main_random $random_flags --env_name acrobot")
     # MPC
     cmds+=("python $main_cmpc $rs_mpc_flags")
     cmds+=("python $main_cmpc $short_mpc_flags")
@@ -137,6 +131,14 @@ main() {
     colocation_flags="$colocation_flags --mpc_optimizer colocation"
     cmds+=("python $main_cmpc $mpc_flags $colocation_flags --coloc_opt_horizon 2")
     cmds+=("python $main_cmpc $mpc_flags $colocation_flags")
+    # Envs
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name ant")
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name walker2d")
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name hc2")
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name pusher")
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name hopper")
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name swimmer")
+    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name acrobot")
     # Test recovery
     cmds+=("python $main_cmpc $rs_mpc_flags --exp_name saved --save_every 15")
     expected_dyn_save="data/saved_hc/3/checkpoints/dynamics.ckpt-00000045"

@@ -3,6 +3,7 @@
 from .fully_observable_half_cheetah import FullyObservableHalfCheetah
 from .fully_observable_ant import FullyObservableAnt
 from .fully_observable_walker2d import FullyObservableWalker2d
+from .fully_observable_pusher import FullyObservablePusher
 from .fully_observable_hopper import FullyObservableHopper
 from .fully_observable_swimmer import FullyObservableSwimmer
 from .parallel_gym_venv import ParallelGymVenv
