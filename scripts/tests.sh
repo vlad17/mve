@@ -152,10 +152,9 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags $restore")
     # Plot tests
     restore_ddpg="--seed 3 --restore_ddpg $savedir/ddpg.ckpt-00000200"
-    eval_q_flags="--horizon 10 --mixture_horizon 5 --notex"
-    eval_q_flags="$eval_q_flags --episodes 3"
+    eval_q_flags="--episodes 3 --output_path out.pdf --notex"
+    eval_q_flags="$eval_q_flags --lims -1 1 -1 1 --title hello --episodes 1 --horizon 15"
     cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags")
-    cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags --evaluate_oracle_subsample 10")
     cmds+=("python $main_cmpc $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
     # Make sure the ray command isn't itself buggy
     cmds+=("$tune_params_run")

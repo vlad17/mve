@@ -38,6 +38,13 @@ def qvals(paths, discount):
     for a given path.
     """
     rewards = [path.rewards for path in paths]
+    return reward_qvals(rewards, discount)
+
+
+def reward_qvals(rewards, discount):
+    """
+    Same as qvals but accepts traces of observed rewards.
+    """
     all_qvals = []
     for reward_trajectory in rewards:
         # numerically stable cumulative reward sum
