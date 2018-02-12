@@ -145,7 +145,10 @@ class ExperimentFlags(Flags):
             return True
         next_render = self._num_rendered * self.render_every
         if reporter.timestep() >= next_render:
-            self._num_rendered += 1
+            while (self._num_rendered * self.render_every <=
+                   reporter.timestep()):
+                self._num_rendered += 1
+
             self._last_rendered = reporter.timestep()
             return True
         return False
@@ -160,7 +163,9 @@ class ExperimentFlags(Flags):
             return True
         next_save = self._num_saved * self.save_every
         if reporter.timestep() >= next_save:
-            self._num_saved += 1
+            while (self._num_saved * self.save_every <=
+                   reporter.timestep()):
+                self._num_saved += 1
             self._last_saved = reporter.timestep()
             return True
         return False
@@ -175,7 +180,9 @@ class ExperimentFlags(Flags):
             return True
         next_evaluate = self._num_evaluated * self.evaluate_every
         if reporter.timestep() >= next_evaluate:
-            self._num_evaluated += 1
+            while (self._num_evaluated * self.evaluate_every <=
+                   reporter.timestep()):
+                self._num_evaluated += 1
             self._last_evaluated = reporter.timestep()
             return True
         return False
