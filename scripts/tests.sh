@@ -165,11 +165,11 @@ main() {
     done
 
     # Tune
-    cmd="echo '$tune_params_json' > params.json && python $tune $tune_flags --tunefile params.json"
-    hermetic_file params.json "$cmd"
+    # cmd="echo '$tune_params_json' > params.json && python $tune $tune_flags --tunefile params.json"
+    # hermetic_file params.json "$cmd"
 
     instance="data/plotexp_hc:reward mean:x"
-    cmd="python $cmpc_plot \"$instance\" --outfile x.pdf --yaxis x --notex --xaxis xx --xrange 0 30"
+    cmd="python $cmpc_plot \"$instance\" --outfile x.pdf --yaxis x --notex --xaxis xx --xrange 0 45"
     hermetic_file "x.pdf" "$cmd"
 
     instance="data/plotexp_hc:reward mean:x"

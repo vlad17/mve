@@ -103,7 +103,9 @@ def train(config, status_reporter):
 
     def _report_hook(_, statistics):
         nonlocal ctr, historical_returns
-        result = np.mean(statistics['reward'])
+        if 'current policy reward mean' not in statistics:
+            return
+        result = np.mean(statistics['current policy reward mean'])
         if len(historical_returns) == smoothing:
             historical_returns.popleft()
         historical_returns.append(result)

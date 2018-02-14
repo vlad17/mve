@@ -54,15 +54,16 @@ def _train(args, venv, dyn_metrics, data, dyn_model, controller):
     paths = []
 
     while args.experiment.should_continue():
+        with timeit('sample controller'):
+            paths = sample_venv(venv, controller)
+            data.add_paths(paths)
+        reporter.advance(timesteps(paths), len(paths))
+
         with timeit('dynamics fit'):
             dyn_model.fit(data, timesteps(paths))
 
         with timeit('controller fit'):
             controller.fit(data, timesteps(paths))
-
-        with timeit('sample controller'):
-            paths = sample_venv(venv, controller)
-            data.add_paths(paths)
 
         with timeit('gathering statistics'):
             most_recent = Dataset.from_paths(paths)
@@ -70,8 +71,6 @@ def _train(args, venv, dyn_metrics, data, dyn_model, controller):
                 'reward', [path.rewards.sum() for path in paths])
             dyn_metrics.log(most_recent)
             controller.log(most_recent)
-
-        reporter.advance(timesteps(paths), len(paths))
 
         if args.experiment.should_render():
             with args.experiment.render_env() as render_env:

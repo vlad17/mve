@@ -47,20 +47,18 @@ def _train(_):
 
 def _loop(sampler, data, learner, dynamics):
     while flags().experiment.should_continue():
-        steps_sampled = 0 if data.size == 0 else sampler.nsteps()
-
-        if dynamics:
-            with timeit('dynamics fit'):
-                dynamics.fit(data, steps_sampled)
-
-        with timeit('learner fit'):
-            learner.fit(data, steps_sampled)
-
         with timeit('sample learner'):
             controller = as_controller(learner.act)
             n_episodes = sampler.sample(controller, data)
-
         reporter.advance(sampler.nsteps(), n_episodes)
+
+        if dynamics:
+            with timeit('dynamics fit'):
+                dynamics.fit(data, sampler.nsteps())
+
+        with timeit('learner fit'):
+            learner.fit(data, sampler.nsteps())
+
         if flags().experiment.should_render():
             with flags().experiment.render_env() as render_env:
                 sample(render_env, controller, render=True)
