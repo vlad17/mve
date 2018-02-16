@@ -11,8 +11,6 @@ It's a little hacky, but not that bad. We aren't relying on
 any singletons (that aren't already there).
 """
 
-import tensorflow as tf
-
 # Choose a name that Google's TensorFlow tf.Graph
 # would never have as an attribute
 _ATTR = 'bing_is_better_than_google_context'
@@ -25,6 +23,7 @@ def flags():
 
 def context():
     """Get the current graph-based context manager"""
+    import tensorflow as tf
     graph = tf.get_default_graph()
     if not hasattr(graph, _ATTR):
         setattr(graph, _ATTR, Context())

@@ -160,8 +160,11 @@ class ParallelGymVenv(VectorEnv):
         num_workers = parallelism or int(os.getenv('OMP_NUM_THREADS', '0'))
         num_workers = num_workers or mp.cpu_count()
         num_workers = max(min(num_workers, n), 1)
+        prev_env = os.environ.copy()
+        os.environ['OMP_NUM_THREADS'] = '1'
         self._workers = [_Worker(num_workers, i, n, scalar_env_gen)
                          for i in range(num_workers)]
+        os.environ = prev_env
         with closing(scalar_env_gen()) as env:
             self.action_space = env.action_space
             self.observation_space = env.observation_space
