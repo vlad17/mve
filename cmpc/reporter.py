@@ -15,7 +15,10 @@ from utils import create_tf_config, print_table
 
 @contextmanager
 def report_hook(hook):
-    """Add an additional reporting hook"""
+    """
+    Add an additional reporting hook
+    (called with None arguments at close).
+    """
     _hooks().append(hook)
     yield
     _hooks().pop()
@@ -232,3 +235,6 @@ class _Reporter:
     def close(self):
         """Close the internal file writer"""
         self._writer.close()
+
+        for hook in _hooks():
+            hook(None, None)

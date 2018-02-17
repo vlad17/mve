@@ -210,6 +210,7 @@ class ParallelGymVenv(VectorEnv):
             worker.close()
         for worker in self._workers:
             worker.close_finish()
+        self._workers = []
 
     def multi_step(self, acs_hna):
         h, m = acs_hna.shape[:2]

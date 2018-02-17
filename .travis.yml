@@ -5,10 +5,7 @@ python:
 - '3.5'
 before_install:
 - echo $mjkey_pass | gpg --passphrase-fd 0 mjkey.txt.gpg
-- travis_retry wget https://www.roboti.us/download/mjpro150_linux.zip
-- mkdir -p ~/.mujoco
-- unzip mjpro150_linux.zip -d ~/.mujoco
-- mv mjkey.txt ~/.mujoco
+- travis_retry ./scripts/install-mujoco.sh
 install:
 - export LD_LIBRARY_PATH=$HOME/.mujoco/mjpro150/bin
 - export LIBRARY_PATH=$HOME/.mujoco/mjpro150/bin
@@ -17,6 +14,8 @@ install:
 script:
 - "./scripts/lint.sh"
 - "./scripts/fake-display.sh ./scripts/tests.sh"
+after_script:
+- rm -rf $HOME/.mujoco
 env:
   global:
   - secure: sTOCBMAB9qmMg0N6OQRElzo71nO1Y5G6QEiO1i8Jk8v5Vlh3dZW+6f5LUwnnEeq0tGxJCWCVembL0QYBjA9byWUuOXdujo8zn6f7VLUQCMTmUyXBrUhPPopjSyNRtl1E1Jn23jSQD1GznNtvX11JB3QcqjAMAC4IRphoeKeR4OgAA86bf+1EjCpmTqEABtgtAk3GlsZCDZcEMpSEWrRLDANVoXEAJpbfgEtqoq6xGiTdclftZ0eDmNziYY3dY6WKmNxoUpeFxZTaenfZzMVEPk8V4gC18uPQGj31f+DaVyWTnWkEtGcqevLNSUsW2JqZ4k6nK9JPa3rirNIM2tS/eu6VAWhDneI+b5Y3cEST80QACSWlQZjhYW+Twb6gWpV7yhIdod2j50tGg87q4nWSlr0DxjCYr6gmPrA0I1hFqVv2g8BxX6zZXnbB4UoP2SqdruaL4QisTAs/+3stdUX6AiVAh8BY+RQMWGTNNMCJPRXQ+U5arIRRtYxNl7gEPtd3fhemxo9SYOIT0dIjxXLJSJaHbLsocgtM4yrWCOjVuMe57I1N258njbEKeCg5czh5a3cSnWLKDVHxaQ4DczyxvpMhZBXexrFs4HK5lTkPVkcd4lH4oUlv55Rs/xZGvkLyQotm6V52OBD8F7Tv12pcguHEuHlRzPfUoRYNUY5zKZY=

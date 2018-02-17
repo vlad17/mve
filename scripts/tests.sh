@@ -40,18 +40,20 @@ main() {
     function note_failure {
         relative="../cmpc"
         box "${cmd/$relative/cmpc}"
-        ray stop
         cd ..
         rm -rf _test
     }
     trap note_failure EXIT
 
-    tune_params_json='[{"smoothing": 3, "timesteps": 40, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 4, "learner_depth": 1, "learner_width": 10, "learner_batches_per_timestep": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_batches_per_timestep": 1, "evaluation_envs": 10}, {"smoothing": 3, "rs_learner": "ddpg", "horizon": 5, "simulated_paths": 2, "mpc_horizon": 3, "onpol_paths": 3, "onpol_iters": 5, "learner_depth": 1, "learner_width": 10, "learner_batches_per_timestep": 1, "dyn_depth": 1, "dyn_width": 8, "dynamics_batches_per_timestep": 1, "evaluation_envs": 10, "timesteps": 40}]'
-    tune_params_run="python ../cmpc/main_cmpc.py --verbose --rs_learner ddpg --horizon 5 --simulated_paths 2"
-    tune_params_run="$tune_params_run --mpc_horizon 3 --onpol_paths 3 --onpol_iters 4"
-    tune_params_run="$tune_params_run --learner_depth 1 --learner_width 10 --learner_batches_per_timestep 1"
-    tune_params_run="$tune_params_run --dyn_depth 1 --dyn_width 8 --dynamics_batches_per_timestep 1"
-    tune_params_run="$tune_params_run --evaluation_envs 10 --timesteps 40"
+    ray_yaml="
+    learner_depth:
+        grid_search: [1, 2]
+    learner_width: 8
+    learner_batches_per_timestep: 1
+    learner_batch_size: 4
+    evaluation_envs: 10
+    timesteps: 200
+    "
     
     if [ -d _test ] ; then
         rm -rf _test
@@ -59,14 +61,10 @@ main() {
     mkdir _test
     cd _test
 
-    ray start --head --num-gpus=1 --no-ui --node-ip-address 127.0.0.1 2>&1 | tee ray-init.txt
-    ray_addr="$(cat ray-init.txt | awk '/ray start --redis-address/ { print $4 }')"
-    rm ray-init.txt
-
     main_random="../cmpc/main_random_policy.py"
     main_cmpc="../cmpc/main_cmpc.py"
     main_ddpg="../cmpc/main_ddpg.py"
-    tune="../cmpc/tune.py"
+    tune="../cmpc/main_ray.py"
     cmpc_plot="../cmpc/plot.py"
     cmpc_plot_dyn="../cmpc/plot_dynamics.py"
     eval_q="../cmpc/main_evaluate_qval.py"
@@ -83,7 +81,6 @@ main() {
     ddpg_only_flags="--learner_depth 1 --learner_width 8 --learner_batches_per_timestep 1 "
     ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4 --evaluation_envs 10"
     ddpg_flags="$experiment_flags_no_ts $ddpg_only_flags --timesteps 200"
-    tune_flags="--ray_addr $ray_addr"
 
     cmds=()
     # Random
@@ -156,8 +153,6 @@ main() {
     eval_q_flags="$eval_q_flags --lims -1 1 -1 1 --title hello --episodes 1 --horizon 15"
     cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags")
     cmds+=("python $main_cmpc $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
-    # Make sure the ray command isn't itself buggy
-    cmds+=("$tune_params_run")
     for cmd in "${cmds[@]}"; do
         relative="../cmpc"
         box "${cmd/$relative/cmpc}"
@@ -165,8 +160,8 @@ main() {
     done
 
     # Tune
-    # cmd="echo '$tune_params_json' > params.json && python $tune $tune_flags --tunefile params.json"
-    # hermetic_file params.json "$cmd"
+    cmd="echo '$ray_yaml' > params.yaml && python $tune --experiment_name testray --tasks_per_machine 2 --config params.yaml --self_host"
+    hermetic_file params.yaml "$cmd"
 
     instance="data/plotexp_hc:reward mean:x"
     cmd="python $cmpc_plot \"$instance\" --outfile x.pdf --yaxis x --notex --xaxis xx --xrange 0 45"
@@ -187,7 +182,6 @@ main() {
 
     cd ..
     rm -rf _test
-    ray stop
     trap '' EXIT
 }
 

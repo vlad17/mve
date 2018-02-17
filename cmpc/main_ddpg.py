@@ -22,7 +22,10 @@ from sample import sample, Sampler
 from utils import timeit, as_controller, make_session_as_default
 
 
-def _train(_):
+def train(_):
+    """
+    Runs the DDPG + MVE training procedure, reading from the global flags.
+    """
     with closing(env_info.make_env()) as env:
         sampler = Sampler(env)
         data = Dataset.from_env(env, flags().experiment.horizon,
@@ -66,8 +69,9 @@ def _loop(sampler, data, learner, dynamics):
             tfnode.save_all(reporter.timestep())
 
 
+ALL_DDPG_FLAGS = [ExperimentFlags(), PersistableDatasetFlags(),
+                  DDPGFlags(), DynamicsFlags(), DynamicsMetricsFlags()]
+
 if __name__ == "__main__":
-    _flags = [ExperimentFlags(), PersistableDatasetFlags(),
-              DDPGFlags(), DynamicsFlags(), DynamicsMetricsFlags()]
-    _args = parse_args(_flags)
-    experiment_main(_args, _train)
+    _args = parse_args(ALL_DDPG_FLAGS)
+    experiment_main(_args, train)

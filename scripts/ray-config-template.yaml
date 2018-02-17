@@ -1,0 +1,59 @@
+cluster_name: <<<CLUSTER>>>
+
+min_workers: 0
+max_workers: <<<MAX_WORKERS>>>
+target_utilization_fraction: 1.0
+idle_timeout_minutes: 5
+
+provider:
+    type: aws
+    region: us-west-2
+    availability_zone: us-west-2a
+
+auth:
+    ssh_user: ubuntu
+
+head_node:
+    InstanceType: <<<AWS_MACHINE_TYPE>>>
+    ImageId: ami-3b6bce43  # Amazon Deep Learning AMI (Ubuntu)
+
+worker_nodes:
+    InstanceType: <<<AWS_MACHINE_TYPE>>>
+    ImageId: ami-3b6bce43  # Amazon Deep Learning AMI (Ubuntu)
+    # Run workers on spot by default. Comment this out to use on-demand.
+    InstanceMarketOptions:
+        MarketType: spot
+
+file_mounts: {
+    "/tmp/mjkey.txt": "<<<HOME>>>/.mujoco/mjkey.txt",
+    "/tmp/aws-remote": "<<<HOME>>>/.ssh/aws-remote",
+    "/tmp/aws-remote.pub": "<<<HOME>>>/.ssh/aws-remote.pub",
+    "/tmp/.tmux.conf": "<<<HOME>>>/.tmux.conf",
+}
+
+setup_commands:
+    - cp /tmp/.tmux.conf $HOME
+    - mkdir -p $HOME/.ssh
+    - cp /tmp/aws-remote /tmp/aws-remote.pub $HOME/.ssh/
+    - test -e cmpc || GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote -o StrictHostKeyChecking=no' git clone git@github.com:vlad17/cmpc.git
+    - cd cmpc && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git fetch && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git reset --hard && cd ..
+    - cd cmpc && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git checkout <<<HEAD_SHA>>> && cd ..
+    - cp /tmp/mjkey.txt . && cmpc/scripts/install-mujoco.sh
+    - sed -i 's/tensorflow.*//' cmpc/requirements.txt
+    - source activate tensorflow_p36 && cd cmpc && sudo rm /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock && grep -v exit ./scripts/ubuntu-install.sh | grep -v "sudo apt-get install -f" | LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" bash && cd ..
+    - source activate tensorflow_p36 && LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" python -c "import gym2"
+    - cd cmpc && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git reset --hard && cd ..
+    - sudo apt-get install -y tmux
+
+head_setup_commands:
+    - pip install boto3==1.4.8  # 1.4.8 adds InstanceMarketOptions
+
+worker_setup_commands: []
+
+head_start_ray_commands:
+    - source activate tensorflow_p36 && ray stop
+    - source activate tensorflow_p36 && LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" ray start --head --redis-port=6379 --autoscaling-config=~/ray_bootstrap_config.yaml --num-gpus <<<TASKS_PER_MACHINE>>>
+
+worker_start_ray_commands:
+    - source activate tensorflow_p36 && ray stop
+    - source activate tensorflow_p36 && LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" ray start --redis-address=$RAY_HEAD_IP:6379 --num-gpus <<<TASKS_PER_MACHINE>>>
