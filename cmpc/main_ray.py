@@ -111,8 +111,6 @@ def ray_train(config, status_reporter):
 
     Note that config should also have a ray_num_gpus argument (not related to
     flags, but related to launching with the appropriate gpus)
-
-    This sets the experiment name as a concatenation of the flags.
     """
     # Make sure we only ever use our assigned GPU:
     # per https://ray.readthedocs.io/en/latest/using-ray-with-gpus.html
@@ -124,10 +122,7 @@ def ray_train(config, status_reporter):
     gpu_ids = [str(gpuid % num_gpus) for gpuid in ray.get_gpu_ids()]
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(gpu_ids)
 
-    assert 'exp_name' not in config, 'exp_name in config'
-
     args = []
-    names = []
     for k, v in config.items():
         args.append('--' + k)
         if v is not None:
@@ -135,12 +130,6 @@ def ray_train(config, status_reporter):
                 args.append(v)
             else:
                 args.append(repr(v))
-            names.append((k, k + '=' + args[-1]))
-        else:
-            names.append((k, k))
-    sorted_names = [name for _, name in sorted(names)]
-    exp_name = '-'.join(sorted_names)
-    args += ['--exp_name', exp_name]
 
     flags = ALL_DDPG_FLAGS
     parsed_flags = parse_args(flags, args)
@@ -183,9 +172,6 @@ def _main(args):
 
     with open(args.tune.config) as f:
         config = yaml.load(f)
-    assert 'exp_name' not in config, (
-        'config should not contain exp_name. config:\n{}'.format(
-            config))
 
     config['ray_num_gpus'] = args.tune.tasks_per_machine
 

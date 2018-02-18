@@ -50,11 +50,12 @@ main() {
         grid_search: [1, 2]
     learner_width: 8
     learner_batches_per_timestep: 1
+    exp_name: {\\\"eval\\\": \\\"'learner_depth{}'.format(spec.config.learner_depth)\\\"}
     learner_batch_size: 4
     evaluation_envs: 10
     timesteps: 200
     "
-    
+
     if [ -d _test ] ; then
         rm -rf _test
     fi
@@ -161,7 +162,7 @@ main() {
     done
 
     # Tune
-    cmd="echo '$ray_yaml' > params.yaml && python $tune --experiment_name testray --tasks_per_machine 2 --config params.yaml --self_host"
+    cmd="echo \"$ray_yaml\" > params.yaml && python $tune --experiment_name testray --tasks_per_machine 2 --config params.yaml --self_host"
     hermetic_file params.yaml "$cmd"
 
     instance="data/plotexp_hc:reward mean:x"

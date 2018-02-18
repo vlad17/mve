@@ -65,5 +65,14 @@ SSH_CMD=$(tail -2 $OUTFILE)
 SSHFILE="$HOME/ray-clusters/$CLUSTER.ssh"
 echo "$SSH_CMD" > $SSHFILE
 
+KEY=$(cat $SSHFILE  | cut -d" " -f4-5)
+TARGET=$(cat $SSHFILE  | cut -d" " -f6-6)
+SCPFILE="$HOME/ray-clusters/$CLUSTER.scp"
+echo '#!/bin/bash
+
+scp '"$KEY"' "$1" '"${TARGET}"':"$2"' > $SCPFILE
+
+chmod +x $SCPFILE $SSHFILE
+
 echo "cluster launched - ssh cmd in $SSHFILE"
 
