@@ -51,12 +51,9 @@ All scripts are available in `scripts/`, and should be run from the repo root.
 | `lint.sh` | invokes `pylint` with the appropriate flags for this repo |
 | `ubuntu-install.sh` | installs all deps except MuJoCo/python on Ubuntu 14.04 or Ubuntu 16.04 |
 | `tests.sh` | runs tests |
-| `mkparams.py` | generate parameters for grid search |
 | `fake-display.sh` | create a dummy X11 display (to render on a server) |
-
-## Recreating the Report
-
-The report and all scripts related to its creation in `report/` are currently out-dated with respect to the current code. They correspond to a report written up when the code base was at commit `cda6b4de42d`.
+| `launch-ray-aws.sh` | launch an AWS ray cluster at the current branch |
+| `teardown-ray-aws.sh` | tear down a cluster |
 
 ## Adding MuJoCo key to CI securely
 
@@ -69,3 +66,9 @@ Just use the [manual encryption instructions](https://docs.travis-ci.com/user/en
 3. Make it accessible through `cmpc/env_info.py`'s `_env_class` function.
 
 Make sure to test that your environment works and amend the tests in `scripts/tests.sh`.
+
+## Outdated things
+
+The report and all scripts related to its creation in `report/` are currently out-dated with respect to the current code. They correspond to a report written up when the code base was at commit `cda6b4de42d`.
+
+The poster in `poster/` is also out-of-date.
