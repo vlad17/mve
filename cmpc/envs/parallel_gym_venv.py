@@ -149,16 +149,10 @@ class ParallelGymVenv(VectorEnv):
     Multiprocessing-based parallel vectorized environment. On each
     child process, uses venv_generator(m) as the vectorized child
     environment.
-
-    Default parallelism determined in this order:
-    * parallelism argument
-    * OMP_NUM_THREADS env variable
-    * number of CPUs on system
     """
 
     def __init__(self, n, scalar_env_gen, parallelism=None):
-        num_workers = parallelism or int(os.getenv('OMP_NUM_THREADS', '0'))
-        num_workers = num_workers or mp.cpu_count()
+        num_workers = min(parallelism, mp.cpu_count())
         num_workers = max(min(num_workers, n), 1)
         prev_env = os.environ.copy()
         os.environ['OMP_NUM_THREADS'] = '1'

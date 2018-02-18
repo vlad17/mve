@@ -99,6 +99,12 @@ class ExperimentFlags(Flags):
             default=1000000,
             type=int,
             help='approximate number of timesteps to collect')
+        yield ArgSpec(
+            name='env_parallelism',
+            default=8,
+            type=int,
+            help='maximum parallelism to be used in simultaneous environment '
+            'evaluation: this is already minimized with the cpu count')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',

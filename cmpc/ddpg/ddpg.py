@@ -350,7 +350,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         self._optimize = tf.group(update_targets, conditional_update)
         self._actor = actor
         self._critic = critic
-        self._venv = env_info.make_venv(10)
+        self._venv = env_info.make_venv(16)
 
         # Sloppily shoving imaginary data for training in here as well.
         # TODO: move this to a separate file (along with lots of other stuff

@@ -87,7 +87,7 @@ class RandomShooter(Controller):
         self._mpc_horizon = mpc_horizon
 
         self._learner = learner
-        self._learner_test_env = env_info.make_venv(10)
+        self._learner_test_env = env_info.make_venv(16)
 
     def _act(self, states):
         nstates = len(states)

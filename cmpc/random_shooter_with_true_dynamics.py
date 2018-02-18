@@ -32,7 +32,7 @@ class RandomShooterWithTrueDynamics(Controller):
         self._mpc_horizon = mpc_horizon
 
         self._learner = learner
-        self._learner_test_env = env_info.make_venv(10)
+        self._learner_test_env = env_info.make_venv(16)
 
     def act(self, states_ns):
         """Play forward using mpc_horizon steps in the actual OpenAI gym

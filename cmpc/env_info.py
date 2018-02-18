@@ -4,11 +4,11 @@ that need to be passed around everywhere but are instead maintained in
 this single metadata class.
 """
 
+import os
 import weakref
 
 from contextlib import contextmanager, closing
 from gym.core import RewardWrapper
-import gym2
 import hashlib
 import numpy as np
 
@@ -51,6 +51,7 @@ def _env_class():
     elif env_name == 'walker2d':
         return envs.FullyObservableWalker2d
     elif env_name == 'hc2':
+        import gym2
         return gym2.FullyObservableHalfCheetah
     elif env_name == 'pusher':
         return envs.FullyObservablePusher
@@ -60,6 +61,9 @@ def _env_class():
         return envs.FullyObservableSwimmer
     elif env_name == 'acrobot':
         import envs.acrobot as acrobot  # see note in envs.__init__
+        if 'OMP_NUM_THREADS' not in os.environ:
+            os.environ['OMP_NUM_THREADS'] = str(
+                context().flags.experiment.env_parallelism)
         return acrobot.ContinuousAcrobot
     else:
         raise ValueError('env {} unsupported'.format(env_name))
@@ -96,12 +100,20 @@ def make_venv(n):
     Same as make_env, but returns a vectorized version of the env.
     """
     if context().flags.experiment.env_name == 'hc2':
-        venv = gym2.VectorMJCEnv(n, _env_class())
+        import gym2
+        venv = gym2.VectorMJCEnv(
+            n, _env_class(),
+            max_threads=context().flags.experiment.env_parallelism)
     elif context().flags.experiment.env_name == 'acrobot':
         import envs.acrobot as acrobot  # see note in envs.__init__
+        if 'OMP_NUM_THREADS' not in os.environ:
+            os.environ['OMP_NUM_THREADS'] = str(
+                context().flags.experiment.env_parallelism)
         venv = acrobot.VectorizedContinuousAcrobot(n)
     else:
-        venv = envs.ParallelGymVenv(n, _env_class())
+        venv = envs.ParallelGymVenv(
+            n, _env_class(),
+            parallelism=context().flags.experiment.env_parallelism)
     venv.seed(_next_seeds(n))
     context().env_info.add_env(venv)
     return _RewardScalingWrapper(venv)
