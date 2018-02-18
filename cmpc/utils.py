@@ -241,6 +241,14 @@ class AssignableStatistic:
                 self._mean_ph: mean,
                 self._std_ph: std})
 
+    def mean(self):
+        """Returns current mean"""
+        return tf.get_default_session().run(self._mean_var)
+
+    def std(self):
+        """Returns current std"""
+        return tf.get_default_session().run(self._std_var)
+
     def tf_normalize(self, x):
         """Normalize a value according to these statistics"""
         return (x - self._mean_var) / (self._std_var)

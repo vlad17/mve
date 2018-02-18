@@ -81,6 +81,8 @@ def _next_seeds(n):
         digest = hashlib.sha224(state.tobytes()).digest()
         seed = np.frombuffer(digest, dtype=np.uint32)[0]
         seeds.append(int(seed))
+        if seeds[-1] is None:
+            seeds[-1] = int(state.sum())
     return seeds
 
 

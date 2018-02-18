@@ -5,6 +5,7 @@ import numpy as np
 
 from context import flags
 from flags import Flags, ArgSpec
+import reporter
 from tfnode import TFNode
 from utils import build_mlp, get_ob_dim, get_ac_dim, AssignableStatistic
 
@@ -120,6 +121,24 @@ class _DeltaNormalizer:
             stats.mean_delta, stats.std_delta)
         self._ac_tf_stats.update_statistics(stats.mean_ac, stats.std_ac)
 
+    def log_stats(self):
+        """report normalization statistics"""
+        stats = [
+            (self._ob_tf_stats, 'observations'),
+            (self._ac_tf_stats, 'actions'),
+            (self._delta_tf_stats, 'deltas')]
+
+        prefix = 'dynamics statistics/'
+        for stat, name in stats:
+            reporter.add_summary_statistics(
+                prefix + name + '/mean magnitude',
+                np.absolute(stat.mean()),
+                hide=True)
+            reporter.add_summary_statistics(
+                prefix + name + '/std',
+                stat.std(),
+                hide=True)
+
 
 class NNDynamicsModel(TFNode):
     """Stationary neural-network-based dynamics model."""
@@ -164,6 +183,7 @@ class NNDynamicsModel(TFNode):
         if data.size < flags().dynamics.dyn_min_buf_size:
             return
         self._norm.update_stats(data)
+        self._norm.log_stats()
 
         # I actually tried out the tf.contrib.train.Dataset API, and
         # it was *slower* than this feed_dict method. I figure that the
