@@ -4,6 +4,7 @@ and the general experimental procedure.
 """
 
 from contextlib import contextmanager, closing
+import distutils.util
 import json
 import os
 import shutil
@@ -48,7 +49,7 @@ class ExperimentFlags(Flags):
             help='seeds for each trial')
         yield ArgSpec(
             name='verbose',
-            action='store_true',
+            type=distutils.util.strtobool,
             help='print debugging statements')
         yield ArgSpec(
             name='env_name',

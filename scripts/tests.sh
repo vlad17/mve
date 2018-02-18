@@ -69,7 +69,7 @@ main() {
     cmpc_plot_dyn="../cmpc/plot_dynamics.py"
     eval_q="../cmpc/main_evaluate_qval.py"
 
-    experiment_flags_no_ts="--exp_name basic_tests --verbose --horizon 5"
+    experiment_flags_no_ts="--exp_name basic_tests --verbose true --horizon 5"
     experiment_flags="$experiment_flags_no_ts --timesteps 40"
     random_flags="$experiment_flags --num_paths 8"
     dynamics_flags="--dynamics_batches_per_timestep 1 --dyn_depth 1 --dyn_width 8"
@@ -98,13 +98,13 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4")
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2")
     cmds+=("python $main_ddpg $ddpg_flags --env_name acrobot")
-    cmds+=("python $main_ddpg $ddpg_flags --drop_tdk")
-    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --q_target_mixture")
-    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture $dynamics_flags")
-    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture $dynamics_flags --dyn_bn true")
-    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture")
+    cmds+=("python $main_ddpg $ddpg_flags --drop_tdk true")
+    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --q_target_mixture true")
+    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture true $dynamics_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture true $dynamics_flags --dyn_bn true")
+    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture true")
     cmds+=("python $main_ddpg $ddpg_flags --ddpg_update_every 200")
-    mix_all="--mixture_estimator oracle --q_target_mixture --actor_critic_mixture"
+    mix_all="--mixture_estimator oracle --q_target_mixture true --actor_critic_mixture true"
     cmds+=("python $main_ddpg $ddpg_flags $mix_all")
     cmds+=("python $main_ddpg $ddpg_flags --ddpg_min_buf_size 200")
     # CMPC

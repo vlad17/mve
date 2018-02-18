@@ -2,6 +2,8 @@
 A learner which uses DDPG: an off-policy RL algorithm based on
 policy-gradients.
 """
+import distutils.util
+
 from context import flags
 from flags import Flags, ArgSpec
 from learner import Learner
@@ -101,13 +103,13 @@ class DDPGFlags(Flags):
             ArgSpec(
                 name='q_target_mixture',
                 default=False,
-                action='store_true',
+                type=distutils.util.strtobool,
                 help='Use the mixture estimator instead of the target critic '
                 '(or, more precisely, on top of the target critic)'),
             ArgSpec(
                 name='actor_critic_mixture',
                 default=False,
-                action='store_true',
+                type=distutils.util.strtobool,
                 help='Use the mixture estimator instead of the critic '
                 'which ddpg uses to maximize its policy with'),
             ArgSpec(
@@ -129,7 +131,7 @@ class DDPGFlags(Flags):
             ArgSpec(
                 name='drop_tdk',
                 default=False,
-                action='store_true',
+                type=distutils.util.strtobool,
                 help='By default model-based value expansion corrects for '
                 'off-distribution error with the TD-k trick. This disables '
                 'use of the trick for diagnostics training'),
