@@ -2,6 +2,7 @@
 disable=logging-format-interpolation,too-many-arguments,invalid-name,no-member,too-many-locals,too-many-statements,too-few-public-methods,not-context-manager,redefined-variable-type,wrong-import-order
 max-line-length=79
 max-attributes=15
+ignored-modules=distutils
 
 [BASIC]
 good-names=i,j,k,x,y,xs,ys,t,ac,ob,acs,obs,p

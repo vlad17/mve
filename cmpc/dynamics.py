@@ -1,5 +1,7 @@
 """Learn the (stationary) dynamics from transitions"""
 
+import distutils.util
+
 import tensorflow as tf
 import numpy as np
 
@@ -55,6 +57,11 @@ class DynamicsFlags(Flags):
             type=int,
             help='Minimum number of frames in replay buffer before '
                  'training')
+        yield ArgSpec(
+            name='dyn_bn',
+            default=False,
+            type=distutils.util.strtobool,
+            help='Add batch norm to the dynamics net')
 
     def __init__(self):
         super().__init__('dynamics', 'learned dynamics',
@@ -155,21 +162,28 @@ class NNDynamicsModel(TFNode):
 
         with tf.variable_scope('dynamics'):
             self._norm = _DeltaNormalizer(norm_data)
+        # only used if dyn_bn is set to true
+        self._bn_training = tf.placeholder_with_default(
+            False, [], 'dynamics_bn_training_mode')
         self._mlp_kwargs = {
             'output_size': ob_dim,
             'scope': 'dynamics',
             'reuse': tf.AUTO_REUSE,
             'n_layers': dyn_flags.dyn_depth,
             'size': dyn_flags.dyn_width,
-            'activation': tf.nn.relu}
+            'activation': tf.nn.relu,
+            'activation_norm': self._activation_norm}
+
         _, deltas_ns = self._predict_tf(
             self._input_state_ph_ns, self._input_action_ph_na)
         true_deltas_ns = self._norm.norm_delta(
             self._next_state_ph_ns - self._input_state_ph_ns)
         train_mse = tf.losses.mean_squared_error(
             true_deltas_ns, deltas_ns)
-        self._update_op = tf.train.AdamOptimizer(
-            dyn_flags.dyn_learning_rate).minimize(train_mse)
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            self._update_op = tf.train.AdamOptimizer(
+                dyn_flags.dyn_learning_rate).minimize(train_mse)
 
         super().__init__('dynamics', dyn_flags.restore_dynamics)
 
@@ -198,6 +212,7 @@ class NNDynamicsModel(TFNode):
                 self._input_state_ph_ns: obs,
                 self._input_action_ph_na: acs,
                 self._next_state_ph_ns: next_obs,
+                self._bn_training: True
             })
 
     def _predict_tf(self, states, actions):
@@ -219,3 +234,9 @@ class NNDynamicsModel(TFNode):
         Outputs corresponding predicted next state as a TF tensor.
         """
         return self._predict_tf(states, actions)[0]
+
+    def _activation_norm(self, inputs):
+        if flags().dynamics.dyn_bn:
+            return tf.layers.batch_normalization(
+                inputs, training=self._bn_training)
+        return inputs
