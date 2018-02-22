@@ -92,6 +92,8 @@ main() {
     cmds+=("python $main_cmpc $rs_mpc_flags --render_every 1")
     cmds+=("python $main_cmpc $rs_mpc_flags --evaluation_envs 2")
     cmds+=("python $main_cmpc $rs_mpc_flags --discount 0.9")
+    cmds+=("python $main_cmpc $rs_mpc_flags --dyn_dropout 0.5")
+    cmds+=("python $main_cmpc $rs_mpc_flags --dyn_l2_reg 0.1")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags")
     cmds+=("python $main_ddpg $ddpg_flags --imaginary_buffer 1.0")
@@ -162,7 +164,7 @@ main() {
     done
 
     # Tune
-    cmd="echo \"$ray_yaml\" > params.yaml && python $tune --experiment_name testray --tasks_per_machine 2 --config params.yaml --self_host"
+    cmd="echo \"$ray_yaml\" > params.yaml && python $tune --experiment_name testray --config params.yaml --self_host"
     hermetic_file params.yaml "$cmd"
 
     instance="data/plotexp_hc:reward mean:x"

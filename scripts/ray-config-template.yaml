@@ -2,7 +2,7 @@ cluster_name: <<<CLUSTER>>>
 
 min_workers: 0
 max_workers: <<<MAX_WORKERS>>>
-target_utilization_fraction: 1.0
+target_utilization_fraction: 0.8
 idle_timeout_minutes: 5
 
 provider:
@@ -32,6 +32,9 @@ file_mounts: {
 }
 
 setup_commands:
+    - sudo pkill -9 apt-get || true
+    - sudo pkill -9 dpkg || true
+    - sudo dpkg --configure -a || true
     - cp /tmp/.tmux.conf $HOME
     - mkdir -p $HOME/.ssh
     - cp /tmp/aws-remote /tmp/aws-remote.pub $HOME/.ssh/
@@ -40,7 +43,7 @@ setup_commands:
     - cd cmpc && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git checkout <<<HEAD_SHA>>> && cd ..
     - cp /tmp/mjkey.txt . && cmpc/scripts/install-mujoco.sh
     - grep -v tensorflow cmpc/requirements.txt > r2 && mv r2 cmpc/requirements.txt
-    - source activate tensorflow_p36 && cd cmpc && sudo rm /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock && grep -v exit ./scripts/ubuntu-install.sh | grep -v "sudo apt-get install -f" | LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" bash && cd ..
+    - source activate tensorflow_p36 && cd cmpc && grep -v exit ./scripts/ubuntu-install.sh | grep -v "sudo apt-get install -f" | LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" bash && cd ..
     - source activate tensorflow_p36 && LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" python -c "import gym2"
     - cd cmpc && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git reset --hard && cd ..
     - sudo apt-get install -y tmux

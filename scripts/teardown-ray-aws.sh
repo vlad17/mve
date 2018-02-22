@@ -26,3 +26,5 @@ yes | ray teardown "$CLUSTER_FILE" || true
 
 rm -f "$CLUSTER_FILE"
 rm -f "$HOME/ray-clusters/${CLUSTER_NAME}.ssh"
+rm -f "$HOME/ray-clusters/${CLUSTER_NAME}.scp"
+rm -f "$HOME/ray-clusters/${CLUSTER_NAME}.tunnel"

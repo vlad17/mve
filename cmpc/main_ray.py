@@ -10,6 +10,8 @@ tasks allowed on that machine.
 """
 
 import os
+import subprocess
+import sys
 import yaml
 
 import boto3
@@ -22,6 +24,18 @@ from flags import (ArgSpec, Flags, parse_args)
 from main_ddpg import train as ddpg_train
 from main_ddpg import ALL_DDPG_FLAGS
 import reporter
+
+
+def ngpus():
+    """Return number of gpus on current machine"""
+    # Do this in a subprocess to avoid creating a session here.
+    cmd = 'from tensorflow.python.client import device_lib;'
+    cmd += 'local_device_protos = device_lib.list_local_devices();'
+    cmd += """print(sum(device.device_type == 'GPU' for device """
+    cmd += """in local_device_protos))"""
+    out = subprocess.check_output(
+        [sys.executable, '-c', cmd], stderr=subprocess.DEVNULL)
+    return int(out.strip())
 
 
 class TuneFlags(Flags):
@@ -49,11 +63,6 @@ class TuneFlags(Flags):
             default=None,
             help='s3 bucket to upload runs to; e.g., '
             'vlad-deeplearn. Use None to not upload.')
-        yield ArgSpec(
-            name='tasks_per_machine',
-            type=int,
-            default=1,
-            help='number of tasks per machine')
         yield ArgSpec(
             name='config',
             type=str,
@@ -116,9 +125,7 @@ def ray_train(config, status_reporter):
     # per https://ray.readthedocs.io/en/latest/using-ray-with-gpus.html
     # Use the trick described here to shard GPUs:
     # https://github.com/ray-project/ray/issues/402
-    config = config.copy()
-    num_gpus = config['ray_num_gpus']
-    del config['ray_num_gpus']
+    num_gpus = max(ngpus(), 1)
     gpu_ids = [str(gpuid % num_gpus) for gpuid in ray.get_gpu_ids()]
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(gpu_ids)
 
@@ -163,7 +170,7 @@ def _main(args):
     _verify_s3_newdir(args.tune.s3, args.tune.experiment_name)
 
     if args.tune.self_host:
-        ray.init(num_gpus=args.tune.tasks_per_machine)
+        ray.init(num_gpus=max(ngpus(), 1))
     else:
         ip = ray.services.get_node_ip_address()
         ray.init(redis_address=(ip + ':6379'))
@@ -172,8 +179,6 @@ def _main(args):
 
     with open(args.tune.config) as f:
         config = yaml.load(f)
-
-    config['ray_num_gpus'] = args.tune.tasks_per_machine
 
     experiment_setting = {
         'run': 'ray_train',

@@ -72,7 +72,12 @@ echo '#!/bin/bash
 
 scp '"$KEY"' "$1" '"${TARGET}"':"$2"' > $SCPFILE
 
-chmod +x $SCPFILE $SSHFILE
+TUNNELFILE="$HOME/ray-clusters/$CLUSTER.tunnel"
+echo '#!/bin/bash
+
+ssh '"$KEY"' "-L$1:localhost:6006" '"${TARGET}"' -fN' > $TUNNELFILE
+
+chmod +x $SCPFILE $SSHFILE $TUNNELFILE
 
 echo "cluster launched - ssh cmd in $SSHFILE"
 
