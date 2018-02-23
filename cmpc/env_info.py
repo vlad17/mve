@@ -61,9 +61,8 @@ def _env_class():
         return envs.FullyObservableSwimmer
     elif env_name == 'acrobot':
         import envs.acrobot as acrobot  # see note in envs.__init__
-        if 'OMP_NUM_THREADS' not in os.environ:
-            os.environ['OMP_NUM_THREADS'] = str(
-                context().flags.experiment.env_parallelism)
+        os.environ['OMP_NUM_THREADS'] = str(
+            context().flags.experiment.env_parallelism)
         return acrobot.ContinuousAcrobot
     else:
         raise ValueError('env {} unsupported'.format(env_name))
@@ -108,9 +107,8 @@ def make_venv(n):
             max_threads=context().flags.experiment.env_parallelism)
     elif context().flags.experiment.env_name == 'acrobot':
         import envs.acrobot as acrobot  # see note in envs.__init__
-        if 'OMP_NUM_THREADS' not in os.environ:
-            os.environ['OMP_NUM_THREADS'] = str(
-                context().flags.experiment.env_parallelism)
+        os.environ['OMP_NUM_THREADS'] = str(
+            context().flags.experiment.env_parallelism)
         venv = acrobot.VectorizedContinuousAcrobot(n)
     else:
         venv = envs.ParallelGymVenv(

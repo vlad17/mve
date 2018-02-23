@@ -55,6 +55,15 @@ All scripts are available in `scripts/`, and should be run from the repo root.
 | `launch-ray-aws.sh` | launch an AWS ray cluster at the current branch |
 | `teardown-ray-aws.sh` | tear down a cluster |
 
+## Parallelism
+
+Multiple components of this code run in parallel.
+
+* Evaluation on environments is parallelized by multiple processes or threads (which one depends on the environment), and uses `--env_parallelism` workers. I have found that peak performance is reached when there is some batching; i.e., the number of workers is less than half the number of environments used for evaluation (default 8).
+* If running on CPUs, TensorFlow internal thread pool parallelism (for each of intra-operation and inter-operation thread pools) is set by the value of `--tf_parallelism` (default `nproc`).
+* If running on GPUs, then TensorFlow GPU count used is automatically set to those GPUs specified by the environment variable `CUDA_VISIBLE_DEVICES`, which if left empty uses the first GPU available on the machine. There is currently no support for actually using multiple GPUs in a single experiment.
+* The `OMP_NUM_THREADS` is overriden; there's no need to set it.
+
 ## Adding MuJoCo key to CI securely
 
 Just use the [manual encryption instructions](https://docs.travis-ci.com/user/encrypting-files/#Manual-Encryption) here. `.travis.yml` is already configured to securely unencrypt mjkey.txt.gpg.

@@ -33,8 +33,16 @@ def ngpus():
     cmd += 'local_device_protos = device_lib.list_local_devices();'
     cmd += """print(sum(device.device_type == 'GPU' for device """
     cmd += """in local_device_protos))"""
-    out = subprocess.check_output(
-        [sys.executable, '-c', cmd], stderr=subprocess.DEVNULL)
+    prev_env_devices = None
+    if 'CUDA_VISIBLE_DEVICES' in os.environ:
+        prev_env_devices = os.environ['CUDA_VISIBLE_DEVICES']
+        del os.environ['CUDA_VISIBLE_DEVICES']
+    try:
+        out = subprocess.check_output(
+            [sys.executable, '-c', cmd], stderr=subprocess.DEVNULL)
+    finally:
+        if prev_env_devices:
+            os.environ['CUDA_VISIBLE_DEVICES'] = prev_env_devices
     return int(out.strip())
 
 

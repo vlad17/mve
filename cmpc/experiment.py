@@ -106,6 +106,11 @@ class ExperimentFlags(Flags):
             type=int,
             help='maximum parallelism to be used in simultaneous environment '
             'evaluation: this is already minimized with the cpu count')
+        yield ArgSpec(
+            name='tf_parallelism',
+            default=None,
+            type=int,
+            help='maximum number of CPUs to be used by TF exec thread pools')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',

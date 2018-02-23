@@ -107,7 +107,7 @@ class _Summarize:
         _Summarize._graph = tf.Graph()
         with _Summarize._graph.as_default():
             _Summarize._live_session = tf.Session(
-                config=create_tf_config(gpu=False))
+                config=create_tf_config(gpu=False, lightweight=True))
             _Summarize._hist_ph = tf.placeholder(tf.float32)
             _Summarize._hist_op = tf.summary.histogram(
                 'hist', _Summarize._hist_ph)

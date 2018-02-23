@@ -18,12 +18,25 @@ from controller import Controller
 import log
 
 
-def create_tf_config(gpu=True):
-    """Create a TF session config that doesn't eat all GPU memory."""
-    if gpu:
-        config = tf.ConfigProto()
-    else:
-        config = tf.ConfigProto(device_count={'GPU': 0})
+def create_tf_config(gpu=True, lightweight=False):
+    """
+    Create a TF session config that doesn't eat all GPU memory
+
+    A lightweight TF config says to only use one CPU and one thread
+    """
+    kwargs = {}
+    if not gpu:
+        kwargs['device_count'] = {'GPU': 0}
+    if lightweight:
+        kwargs.setdefault('device_count', {})['CPU'] = 1
+        kwargs['inter_op_parallelism_threads'] = 1
+        kwargs['intra_op_parallelism_threads'] = 1
+    elif flags().experiment.tf_parallelism:
+        par = flags().experiment.tf_parallelism
+        kwargs.setdefault('device_count', {})['CPU'] = par
+        kwargs['inter_op_parallelism_threads'] = par
+        kwargs['intra_op_parallelism_threads'] = par
+    config = tf.ConfigProto(**kwargs)
     config.gpu_options.allow_growth = True
     opt_opts = config.graph_options.optimizer_options
     opt_opts.global_jit_level = tf.OptimizerOptions.ON_1
