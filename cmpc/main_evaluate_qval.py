@@ -25,7 +25,7 @@ def _evaluate(_):
     if not flags().evaluation.notex:
         activate_tex()
 
-    sns.set(font_scale=1.5)
+    sns.set(font_scale=2.5)
 
     neps = flags().evaluation.episodes
     venv = env_info.make_venv(neps)
