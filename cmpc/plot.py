@@ -49,12 +49,15 @@ from tensorflow.python.framework.errors_impl import DataLossError  # pylint: dis
 import seaborn as sns
 
 
-def savefig(outfile, legend=True):
+def savefig(outfile, legend=True, legendpos='center left'):
     """
     Save the figure as a pdf to the given file.
     """
     if legend:
-        plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2)
+        kwargs = {}
+        if 'upper' in legendpos:  # hacky... derp
+            kwargs = {'borderaxespad': 0., 'ncol': 6}
+        plt.legend(bbox_to_anchor=(1.05, 1.25), loc=legendpos, **kwargs)
     plt.savefig(outfile, format='pdf', bbox_inches='tight')
     plt.clf()
 
@@ -64,21 +67,26 @@ def activate_tex():
     matplotlib.rcParams['text.usetex'] = True
 
 
-def plot_data(data, value, outfile, hlines, yrange, xaxis):
+def plot_data(data, value, outfile, hlines, yrange, xaxis, title,
+              nolegend, legendpos):
     """
     Prints a sns tsplot to the outfile in PDF form
     """
 
     sns.set(style='darkgrid', font_scale=1.5)
     data = data.rename(columns={'iteration': xaxis})
+    flatui = ["#9b59b6", "#3498db", "#e74c3c", "#34495e", "#389f34", "#fc0d1c"]
+    palette = sns.color_palette(flatui)
     sns.tsplot(data=data, time=xaxis, value=value,
-               unit='Unit', condition='Condition')
+               unit='Unit', condition='Condition',
+               ci='sd', color=palette, legend=not nolegend).set_title(title)
     for y, lbl in hlines:
         plt.axhline(y, label=lbl, linestyle='--')
+    plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
     if yrange:
         lo, hi = yrange
         plt.ylim(float(lo), float(hi))
-    savefig(outfile)
+    savefig(outfile, legendpos=legendpos)
 
 
 def get_datasets(fpath, column, label, yaxis, smoothing):
@@ -147,7 +155,10 @@ def _main():
     parser.add_argument('--outfile', default='', type=str, required=True)
     parser.add_argument('--yaxis', default='', type=str, required=True)
     parser.add_argument('--xaxis', default='timestep', type=str)
+    parser.add_argument('--title', default='', type=str)
     parser.add_argument('--notex', default=False, action='store_true')
+    parser.add_argument('--nolegend', default=False, action='store_true')
+    parser.add_argument('--legendpos', default='center left')
     parser.add_argument('--xrange', default=None, type=float, nargs=2)
     # uses last record and plots it as a horizontal line
     parser.add_argument('--hlines', default=[], nargs='*', type=str)
@@ -176,7 +187,8 @@ def _main():
             values.append(top['value'])
         hlines.append([np.mean(values), label])
 
-    plot_data(data, args.yaxis, args.outfile, hlines, args.yrange, args.xaxis)
+    plot_data(data, args.yaxis, args.outfile, hlines, args.yrange, args.xaxis,
+              args.title, args.nolegend, args.legendpos)
 
 
 if __name__ == "__main__":
