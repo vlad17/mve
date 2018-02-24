@@ -49,7 +49,7 @@ from tensorflow.python.framework.errors_impl import DataLossError  # pylint: dis
 import seaborn as sns
 
 
-def savefig(outfile, legend=True, legendpos='center left'):
+def savefig(outfile, legend=True, legendpos='right', bbox=(1.05, 0.6)):
     """
     Save the figure as a pdf to the given file.
     """
@@ -57,7 +57,8 @@ def savefig(outfile, legend=True, legendpos='center left'):
         kwargs = {}
         if 'upper' in legendpos:  # hacky... derp
             kwargs = {'borderaxespad': 0., 'ncol': 6}
-        plt.legend(bbox_to_anchor=(1.05, 1.25), loc=legendpos, **kwargs)
+
+        plt.legend(bbox_to_anchor=bbox, loc=legendpos, **kwargs)
     plt.savefig(outfile, format='pdf', bbox_inches='tight')
     plt.clf()
 
@@ -68,7 +69,7 @@ def activate_tex():
 
 
 def plot_data(data, value, outfile, hlines, yrange, xaxis, title,
-              nolegend, legendpos):
+              nolegend, legendpos, bbox):
     """
     Prints a sns tsplot to the outfile in PDF form
     """
@@ -86,7 +87,7 @@ def plot_data(data, value, outfile, hlines, yrange, xaxis, title,
     if yrange:
         lo, hi = yrange
         plt.ylim(float(lo), float(hi))
-    savefig(outfile, legendpos=legendpos)
+    savefig(outfile, legendpos=legendpos, bbox=bbox)
 
 
 def get_datasets(fpath, column, label, yaxis, smoothing):
@@ -158,12 +159,13 @@ def _main():
     parser.add_argument('--title', default='', type=str)
     parser.add_argument('--notex', default=False, action='store_true')
     parser.add_argument('--nolegend', default=False, action='store_true')
-    parser.add_argument('--legendpos', default='center left')
+    parser.add_argument('--legendpos', default='right')
     parser.add_argument('--xrange', default=None, type=float, nargs=2)
     # uses last record and plots it as a horizontal line
     parser.add_argument('--hlines', default=[], nargs='*', type=str)
     parser.add_argument('--smoothing', default=1, type=int)
     parser.add_argument('--yrange', default=None, type=float, nargs=2)
+    parser.add_argument('--bbox', default=[1.05, 0.6], type=float, nargs=2)
     args = parser.parse_args()
 
     if not args.notex:
@@ -188,7 +190,7 @@ def _main():
         hlines.append([np.mean(values), label])
 
     plot_data(data, args.yaxis, args.outfile, hlines, args.yrange, args.xaxis,
-              args.title, args.nolegend, args.legendpos)
+              args.title, args.nolegend, args.legendpos, args.bbox)
 
 
 if __name__ == "__main__":

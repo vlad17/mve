@@ -72,7 +72,7 @@ def _evaluate_with_session(venv, learner, controller):
     ddpg_qs /= ddpg_qs.std()
 
     sns.kdeplot(qs, ddpg_qs, cmap="Blues", shade=True, shade_lowest=True)
-    plt.xlabel(r'normlized returns $Q^{\pi}$')
+    plt.xlabel(r'normalized returns $Q^{\pi}$')
     plt.ylabel(r'normalized estimated $\hat Q$')
     low_x, high_x = plt.xlim()
     low_y, high_y = plt.ylim()
