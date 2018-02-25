@@ -3,8 +3,11 @@ An opaque dataset that is tied to a runtime (volatile) dataset. This
 class recovers and saves that dataset's state directly.
 """
 
+import distutils.util
+
 import tensorflow as tf
 
+import context
 from flags import Flags, ArgSpec
 from tfnode import TFNode
 from utils import timeit
@@ -16,11 +19,17 @@ class PersistableDatasetFlags(Flags):
     """
 
     def __init__(self):
-        arguments = [ArgSpec(
-            name='restore_buffer',
-            default=None,
-            type=str,
-            help='restore replay buffer from the given path')]
+        arguments = [
+            ArgSpec(
+                name='restore_buffer',
+                default=None,
+                type=str,
+                help='restore replay buffer from the given path'),
+            ArgSpec(
+                name='persist_replay_buffer',
+                default=False,
+                type=distutils.util.strtobool,
+                help='print debugging statements')]
         super().__init__('persistable_dataset', 'replay buffer persistance',
                          arguments)
 
@@ -66,6 +75,8 @@ class _PersistableDataset(TFNode):
         super().__init__('persistable_dataset', flags.restore_buffer)
 
     def save(self, step):
+        if not context.flags().persistable_dataset.persist_replay_buffer:
+            return
         with timeit('syncing ringbuffer'):
             self._set_len(self._dataset.size)
             self._update_trans(self._dataset)

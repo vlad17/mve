@@ -141,12 +141,12 @@ main() {
     cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name swimmer")
     cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name acrobot")
     # Test recovery
-    cmds+=("python $main_cmpc $rs_mpc_flags --exp_name saved --save_every 15")
+    cmds+=("python $main_cmpc $rs_mpc_flags --exp_name saved --save_every 15 --persist_replay_buffer true")
     expected_dyn_save="data/saved_hc/3/checkpoints/dynamics.ckpt-00000045"
     expected_rb_save="data/saved_hc/3/checkpoints/persistable_dataset.ckpt-00000045"
     restore="--restore_dynamics $expected_dyn_save --restore_buffer $expected_rb_save"
     cmds+=("python $main_cmpc $rs_mpc_flags --exp_name restored $restore")
-    cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --exp_name ddpg_save")
+    cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --exp_name ddpg_save --persist_replay_buffer true")
     savedir="data/ddpg_save_hc/3/checkpoints"
     restore="--exp_name ddpg_restore --restore_buffer $savedir/persistable_dataset.ckpt-00000200"
     restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000200"
