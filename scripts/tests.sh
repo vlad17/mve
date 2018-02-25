@@ -85,7 +85,7 @@ main() {
 
     cmds=()
     # Random
-    cmds+=("python $main_random $random_flags")
+    cmds+=("python $main_random $random_flags --env_name humanoid --env_parallelism 1")
     # MPC
     cmds+=("python $main_cmpc $rs_mpc_flags")
     cmds+=("python $main_cmpc $short_mpc_flags")

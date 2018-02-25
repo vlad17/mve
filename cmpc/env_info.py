@@ -64,6 +64,8 @@ def _env_class():
         os.environ['OMP_NUM_THREADS'] = str(
             context().flags.experiment.env_parallelism)
         return acrobot.ContinuousAcrobot
+    elif env_name == 'humanoid':
+        return envs.FullyObservableHumanoid
     else:
         raise ValueError('env {} unsupported'.format(env_name))
 
