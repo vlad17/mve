@@ -67,6 +67,7 @@ def _loop(sampler, data, learner, dynamics):
                 sample(render_env, controller, render=True)
         if flags().experiment.should_save():
             tfnode.save_all(reporter.timestep())
+        reporter.report()
 
 
 ALL_DDPG_FLAGS = [ExperimentFlags(), PersistableDatasetFlags(),

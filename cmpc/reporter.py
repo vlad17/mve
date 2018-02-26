@@ -66,14 +66,22 @@ def add_summary_statistics(name, values, hide=False):
 
 def advance(ts, episodes):
     """
-    Advance the iteration and print statistics as recorded by the current
-    reported. The statistics are only printed if the reporter was specified
-    as verbose.
-
-    We advance by the number of timesteps and episodes taken in the paths
-    list that was passed in.
+    Advance the iteration, incrementing the number of timesteps and episodes
+    that are recorded to have elapsed. This clears all statistics
+    associated with previous iterations.
     """
     context().reporter.advance(ts, episodes)
+
+
+def report():
+    """
+    Should be called at most once per advance() call. Logs
+    all statistics that were reported in the previous iteration.
+
+    The statistics are printed to the console if the reporter was specified
+    as verbose.
+    """
+    context().reporter.report()
 
 
 def logging_directory():
@@ -160,6 +168,8 @@ class _Reporter:
         self._latest_statistics = {}
         self.logdir = logdir
         self._hidden = set()
+        self._reported_timestep = -1
+        self._reported_episode = -1
 
     def timestep(self):
         """
@@ -190,6 +200,20 @@ class _Reporter:
         """Increment the global step and print the previous step statistics"""
         self._global_step += ts
         self._num_episodes += episodes
+
+    def report(self):
+        """
+        Report all statistics for the current timestep.
+        Should be called no more than once per timestep
+        """
+        if self._global_step == self._reported_timestep and \
+           self._num_episodes == self._reported_episode:
+            raise ValueError('report for timestep {} episode {} already logged'
+                             .format(self._reported_timestep,
+                                     self._reported_episode))
+        self._reported_timestep = self._global_step
+        self._reported_episode = self._num_episodes
+
         self.add_summary('total episodes', self._num_episodes, False)
         self._write_summaries()
         if self._verbose:

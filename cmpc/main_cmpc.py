@@ -79,6 +79,8 @@ def _train(args, venv, dyn_metrics, data, dyn_model, controller):
         if args.experiment.should_save():
             tfnode.save_all(reporter.timestep())
 
+        reporter.report()
+
 
 def flags_to_parse():
     """Flags that BMPC should parse"""

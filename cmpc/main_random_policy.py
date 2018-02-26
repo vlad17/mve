@@ -26,8 +26,9 @@ def _train(args):
     random_policy = RandomPolicy(venv)
     paths = sample_venv(venv, random_policy)
     rewards = [path.rewards.sum() for path in paths]
-    reporter.add_summary_statistics('reward', rewards)
     reporter.advance(timesteps(paths), len(paths))
+    reporter.add_summary_statistics('reward', rewards)
+    reporter.report()
 
 
 if __name__ == "__main__":
