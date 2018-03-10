@@ -65,6 +65,7 @@ main() {
     main_random="../cmpc/main_random_policy.py"
     main_cmpc="../cmpc/main_cmpc.py"
     main_ddpg="../cmpc/main_ddpg.py"
+    main_sac="../cmpc/main_sac.py"
     tune="../cmpc/main_ray.py"
     cmpc_plot="../cmpc/plot.py"
     cmpc_plot_dyn="../cmpc/plot_dynamics.py"
@@ -82,6 +83,7 @@ main() {
     ddpg_only_flags="--learner_depth 1 --learner_width 8 --learner_batches_per_timestep 1 "
     ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4 --evaluation_envs 10"
     ddpg_flags="$experiment_flags_no_ts $ddpg_only_flags --timesteps 200"
+    sac_flags="$ddpg_flags"
 
     cmds=()
     # Random
@@ -106,10 +108,13 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture true $dynamics_flags")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture true $dynamics_flags --dyn_bn true")
     cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture true")
-    cmds+=("python $main_ddpg $ddpg_flags --ddpg_update_every 200")
+    cmds+=("python $main_ddpg $ddpg_flags --sample_interval 200")
     mix_all="--mixture_estimator oracle --q_target_mixture true --actor_critic_mixture true"
     cmds+=("python $main_ddpg $ddpg_flags $mix_all")
     cmds+=("python $main_ddpg $ddpg_flags --ddpg_min_buf_size 200")
+    # SAC
+    cmds+=("python $main_sac $sac_flags")
+    cmds+=("python $main_sac $sac_flags --policy_lr 1e-4 --value_lr 1e-4 --temperature 2.0")
     # CMPC
     cloning="--mpc_optimizer random_shooter --rs_learner cloning"
     cloning="$cloning --cloning_learner_depth 1 --cloning_learner_width 1"

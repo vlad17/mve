@@ -326,3 +326,9 @@ def flatgrad(opt, loss, variables):
     flats = [tf.reshape(x, [-1]) for x in grads]
     grad = tf.concat(flats, axis=0)
     return grad
+
+
+def trainable_vars(scope):
+    """Returns the trainable variables in a given scope"""
+    collection = tf.GraphKeys.TRAINABLE_VARIABLES
+    return tf.get_collection(collection, scope)

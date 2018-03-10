@@ -5,7 +5,9 @@ Utilities for generating rolluts from a controller.
 import numpy as np
 
 from context import flags
+from flags import Flags, ArgSpec
 from dataset import Path
+import sys
 
 
 def sample_venv(venv, controller):
@@ -84,7 +86,7 @@ class Sampler:
         # make update_every an argument passed to __init__ for this object
         # and then let the caller figure out how to get update_every into
         # this class.
-        self.update_every = flags().ddpg.ddpg_update_every
+        self.update_every = flags().sampler.sample_interval
         self.ob = env.reset()
         self.max_horizon = flags().experiment.horizon
         self.current_timestep = 0
@@ -99,15 +101,22 @@ class Sampler:
 
         for _ in range(self.update_every):
             ac, plan_ac, plan_ob = controller.act(self.ob[np.newaxis, ...])
-            next_ob, reward, done, _ = self.env.step(ac[0])
+            try:
+                next_ob, reward, done, _ = self.env.step(ac[0])
+            except:
+                print('ACTION', ac[0], file=sys.stderr)
+                raise
             self.current_timestep += 1
-            if self.current_timestep == self.max_horizon:
-                done = True
             data.next(self.ob, next_ob, reward, done, ac[0],
                       None if plan_ac is None else plan_ac[0],
                       None if plan_ob is None else plan_ob[0])
             sample_reward += reward
             self.ob = next_ob
+            if self.current_timestep == self.max_horizon:
+                # non-terminal done: cut off the episode but don't report as
+                # terminal (doing so would make the environment non-Markov)
+                # This is actually very important for SAC.
+                done = True
             if done:
                 self.ob = self.env.reset()
                 n_episodes += 1
@@ -117,3 +126,19 @@ class Sampler:
     def nsteps(self):
         """Number of steps taken each sample."""
         return self.update_every
+
+
+class SamplerFlags(Flags):
+    """Sampling settings"""
+
+    def __init__(self):
+        arguments = [
+            ArgSpec(
+                name='sample_interval',
+                type=int,
+                default=100,
+                help='how many timesteps to collect at a time (all parameter '
+                'and statistics updates occur in between collection '
+                'intervals)')
+        ]
+        super().__init__('sampler', 'sampler', arguments)

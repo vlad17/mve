@@ -135,15 +135,6 @@ class DDPGFlags(Flags):
                 help='By default model-based value expansion corrects for '
                 'off-distribution error with the TD-k trick. This disables '
                 'use of the trick for diagnostics training'),
-            ArgSpec(  # TODO: add sampler to all algos so this can be moved to
-                      # experiment flags
-                name='ddpg_update_every',
-                type=int,
-                default=100,
-                help='update parameters every update_every steps, which may be'
-                     'entirely contained in one episode or stretched across '
-                     'many'
-            )
         ]
         super().__init__('ddpg', 'DDPG', arguments)
 

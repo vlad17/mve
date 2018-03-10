@@ -16,7 +16,8 @@ def _layer_norm(x):
     return tf.contrib.layers.layer_norm(x, center=True, scale=True)
 
 
-def trainable_vars(parent_scope, child_scope):  # TODO de-publicize
+def trainable_vars(parent_scope, child_scope):
+    # TODO de-dup with utils.trainable_vars
     """Returns all trainable variables within the nested scope."""
     with tf.variable_scope(parent_scope):
         with tf.variable_scope(child_scope):
