@@ -63,13 +63,13 @@ class DDPGFlags(Flags):
                 type=int,
                 help='number of minibatches to train on per iteration'),
             ArgSpec(
-                name='actor_decay',
-                default=0.99,
+                name='actor_target_rate',
+                default=1e-2,
                 type=float,
                 help='decay rate for actor target network'),
             ArgSpec(
-                name='critic_decay',
-                default=0.99,
+                name='critic_target_rate',
+                default=1e-2,
                 type=float,
                 help='decay rate for critic target network'),
             ArgSpec(
@@ -194,6 +194,9 @@ class DDPGLearner(Learner, TFNode):
 
     def act(self, states_ns):
         return self.actor.perturbed_act(states_ns)
+
+    def greedy_act(self, states_ns):
+        return self.actor.act(states_ns)
 
     def fit(self, data, timesteps):
         if data.size < flags().ddpg.ddpg_min_buf_size:

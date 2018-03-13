@@ -26,7 +26,7 @@ def trainable_vars(parent_scope, child_scope):
     return tf.get_collection(collection, scope)
 
 
-def _target_updates(parent_scope, current_scope, target_scope, decay):
+def _target_updates(parent_scope, current_scope, target_scope, rate):
     current_vars = trainable_vars(parent_scope, current_scope)
     target_vars = trainable_vars(parent_scope, target_scope)
     assert len(current_vars) == len(target_vars), (current_vars, target_vars)
@@ -37,8 +37,9 @@ def _target_updates(parent_scope, current_scope, target_scope, decay):
         # equivalent lockless target update
         # as in tf.train.ExponentialMovingAverage docs
         updates.append(
-            tf.assign_sub(
-                target_var, (1 - decay) * (target_var - current_var)))
+            tf.assign_add(
+                target_var, rate * (
+                    current_var.read_value() - target_var.read_value())))
     return tf.group(*updates)
 
 
@@ -91,10 +92,10 @@ class Actor:
 
         self.variables = trainable_vars(self._scope, 'actor')
 
-    def tf_target_update(self, decay):
+    def tf_target_update(self, rate):
         """Create and return an op to do target updates"""
         return _target_updates(
-            self._scope, 'actor', 'target_actor', decay)
+            self._scope, 'actor', 'target_actor', rate)
 
     def tf_perturb_update(self, noise):
         """
@@ -174,10 +175,10 @@ class Critic:
 
         self.variables = trainable_vars(self._scope, 'critic')
 
-    def tf_target_update(self, decay):
+    def tf_target_update(self, rate):
         """Create and return an op to do target updates"""
         return _target_updates(
-            self._scope, 'critic', 'target_critic', decay)
+            self._scope, 'critic', 'target_critic', rate)
 
     def critique(self, states_ns, acs_na):
         """Return current Q-value estimates"""

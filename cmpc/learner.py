@@ -39,3 +39,7 @@ class Learner:
     def act(self, states_ns):
         """Return the actions to play in the given states."""
         raise NotImplementedError
+
+    def greedy_act(self, states_ns):
+        """Return the actions to play when exploiting, not exploring."""
+        return self.act(states_ns)

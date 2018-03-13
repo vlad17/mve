@@ -16,13 +16,17 @@ import yaml
 
 import boto3
 from botocore.exceptions import ClientError
+import numpy as np
 import ray
 from ray.tune import register_trainable, run_experiments
+from ray.tune.median_stopping_rule import MedianStoppingRule
 
 from experiment import experiment_main
 from flags import (ArgSpec, Flags, parse_args)
 from main_ddpg import train as ddpg_train
 from main_ddpg import ALL_DDPG_FLAGS
+from main_sac import train as sac_train
+from main_sac import ALL_SAC_FLAGS
 import reporter
 
 
@@ -60,6 +64,16 @@ class TuneFlags(Flags):
             action='store_true',
             help='whether to create a local ray cluster')
         yield ArgSpec(
+            name='port',
+            default='7001',
+            type=str,
+            help='default ray port to connect to')
+        yield ArgSpec(
+            name='median_stop',
+            default=int(1e6),
+            type=int,
+            help='cutoff for median stopping rule, use -1 for none')
+        yield ArgSpec(
             name='experiment_name',
             required=True,
             type=str,
@@ -76,6 +90,16 @@ class TuneFlags(Flags):
             type=str,
             required=True,
             help='yaml filename of variants to be grid-searched over')
+        yield ArgSpec(
+            name='ncpus',
+            type=int,
+            default=0,
+            help='cpus per task')
+        yield ArgSpec(
+            name='ngpus',
+            type=int,
+            default=1,
+            help='gpus per task')
 
     def __init__(self):
         super().__init__('tune', 'ray tuning',
@@ -116,11 +140,13 @@ def ray_train(config, status_reporter):
     """
     Entry point called by ray hypers tuning, remotely.
 
-    config should be a dictionary with the usual BMPC flags.
+    config should be a dictionary with the usual flags for main_X.py
+    X is specified by config['main'] (currently only
+    X = 'ddpg' or 'sac' are supported).
 
-    This basically runs
+    This then basically runs
 
-    python main_cmpc.py <config dictionary as flags>
+    python main_X.py <config dictionary as flags>
 
     The other arguments are determined by their keys (flag) and values
     (argument for the flag). If the value is None then that flag gets no
@@ -137,6 +163,17 @@ def ray_train(config, status_reporter):
     gpu_ids = [str(gpuid % num_gpus) for gpuid in ray.get_gpu_ids()]
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(gpu_ids)
 
+    if config['main'] == 'ddpg':
+        flags = ALL_DDPG_FLAGS
+        train_fn = ddpg_train
+    elif config['main'] == 'sac':
+        flags = ALL_SAC_FLAGS
+        train_fn = sac_train
+    else:
+        raise ValueError('{} unrecognized main'.format(config['main']))
+
+    del config['main']
+
     args = []
     for k, v in config.items():
         args.append('--' + k)
@@ -146,11 +183,9 @@ def ray_train(config, status_reporter):
             else:
                 args.append(repr(v))
 
-    flags = ALL_DDPG_FLAGS
     parsed_flags = parse_args(flags, args)
-    h = parsed_flags.ddpg.model_horizon
 
-    def _report_hook(summaries, _):
+    def _report_hook(summaries, stats):
         if summaries is None:
             status_reporter(
                 timesteps_total=reporter.timestep() + 1,
@@ -158,19 +193,17 @@ def ray_train(config, status_reporter):
             return
 
         kwargs = {}
-        if 'current policy reward mean' in summaries:
-            kwargs['episode_reward_mean'] = summaries[
-                'current policy reward mean']
-        dyn_err = 'ddpg before/dynamics/open loop/{}-step mse'.format(h)
-        if dyn_err in summaries:
-            kwargs['mean_loss'] = summaries[dyn_err]
-        status_reporter(
-            timesteps_total=reporter.timestep(),
-            done=0,
-            **kwargs)
+        if 'current policy reward' in stats:
+            kwargs['episode_reward_mean'] = np.mean(stats[
+                'current policy reward'])
+            status_reporter(
+                timesteps_total=reporter.timestep(),
+                done=0,
+                info=summaries,
+                **kwargs)
 
     with reporter.report_hook(_report_hook):
-        experiment_main(parsed_flags, ddpg_train)
+        experiment_main(parsed_flags, train_fn)
 
 
 def _main(args):
@@ -181,7 +214,7 @@ def _main(args):
         ray.init(num_gpus=max(ngpus(), 1))
     else:
         ip = ray.services.get_node_ip_address()
-        ray.init(redis_address=(ip + ':6379'))
+        ray.init(redis_address=(ip + ':' + args.tune.port))
 
     register_trainable("ray_train", ray_train)
 
@@ -190,17 +223,29 @@ def _main(args):
 
     experiment_setting = {
         'run': 'ray_train',
-        'resources': {'cpu': 0, 'gpu': 1},
+        'resources': {'cpu': args.tune.ncpus, 'gpu': args.tune.ngpus},
         'stop': {'done': 1},
         'config': config,
+        'local_dir': './data'
     }
+    assert 'main' in config
+    assert config['main'] in ['ddpg', 'sac'], config['main']
     if args.tune.s3 is not None:
         bucket_path = 's3://' + args.tune.s3 + '/'
         bucket_path += args.tune.experiment_name
         experiment_setting['upload_dir'] = bucket_path
 
-    run_experiments({
-        args.tune.experiment_name: experiment_setting})
+    scheduler = None
+    if args.tune.median_stop > 0:
+        scheduler = MedianStoppingRule(
+            time_attr='timesteps_total',
+            grace_period=args.tune.median_stop,
+            reward_attr='episode_reward_mean')
+    run_experiments(
+        {args.tune.experiment_name: experiment_setting},
+        server_port=10000,
+        with_server=True,
+        scheduler=scheduler)
 
 
 if __name__ == "__main__":

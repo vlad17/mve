@@ -46,6 +46,7 @@ main() {
     trap note_failure EXIT
 
     ray_yaml="
+    main: ddpg
     learner_depth:
         grid_search: [1, 2]
     learner_width: 8
@@ -169,7 +170,7 @@ main() {
     done
 
     # Tune
-    cmd="echo \"$ray_yaml\" > params.yaml && python $tune --experiment_name testray --config params.yaml --self_host"
+    cmd="echo \"$ray_yaml\" > params.yaml && python $tune --median_stop -1 --experiment_name testray --config params.yaml --self_host"
     hermetic_file params.yaml "$cmd"
 
     instance="data/plotexp_hc:reward mean:x"

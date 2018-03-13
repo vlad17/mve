@@ -121,7 +121,11 @@ class FullyObservableHumanoid(RenderFreeMJC, FullyObservable):
             data.cinert.ravel(),
             data.cvel.ravel(),
             data.qfrc_actuator.ravel(),
-            data.cfrc_ext.ravel(),
+            # difference from gym: clip the contact forces as done in
+            # the rllab env. We need to do this so that the baseline,
+            # Soft Actor Critic, performs well (its paper demonstrates
+            # rllab humanoid performance).
+            np.clip(data.cfrc_ext.ravel(), -1, 1),
             # difference from gym: need to add in com pos for reward
             data.xipos.ravel()
         ])

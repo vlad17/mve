@@ -88,7 +88,8 @@ class FullyObservableAnt(RenderFreeMJC, FullyObservable):
     def _get_obs(self):
         return np.concatenate([
             # difference from gym: need torso x value for reward
-            # also the cfrc_ext, an 84-length vector of I-don't-know-what
+            # also the cfrc_ext, an 84-length vector of contact forces
+            # as in rllab, we clip the contact forces
             self.get_body_com('torso')[:1],
             # difference from gym: need to add in qpos x value
             # so that states are re-settable

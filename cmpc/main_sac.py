@@ -67,7 +67,8 @@ def _loop(sampler, data, learner, _):
 
         if flags().experiment.should_render():
             with flags().experiment.render_env() as render_env:
-                sample(render_env, controller, render=True)
+                greedy_controller = as_controller(learner.greedy_act)
+                sample(render_env, greedy_controller, render=True)
         if flags().experiment.should_save():
             tfnode.save_all(reporter.timestep())
 

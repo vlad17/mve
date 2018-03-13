@@ -137,6 +137,9 @@ class SACLearner(Learner, TFNode):
     def act(self, states_ns):
         return self.policy.act(states_ns)
 
+    def greedy_act(self, states_ns):
+        return self.policy.greedy_act(states_ns)
+
     def fit(self, data, timesteps):
         if data.size < flags().sac.sac_min_buf_size:
             return
