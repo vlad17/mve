@@ -35,6 +35,7 @@ setup_commands:
     - sudo pkill -9 apt-get || true
     - sudo pkill -9 dpkg || true
     - sudo dpkg --configure -a || true
+    - sudo apt-get -f install || true
     - cp /tmp/.tmux.conf $HOME
     - mkdir -p $HOME/.ssh
     - cp /tmp/aws-remote /tmp/aws-remote.pub $HOME/.ssh/
