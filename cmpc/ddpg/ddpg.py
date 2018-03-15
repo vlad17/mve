@@ -687,12 +687,20 @@ def _tf_compute_model_value_expansion(
     final_ac_na = actor.tf_target_action(final_ob_ns)
     final_Q_n = critic.tf_target_critic(final_ob_ns, final_ac_na)
 
-    # we accumulate error in reverse
+    # we accumulate error in reverse, but we can do this in a single
+    # op now and rely on built-in scan operations
+    # it's sad that I still have to do this in 2018 to get 1.5x speedup
+    n = tf.shape(obs_hns)[1]
+    a = env_info.ac_dim()
+    s = env_info.ob_dim()
+    all_Q_hn = tf.reshape(critic.tf_critic(
+        tf.reshape(obs_hns, [-1, s]),
+        tf.reshape(acs_hna, [-1, a])), [h, n])
     next_Q_n = final_Q_n
     accum_loss = 0.
     for t in reversed(range(h)):
         target_Q_n = rew_hn[t] + discount * next_Q_n
-        curr_Q_n = critic.tf_critic(obs_hns[t], acs_hna[t])
+        curr_Q_n = all_Q_hn[t]
         # the dynamics model doesn't predict terminal states
         # so we only need to remove the terminal states from
         # the batch
