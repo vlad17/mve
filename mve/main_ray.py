@@ -10,6 +10,7 @@ tasks allowed on that machine.
 """
 
 import os
+from collections import deque
 import subprocess
 import sys
 import yaml
@@ -19,7 +20,7 @@ from botocore.exceptions import ClientError
 import numpy as np
 import ray
 from ray.tune import register_trainable, run_experiments
-from ray.tune.median_stopping_rule import MedianStoppingRule
+from ray.tune.async_hyperband import AsnycHyperBandScheduler
 
 from experiment import setup_experiment_context
 from flags import (ArgSpec, Flags, parse_args)
@@ -74,10 +75,10 @@ class TuneFlags(Flags):
             type=str,
             help='default ray port to connect to')
         yield ArgSpec(
-            name='median_stop',
+            name='grace_period',
             default=0,
             type=int,
-            help='cutoff for median stopping rule, use 0 for none')
+            help='grace period for async hyperband, if 0 then no hyperband')
         yield ArgSpec(
             name='experiment_name',
             required=True,
@@ -190,6 +191,9 @@ def ray_train(config, status_reporter):
 
     parsed_flags = parse_args(flags, args)
 
+    smoothing = 10
+    dq = deque()
+
     def _report_hook(summaries, stats):
         if summaries is None:
             status_reporter(
@@ -199,8 +203,11 @@ def ray_train(config, status_reporter):
 
         kwargs = {}
         if 'current policy reward' in stats:
-            kwargs['episode_reward_mean'] = np.mean(stats[
-                'current policy reward'])
+            nonlocal dq
+            dq.append(np.mean(stats['current policy reward']))
+            if len(dq) > smoothing:
+                dq.popleft()
+            kwargs['episode_reward_mean'] = np.mean(dq)
             status_reporter(
                 timesteps_total=reporter.timestep(),
                 done=0,
@@ -241,10 +248,11 @@ def _main(args):
         experiment_setting['upload_dir'] = bucket_path
 
     scheduler = None
-    if args.tune.median_stop > 0:
-        scheduler = MedianStoppingRule(
+    if args.tune.grace_period > 0:
+        scheduler = AsnycHyperBandScheduler(
             time_attr='timesteps_total',
-            grace_period=args.tune.median_stop,
+            max_t=config['timesteps'],
+            grace_period=args.tune.grace_period,
             reward_attr='episode_reward_mean')
     run_experiments(
         {args.tune.experiment_name: experiment_setting},

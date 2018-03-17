@@ -144,7 +144,7 @@ main() {
     done
 
     # Tune
-    cmd="echo \"$ray_yaml\" > params.yaml && python $tune --median_stop -1 --experiment_name testray --config params.yaml --self_host"
+    cmd="echo \"$ray_yaml\" > params.yaml && python $tune --grace_period -1 --experiment_name testray --config params.yaml --self_host"
     hermetic_file params.yaml "$cmd"
 
     instance="data/plotexp_hc:current policy reward mean:x"
