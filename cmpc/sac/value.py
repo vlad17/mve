@@ -2,7 +2,6 @@
 Parameterized value functions without targets.
 """
 
-import numpy as np
 import tensorflow as tf
 
 from context import flags

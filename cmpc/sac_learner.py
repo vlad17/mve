@@ -61,11 +61,10 @@ class SACFlags(Flags):
                 type=int,
                 help='number of minibatches to train on per iteration'),
             ArgSpec(
-                name='q_target_mixture',
+                name='sac_mve',
                 default=False,
                 type=distutils.util.strtobool,
-                help='Use the mixture estimator instead of the target qfn '
-                '(or, more precisely, on top of the target qfn)'),
+                help='Use the mixture estimator instead of the target values'),
             ArgSpec(
                 name='model_horizon',
                 default=1,
@@ -108,7 +107,7 @@ class SACFlags(Flags):
         Check if a dynamics model was provided in learned value mixture
         estimation.
         """
-        if self.q_target_mixture or self.imaginary_buffer > 0:
+        if self.sac_mve or self.imaginary_buffer > 0:
             assert dyn is not None, 'expecting a dynamics model'
         else:
             assert dyn is None, 'should not be getting a dynamics model'
@@ -128,7 +127,7 @@ class SACLearner(Learner, TFNode):
         self.policy = SquashedGaussianPolicy()
         self.qfn = QFunction()
         self.vfn = VFunction()
-        self._sac = SAC(self.policy, self.qfn, self.vfn)
+        self._sac = SAC(self.policy, self.qfn, self.vfn, dynamics)
         TFNode.__init__(self, 'sac', flags().sac.restore_sac)
 
     def tf_action(self, states_ns):

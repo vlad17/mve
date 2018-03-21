@@ -35,7 +35,7 @@ def train(_):
                                 flags().experiment.bufsize)
         add_dataset_to_persistance_registry(data, flags().persistable_dataset)
         need_dynamics = (
-            flags().sac.q_target_mixture or
+            flags().sac.sac_mve or
             flags().sac.imaginary_buffer > 0)
         if need_dynamics:
             dynamics = NNDynamicsModel(env, data, flags().dynamics)
@@ -51,16 +51,16 @@ def train(_):
             _loop(sampler, data, learner, dynamics)
 
 
-def _loop(sampler, data, learner, _):
+def _loop(sampler, data, learner, dynamics):
     while flags().experiment.should_continue():
         with timeit('sample learner'):
             controller = as_controller(learner.act)
             n_episodes = sampler.sample(controller, data)
         reporter.advance(sampler.nsteps(), n_episodes)
 
-#        if dynamics:
-#             with timeit('dynamics fit'):
-#                 dynamics.fit(data, sampler.nsteps())
+        if dynamics:
+            with timeit('dynamics fit'):
+                dynamics.fit(data, sampler.nsteps())
 
         with timeit('learner fit'):
             learner.fit(data, sampler.nsteps())
