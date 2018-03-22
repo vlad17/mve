@@ -117,6 +117,7 @@ main() {
     cmds+=("python $main_sac $sac_flags")
     cmds+=("python $main_sac $sac_flags --policy_lr 1e-4 --value_lr 1e-4 --temperature 2.0")
     cmds+=("python $main_sac $sac_flags --model_horizon 5 --sac_mve true")
+    cmds+=("python $main_sac $sac_flags --model_horizon 5 --sac_mve true --oracle_dynamics true")
     # CMPC
     cloning="--mpc_optimizer random_shooter --rs_learner cloning"
     cloning="$cloning --cloning_learner_depth 1 --cloning_learner_width 1"

@@ -67,7 +67,8 @@ class SquashedGaussianPolicy(StochasticPolicy):
         """
         self._scope = scope
         self._obs_ph_ns = tf.placeholder(tf.float32, [None, env_info.ob_dim()])
-        self._acs_na, _ = self.tf_sample_action_with_log_prob(self._obs_ph_ns)
+        self._acs_na, self._lp = self.tf_sample_action_with_log_prob(
+            self._obs_ph_ns)
         self._greedy_acs_na = self.tf_greedy_action(self._obs_ph_ns)
         self.variables = trainable_vars(self._scope)
 
@@ -157,6 +158,10 @@ class SquashedGaussianPolicy(StochasticPolicy):
 
     def act(self, obs_ns):
         return tf.get_default_session().run(self._acs_na, feed_dict={
+            self._obs_ph_ns: obs_ns})
+
+    def act_with_prob(self, obs_ns):
+        return tf.get_default_session().run([self._acs_na, self._lp], feed_dict={
             self._obs_ph_ns: obs_ns})
 
     def greedy_act(self, obs_ns):

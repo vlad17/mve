@@ -64,11 +64,11 @@ class SAC:
         self._reporter.stats('buffer Q', current_Q_n)
         self._reporter.stats('buffer V', current_V_n)
         discount = flags().experiment.discount
-        if flags().sac.sac_mve:
+        if flags().sac.sac_mve and not flags().sac.oracle_dynamics:
             h = flags().sac.model_horizon
             debug('using learned-dynamics Q estimator with {} steps as '
                   'target critic', h)
-            
+
             # --- this section is purely for dynamics accuracy recording
             from dynamics_metrics import DynamicsMetrics
             self._dyn_metrics = DynamicsMetrics(
@@ -106,6 +106,80 @@ class SAC:
                 qfn,
                 vfn,
                 dynamics)
+        elif flags().sac.sac_mve and flags().sac.oracle_dynamics:
+            h = flags().sac.model_horizon
+            self._policy = policy
+            debug('using oracle Q estimator with {} steps as '
+                  'target critic', h)
+            nenvs = flags().sac.learner_batch_size
+            self._oracle_q_target_venv = env_info.make_venv(nenvs)
+            self._oracle_q_target_venv.reset()
+            # the i-th element here is the i-th state after obs1;
+            # so h == 0 should equal to obs1_ph_ns
+            self._obs_ph_hns = tf.placeholder(
+                tf.float32, shape=[h, None, env_info.ob_dim()])
+            # the action taken at the i-th state above above
+            self._acs_ph_hna = tf.placeholder(
+                tf.float32, shape=[h, None, env_info.ac_dim()])
+            # the resulting done indicator from playing that action
+            self._done_ph_hn = tf.placeholder(
+                tf.float32, shape=[h, None])
+            self._logprob_ph_hn = tf.placeholder(
+                tf.float32, shape=[h, None])
+            # the reward resulting from that action
+            self._rew_ph_hn = tf.placeholder(
+                tf.float32, shape=[h, None])
+            # this should be the final state resulting from playing
+            # self._acs_ph_hna[h-1] on self._obs_ph_hns[h-1]
+            self._final_ob_ph_ns = tf.placeholder(
+                tf.float32, shape=[None, env_info.ob_dim()])
+            # assume early termination implies reward is 0 from that point
+            # on and state is the same
+            final_acs_na, final_logprob_n = policy.tf_sample_action_with_log_prob(
+                self._final_ob_ph_ns)
+            with tf.variable_scope('targets'):
+                future_Q_n = vfn.tf_state_value(self._final_ob_ph_ns)
+            target_Q_hn = [None] * h
+            # big TF graph, could be while loop
+            for t in reversed(range(h)):
+                target_Q_hn[t] = self._rew_ph_hn[t] + (
+                    (1. - self._done_ph_hn[t]) * discount *
+                    future_Q_n)
+                future_Q_n = target_Q_hn[t] - \
+                    self._logprob_ph_hn[t] * temperature
+            q_loss = tf.losses.mean_squared_error(
+                self.rewards_ph_n + (1. - self.terminals_ph_n) *
+                discount * target_Q_hn[0],
+                qfn.tf_state_action_value(self.obs_ph_ns, self.actions_ph_na))
+            for t in range(h):
+                predicted_Q_n = qfn.tf_state_action_value(
+                    self._obs_ph_hns[t], self._acs_ph_hna[t])
+                if t > 0:
+                    weights = 1.0 - self._done_ph_hn[t - 1]
+                else:
+                    weights = 1.0 - self.terminals_ph_n
+                q_loss += tf.losses.mean_squared_error(
+                    target_Q_hn[t], predicted_Q_n, weights=weights)
+            weights = 1.0 - self.terminals_ph_n
+            v_loss = tf.losses.mean_squared_error(
+                qfn.tf_state_action_value(self._final_ob_ph_ns, final_acs_na)
+                - final_logprob_n * temperature,
+                vfn.tf_state_value(self._final_ob_ph_ns),
+                weights=weights)
+            acs0, prob0 = policy.tf_sample_action_with_log_prob(self.obs_ph_ns)
+            v_loss += tf.losses.mean_squared_error(
+                qfn.tf_state_action_value(self.obs_ph_ns, acs0)
+                - prob0 * temperature,
+                vfn.tf_state_value(self.obs_ph_ns))
+            for t in range(h):
+                v_loss += tf.losses.mean_squared_error(
+                    qfn.tf_state_action_value(
+                        self._obs_ph_hns[t], self._acs_ph_hna[t])
+                    - self._logprob_ph_hn[t] * temperature,
+                    vfn.tf_state_value(self._obs_ph_hns[t]),
+                    weights=weights)
+            self._vfn_loss = v_loss
+            self._qfn_loss = q_loss
         else:
             target_Q_n = self.rewards_ph_n + (1. - self.terminals_ph_n) * (
                 discount * next_V_n)
@@ -189,7 +263,47 @@ class SAC:
             self.terminals_ph_n: terminals,
             self.rewards_ph_n: rewards,
             self.actions_ph_na: acs}
+        if flags().sac.sac_mve and flags().sac.oracle_dynamics:
+            self._oracle_expand_states(feed_dict)
         return feed_dict
+
+    def _oracle_expand_states(self, feed_dict):
+        h = flags().sac.model_horizon
+        n = flags().sac.learner_batch_size
+        initial_states_ns = feed_dict[self.next_obs_ph_ns]
+        active_n = ~feed_dict[self.terminals_ph_n].astype(bool)
+
+        obs_hns = np.empty((h, n, env_info.ob_dim()))
+        acs_hna = np.empty((h, n, env_info.ac_dim()))
+        done_hn = np.empty((h, n))
+        probs_hn = np.empty((h, n))
+        rew_hn = np.empty((h, n))
+
+        venv = self._oracle_q_target_venv
+        assert n == venv.n, (n, venv.n)
+        obs_ns = initial_states_ns
+        venv.set_state_from_ob(obs_ns)
+
+        for t in range(h):
+            obs_hns[t] = obs_ns
+            acs_na, probs_n = self._policy.act_with_prob(obs_ns)
+            obs_ns, reward_n, done_n, _ = venv.step(acs_na)
+            acs_hna[t] = acs_na
+            done_hn[t] = done_n
+            rew_hn[t] = reward_n
+            probs_hn[t] = probs_n
+            were_not_active = ~active_n
+            done_hn[t, were_not_active] = 1.
+            rew_hn[t, were_not_active] = 0.
+            obs_ns[were_not_active] = obs_hns[t, were_not_active]
+            active_n &= ~done_n
+
+        feed_dict[self._obs_ph_hns] = obs_hns
+        feed_dict[self._logprob_ph_hn] = probs_hn
+        feed_dict[self._acs_ph_hna] = acs_hna
+        feed_dict[self._done_ph_hn] = done_hn
+        feed_dict[self._rew_ph_hn] = rew_hn
+        feed_dict[self._final_ob_ph_ns] = obs_ns
 
     def train(self, data, nbatches, batch_size, _):
         """Run nbatches training iterations of SAC"""
@@ -225,6 +339,7 @@ class SAC:
         # TODO -- abstract common code instead of being this lazy
         from ddpg.ddpg import DDPG
         DDPG._eval_dynamics(self, data, prefix)
+
 
 def _tf_compute_model_value_expansion(
         obs0_ns,

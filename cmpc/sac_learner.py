@@ -66,6 +66,11 @@ class SACFlags(Flags):
                 type=distutils.util.strtobool,
                 help='Use the mixture estimator instead of the target values'),
             ArgSpec(
+                name='oracle_dynamics',
+                default=False,
+                type=distutils.util.strtobool,
+                help='Use oracle dyn'),
+            ArgSpec(
                 name='model_horizon',
                 default=1,
                 type=int,
