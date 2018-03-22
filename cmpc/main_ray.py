@@ -69,6 +69,11 @@ class TuneFlags(Flags):
             type=str,
             help='default ray port to connect to')
         yield ArgSpec(
+            name='server_port',
+            default='10000',
+            type=str,
+            help='default ray port to connect to')
+        yield ArgSpec(
             name='median_stop',
             default=int(1e6),
             type=int,
@@ -243,7 +248,7 @@ def _main(args):
             reward_attr='episode_reward_mean')
     run_experiments(
         {args.tune.experiment_name: experiment_setting},
-        server_port=10000,
+        server_port=int(args.tune.server_port),
         with_server=True,
         scheduler=scheduler)
 
