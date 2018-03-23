@@ -6,6 +6,7 @@ import tensorflow as tf
 import numpy as np
 
 from context import flags
+import env_info
 from flags import Flags, ArgSpec
 import reporter
 from tfnode import TFNode
@@ -40,6 +41,11 @@ class DynamicsFlags(Flags):
             type=int,
             default=512,
             help='dynamics NN batch size',)
+        yield ArgSpec(
+            name='decoupled_dynamics',
+            type=distutils.util.strtobool,
+            default=False,
+            help='predict dynamics dimensions independently')
         yield ArgSpec(
             name='restore_dynamics',
             default=None,
@@ -176,7 +182,8 @@ class NNDynamicsModel(TFNode):
         self._dyn_training = tf.placeholder_with_default(
             False, [], 'dynamics_dyn_training_mode')
         self._mlp_kwargs = {
-            'output_size': ob_dim,
+            'output_size':
+            1 if flags().dynamics.decoupled_dynamics else ob_dim,
             'scope': 'dynamics',
             'reuse': tf.AUTO_REUSE,
             'n_layers': dyn_flags.dyn_depth,
@@ -240,8 +247,16 @@ class NNDynamicsModel(TFNode):
         state_action_pair = tf.concat([
             self._norm.norm_obs(states),
             self._norm.norm_acs(actions)], axis=1)
-        standard_predicted_state_diff_ns = build_mlp(
-            state_action_pair, **self._mlp_kwargs)
+        if flags().dynamics.decoupled_dynamics:
+            next_state = []
+            for _ in range(env_info.ob_dim()):
+                next_dim_n1 = build_mlp(
+                    state_action_pair, **self._mlp_kwargs)
+                next_state.append(next_dim_n1)
+            standard_predicted_state_diff_ns = tf.concat(next_state, axis=1)
+        else:
+            standard_predicted_state_diff_ns = build_mlp(
+                state_action_pair, **self._mlp_kwargs)
         predicted_state_diff_ns = self._norm.denorm_delta(
             standard_predicted_state_diff_ns)
         return states + predicted_state_diff_ns, \
