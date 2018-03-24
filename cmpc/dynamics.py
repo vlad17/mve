@@ -8,7 +8,7 @@ import numpy as np
 from context import flags
 import env_info
 from flags import Flags, ArgSpec
-import reporter
+import reporterl
 from tfnode import TFNode
 from utils import build_mlp, get_ob_dim, get_ac_dim, AssignableStatistic
 
@@ -249,9 +249,10 @@ class NNDynamicsModel(TFNode):
             self._norm.norm_acs(actions)], axis=1)
         if flags().dynamics.decoupled_dynamics:
             next_state = []
-            for _ in range(env_info.ob_dim()):
-                next_dim_n1 = build_mlp(
-                    state_action_pair, **self._mlp_kwargs)
+            for i in range(env_info.ob_dim()):
+                with tf.variable_scope('dyn{}'.format(i)):
+                    next_dim_n1 = build_mlp(
+                        state_action_pair, **self._mlp_kwargs)
                 next_state.append(next_dim_n1)
             standard_predicted_state_diff_ns = tf.concat(next_state, axis=1)
         else:
