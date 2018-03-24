@@ -43,9 +43,11 @@ class DynamicsFlags(Flags):
             help='dynamics NN batch size',)
         yield ArgSpec(
             name='decoupled_dynamics',
-            type=distutils.util.strtobool,
-            default=False,
-            help='predict dynamics dimensions independently')
+            type=int,
+            default=0,
+            help='predict dynamics dimensions independently. '
+            '0 = share weights. k = k-way associative weight sharing over '
+            'output dimension')
         yield ArgSpec(
             name='restore_dynamics',
             default=None,
@@ -182,8 +184,7 @@ class NNDynamicsModel(TFNode):
         self._dyn_training = tf.placeholder_with_default(
             False, [], 'dynamics_dyn_training_mode')
         self._mlp_kwargs = {
-            'output_size':
-            1 if flags().dynamics.decoupled_dynamics else ob_dim,
+            'output_size': ob_dim,
             'scope': 'dynamics',
             'reuse': tf.AUTO_REUSE,
             'n_layers': dyn_flags.dyn_depth,
@@ -247,13 +248,17 @@ class NNDynamicsModel(TFNode):
         state_action_pair = tf.concat([
             self._norm.norm_obs(states),
             self._norm.norm_acs(actions)], axis=1)
-        if flags().dynamics.decoupled_dynamics:
+        if flags().dynamics.decoupled_dynamics > 0:
             next_state = []
-            for i in range(env_info.ob_dim()):
-                with tf.variable_scope('dyn{}'.format(i)):
-                    next_dim_n1 = build_mlp(
-                        state_action_pair, **self._mlp_kwargs)
-                next_state.append(next_dim_n1)
+            skip = flags().dynamics.decoupled_dynamics
+            for i in range(0, env_info.ob_dim(), skip):
+                with tf.variable_scope('dyn{}-{}'.format(i, i + skip)):
+                    mlp_kwargs = self._mlp_kwargs.copy()
+                    mlp_kwargs['output_size'] = min(
+                        env_info.ob_dim(), i + skip) - i
+                    next_dim_nx = build_mlp(
+                        state_action_pair, **mlp_kwargs)
+                next_state.append(next_dim_nx)
             standard_predicted_state_diff_ns = tf.concat(next_state, axis=1)
         else:
             standard_predicted_state_diff_ns = build_mlp(

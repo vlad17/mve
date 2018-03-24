@@ -97,7 +97,7 @@ main() {
     cmds+=("python $main_cmpc $rs_mpc_flags --discount 0.9")
     cmds+=("python $main_cmpc $rs_mpc_flags --dyn_dropout 0.5")
     cmds+=("python $main_cmpc $rs_mpc_flags --dyn_l2_reg 0.1")
-    cmds+=("python $main_cmpc $rs_mpc_flags --decoupled_dynamics true")
+    cmds+=("python $main_cmpc $rs_mpc_flags --decoupled_dynamics 2")
     # DDPG
     cmds+=("python $main_ddpg $ddpg_flags")
     cmds+=("python $main_ddpg $ddpg_flags --imaginary_buffer 1.0")
