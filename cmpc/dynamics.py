@@ -8,7 +8,7 @@ import numpy as np
 from context import flags
 import env_info
 from flags import Flags, ArgSpec
-import reporterl
+import reporter
 from tfnode import TFNode
 from utils import build_mlp, get_ob_dim, get_ac_dim, AssignableStatistic
 
