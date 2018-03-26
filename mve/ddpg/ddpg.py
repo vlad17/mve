@@ -5,7 +5,6 @@ import numpy as np
 
 from context import flags
 from dataset import Dataset
-from dynamics_metrics import DynamicsMetrics
 import env_info
 from log import debug
 import reporter
@@ -210,31 +209,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                 debug('using learned-dynamics Q estimator with {} steps as '
                       'target critic', h)
                 assert learned_dynamics is not None
-                # --- this section is purely for dynamics accuracy recording
-                self._dyn_metrics = DynamicsMetrics(
-                    h, env_info.make_env, flags().dynamics_metrics, discount)
-                self._unroll_states_ph_ns = tf.placeholder(
-                    tf.float32, shape=[None, env_info.ob_dim()])
-                n = tf.shape(self._unroll_states_ph_ns)[0]
-                with tf.variable_scope('scratch-ddpg' + scope):
-                    actions_hna = tf.get_variable(
-                        'dynamics_actions', initializer=tf.zeros(
-                            [h, n, env_info.ac_dim()]),
-                        dtype=tf.float32, trainable=False, collections=[],
-                        validate_shape=False)
-                    states_hns = tf.get_variable(
-                        'dynamics_states', initializer=tf.zeros(
-                            [h, n, env_info.ob_dim()]),
-                        dtype=tf.float32, trainable=False, collections=[],
-                        validate_shape=False)
-                self._unroll_loop = _tf_unroll(
-                    h, self._unroll_states_ph_ns,
-                    actor.tf_action, learned_dynamics,
-                    actions_hna, states_hns)
-                self._initializer = [
-                    actions_hna.initializer, states_hns.initializer]
-                # --- end section for dyn acc diagnostics
-
                 residual_loss = _tf_compute_model_value_expansion(
                     self.obs0_ph_ns,
                     self.actions_ph_na,
@@ -374,9 +348,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         batch_size = flags().ddpg.learner_batch_size
         batch = self._sample(next(data.sample_many(1, batch_size)))
         self._reporter.report(batch)
-
-        if hasattr(self, '_dyn_metrics'):
-            self._eval_dynamics(data, '')
 
         # runs out-of-band trials for less noise performance evaluation
         paths = sample_venv(self._venv, self._actor.target_act)
@@ -541,26 +512,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         feed_dict[self._expanded_obs_ph_ns] = obs1_ens[-1]
         feed_dict[self._expanded_terminals_ph_n] = done_en[-1].astype(float)
 
-    def _eval_dynamics(self, data, prefix):
-        # TODO: should really be a separate setting for number of eval samples
-        eval_samples = min(flags().dynamics_metrics.evaluation_envs * 10,
-                           data.size)
-        ixs = np.random.randint(data.size, size=(eval_samples,))
-
-        obs = data.obs[ixs]
-        tf.get_default_session().run(
-            self._initializer, feed_dict={
-                self._unroll_states_ph_ns: obs})
-
-        acs_hna, obs_hns = tf.get_default_session().run(
-            self._unroll_loop, feed_dict={
-                self._unroll_states_ph_ns: obs})
-
-        planned_acs = np.swapaxes(acs_hna, 0, 1)
-        planned_obs = np.swapaxes(obs_hns, 0, 1)
-        self._dyn_metrics.log(
-            obs, planned_acs, planned_obs, prefix)
-
     def _generate_data(self, data, timesteps):
         im_to_real_ratio = flags().ddpg.imaginary_buffer
         h = flags().ddpg.model_horizon
@@ -607,25 +558,6 @@ def _tf_model_value_expand(h, initial_states_ns, act, critique, dynamics,
     final_critic_n = tf.pow(discount, h_fl) * critique(
         final_states_ns, act(final_states_ns))
     return final_rewards_n + final_critic_n
-
-
-def _tf_unroll(h, initial_states_ns, act, dynamics, acs_hna, states_hns):
-    def _body(t, state_ns):
-        action_na = act(state_ns)
-        save_action_op = tf.scatter_update(acs_hna, t, action_na)
-        next_state_ns = dynamics.predict_tf(state_ns, action_na)
-        save_state_op = tf.scatter_update(
-            states_hns, t, next_state_ns)
-        with tf.control_dependencies([save_action_op, save_state_op]):
-            return [t + 1, next_state_ns]
-
-    loop_vars = [0, initial_states_ns]
-    loop, _ = tf.while_loop(lambda t, _: t < h, _body,
-                            loop_vars, back_prop=False)
-
-    with tf.control_dependencies([loop]):
-        return acs_hna.read_value(), states_hns.read_value()
-
 
 def _tf_compute_model_value_expansion(
         obs0_ns,

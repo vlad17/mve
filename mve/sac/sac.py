@@ -68,34 +68,6 @@ class SAC:
             h = flags().sac.model_horizon
             debug('using learned-dynamics Q estimator with {} steps as '
                   'target critic', h)
-            
-            # --- this section is purely for dynamics accuracy recording
-            from dynamics_metrics import DynamicsMetrics
-            self._dyn_metrics = DynamicsMetrics(
-                h, env_info.make_env, flags().dynamics_metrics, discount)
-            self._unroll_states_ph_ns = tf.placeholder(
-                tf.float32, shape=[None, env_info.ob_dim()])
-            n = tf.shape(self._unroll_states_ph_ns)[0]
-            with tf.variable_scope('scratch-sac'):
-                actions_hna = tf.get_variable(
-                    'dynamics_actions', initializer=tf.zeros(
-                        [h, n, env_info.ac_dim()]),
-                    dtype=tf.float32, trainable=False, collections=[],
-                    validate_shape=False)
-                states_hns = tf.get_variable(
-                    'dynamics_states', initializer=tf.zeros(
-                        [h, n, env_info.ob_dim()]),
-                    dtype=tf.float32, trainable=False, collections=[],
-                    validate_shape=False)
-            from ddpg.ddpg import _tf_unroll
-            self._unroll_loop = _tf_unroll(
-                h, self._unroll_states_ph_ns,
-                policy.tf_greedy_action, dynamics,
-                actions_hna, states_hns)
-            self._initializer = [
-                actions_hna.initializer, states_hns.initializer]
-            # --- end section for dyn acc diagnostics
-
             self._qfn_loss, self._vfn_loss = _tf_compute_model_value_expansion(
                 self.obs_ph_ns,
                 self.actions_ph_na,
@@ -113,8 +85,9 @@ class SAC:
             self._qfn_loss = tf.losses.mean_squared_error(
                 tf.stop_gradient(target_Q_n), current_Q_n)
 
-            onpol_act_na, log_prob_acs_n = policy.tf_sample_action_with_log_prob(
-                self.obs_ph_ns)
+            onpol_act_na, log_prob_acs_n = (
+                policy.tf_sample_action_with_log_prob(
+                    self.obs_ph_ns))
             onpol_qfn_n = qfn.tf_state_action_value(
                 self.obs_ph_ns, onpol_act_na)
             target_V_n = onpol_qfn_n - temperature * log_prob_acs_n
@@ -187,9 +160,6 @@ class SAC:
         batch = self._sample(next(data.sample_many(1, batch_size)))
         self._reporter.report(batch)
 
-        if hasattr(self, '_dyn_metrics'):
-            self._eval_dynamics(data, '')
-
     def train(self, data, nbatches, batch_size, _):
         """Run nbatches training iterations of SAC"""
         batches = data.sample_many(nbatches, batch_size)
@@ -205,11 +175,6 @@ class SAC:
                       'policy loss {:.4g} qfn loss {:.4g} '
                       'vfn loss {:.4g}',
                       i, nbatches, pl, ql, vl)
-
-    def _eval_dynamics(self, data, prefix):
-        # TODO -- abstract common code instead of being this lazy
-        from ddpg.ddpg import DDPG
-        DDPG._eval_dynamics(self, data, prefix)
 
 def _tf_compute_model_value_expansion(
         obs0_ns,

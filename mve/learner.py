@@ -25,6 +25,15 @@ class Learner:
         """
         raise NotImplementedError
 
+    def tf_action(self, states_ns):
+        """
+        Accept a TF state and return a TF tensor for the action this learner
+        would have taken. This is used to evaluate the dynamics quality,
+        so take the action that is used to expand dynamics if the learner uses
+        a dynamics model for planning or learning.
+        """
+        raise NotImplementedError
+
     def evaluate(self, data):
         """
         Report evaluation information.

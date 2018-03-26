@@ -144,3 +144,6 @@ class SACLearner(Learner, TFNode):
 
     def evaluate(self, data):
         self._sac.evaluate(data)
+
+    def tf_action(self, states_ns):
+        return self.policy.tf_sample_action_with_log_prob(states_ns)[0]

@@ -203,3 +203,6 @@ class DDPGLearner(Learner, TFNode):
 
     def evaluate(self, data):
         self._ddpg.evaluate(data)
+
+    def tf_action(self, states_ns):
+        return self.actor.tf_target_action(states_ns)

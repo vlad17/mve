@@ -3,10 +3,9 @@
 from context import flags
 from ddpg_learner import DDPGLearner, DDPGFlags
 from dynamics import DynamicsFlags, NNDynamicsModel
-from dynamics_metrics import DynamicsMetricsFlags
 from experiment import ExperimentFlags, experiment_main
 from persistable_dataset import PersistableDatasetFlags
-from rl_loop import rl_loop
+from rl_loop import rl_loop, RLLoopFlags
 from flags import parse_args
 from sample import SamplerFlags
 
@@ -27,7 +26,7 @@ def train():
 
 
 ALL_DDPG_FLAGS = [ExperimentFlags(), PersistableDatasetFlags(),
-                  DDPGFlags(), DynamicsFlags(), DynamicsMetricsFlags(),
+                  DDPGFlags(), DynamicsFlags(), RLLoopFlags(),
                   SamplerFlags()]
 
 if __name__ == "__main__":

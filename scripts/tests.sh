@@ -53,7 +53,7 @@ main() {
     learner_batches_per_timestep: 1
     exp_name: {\\\"eval\\\": \\\"'learner_depth{}'.format(spec.config.learner_depth)\\\"}
     learner_batch_size: 4
-    evaluation_envs: 10
+    dynamics_evaluation_envs: 4
     timesteps: 200
     "
 
@@ -72,24 +72,19 @@ main() {
     eval_q="../mve/main_evaluate_qval.py"
 
     experiment_flags_no_ts="--exp_name basic_tests --verbose true --horizon 5"
-    experiment_flags="$experiment_flags_no_ts --timesteps 40"
+    experiment_flags="$experiment_flags_no_ts"
     random_flags="$experiment_flags --num_paths 8"
     dynamics_flags="--dynamics_batches_per_timestep 1 --dyn_depth 1 --dyn_width 8"
-    mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 3"
-    mpc_flags="$mpc_flags --evaluation_envs 10"
-    short_mpc_flags="$experiment_flags $dynamics_flags --onpol_iters 2 --mpc_horizon 6"
-    short_mpc_flags="$short_mpc_flags --onpol_paths 2 --simulated_paths 2 --evaluation_envs 10"
-    rs_mpc_flags="$mpc_flags --onpol_paths 3 --simulated_paths 2"
     ddpg_only_flags="--learner_depth 1 --learner_width 8 --learner_batches_per_timestep 1 "
-    ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4 --evaluation_envs 10"
-    ddpg_flags="$experiment_flags_no_ts $ddpg_only_flags --timesteps 200"
+    ddpg_only_flags="$ddpg_only_flags --learner_batch_size 4"
+    ddpg_flags="$experiment_flags_no_ts $ddpg_only_flags --timesteps 200 --dynamics_evaluation_envs 4"
     sac_flags="$ddpg_flags"
 
     cmds=()
     # Random
     cmds+=("python $main_random $random_flags --env_name humanoid --env_parallelism 1")
     # DDPG
-    cmds+=("python $main_ddpg $ddpg_flags --render_every 1 --evaluation_envs 2")
+    cmds+=("python $main_ddpg $ddpg_flags --render_every 1 --dynamics_evaluation_envs 2")
     cmds+=("python $main_ddpg $ddpg_flags --discount 0.9 --dyn_dropout 0.5 --dyn_l2_reg 0.1")
     cmds+=("python $main_ddpg $ddpg_flags --imaginary_buffer 1.0")
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4")

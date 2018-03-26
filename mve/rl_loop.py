@@ -11,12 +11,37 @@ import tensorflow as tf
 
 from context import flags
 from dataset import Dataset
+from dynamics_metrics import DynamicsMetrics, TFStateUnroller
 import env_info
+from flags import Flags, ArgSpec
 import tfnode
 from persistable_dataset import add_dataset_to_persistance_registry
 from sample import Sampler, sample, sample_venv
 import reporter
 from utils import timeit, make_session_as_default
+
+class RLLoopFlags(Flags):
+    """Specification for the dynamics metrics"""
+
+    def __init__(self):
+        args = [
+            ArgSpec(
+                name='dynamics_evaluation_envs',
+                default=64,
+                type=int,
+                help='number of environments to use for evaluating dynamics'),
+            ArgSpec(
+                name='dynamics_evaluation_horizon',
+                default=10,
+                type=int,
+                help='number of environments to use for evaluating dynamics'),
+            ArgSpec(
+                name='learner_evaluation_envs',
+                default=16,
+                type=int,
+                help='number of environments to use for evaluating learner')]
+        super().__init__('loop', 'rl loop', args)
+
 
 def rl_loop(learner, dynamics):
     """
@@ -28,7 +53,17 @@ def rl_loop(learner, dynamics):
     the agent and evaluating at intervals specified by the experiment
     flags.
     """
-    with closing(env_info.make_env()) as env:
+    if dynamics:
+        unroller = TFStateUnroller(
+            flags().loop.dynamics_evaluation_horizon,
+            learner.tf_action, dynamics.predict_tf)
+    else:
+        unroller = None
+    with closing(env_info.make_env()) as env, \
+         closing(DynamicsMetrics(
+             flags().loop.dynamics_evaluation_horizon,
+             flags().loop.dynamics_evaluation_envs,
+             flags().experiment.discount)) as dm:
         sampler = Sampler(env)
         data = Dataset(flags().experiment.horizon, flags().experiment.bufsize)
         add_dataset_to_persistance_registry(data, flags().persistable_dataset)
@@ -37,15 +72,11 @@ def rl_loop(learner, dynamics):
             tf.get_default_graph().finalize()
             tfnode.restore_all()
 
-            # TODO --learner_evaluation_envs flag here
-            # TODO then also change --evaluation_envs in dynamics_metrics
-            # into a --dynamics_evaluation_envs
-            # TODO closing dynamics_metrics here, change its evaluation_envs
-            # flag to dynamic
-            with closing(env_info.make_venv(16)) as venv:
-                _loop(sampler, data, learner, dynamics, venv)
+            learner_nenvs = flags().loop.learner_evaluation_envs
+            with closing(env_info.make_venv(learner_nenvs)) as venv:
+                _loop(sampler, data, learner, dynamics, venv, dm, unroller)
 
-def _loop(sampler, data, learner, dynamics, eval_venv):
+def _loop(sampler, data, learner, dynamics, eval_venv, dyn_metrics, unroller):
     while flags().experiment.should_continue():
         with timeit('sample learner'):
             agent = learner.agent()
@@ -72,10 +103,16 @@ def _loop(sampler, data, learner, dynamics, eval_venv):
             paths = sample_venv(eval_venv, agent.exploit_act)
             rews = [path.rewards.sum() for path in paths]
             reporter.add_summary_statistics('current policy reward', rews)
+
             paths = sample_venv(eval_venv, agent.explore_act)
             rews = [path.rewards.sum() for path in paths]
             reporter.add_summary_statistics('exploration policy reward', rews)
 
             learner.evaluate(data)
+
+            if unroller:
+                nsamples = flags().loop.dynamics_evaluation_envs * 8
+                planned_transitions = unroller.eval_dynamics(data, nsamples)
+                dyn_metrics.evaluate(*planned_transitions)
 
         reporter.report()

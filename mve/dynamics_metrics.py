@@ -1,46 +1,18 @@
 """Code for evaluating a dynamics model"""
 
 import numpy as np
+import tensorflow as tf
 
 import env_info
 from envs import NumpyReward
-from flags import Flags, ArgSpec
 import log
 import reporter
 from utils import rate_limit
-
-
-class DynamicsMetricsFlags(Flags):
-    """Specification for the dynamics metrics"""
-
-    def __init__(self):
-        args = [
-            ArgSpec(
-                name='evaluation_envs',
-                default=1000,
-                type=int,
-                help='number of environments to use for evaluating dynamics ')]
-        super().__init__('dynamics_metrics', 'dynamics metrics', args)
-
 
 class DynamicsMetrics:
     """
     The dynamics metrics evaluate how accurate a planning controller was
     in its predictions.
-
-    We offer two evaluations, closed-loop and open-loop.
-
-    Closed-loop evaluation is easy. Suppose we just had a rollout with states
-    s_1, ..., s_T, and the controller, for every i in [T], predicted the
-    next states s_i^j for j in [H] where H is the planning horizon.
-    Then an observation for our h-step prediction (dimension-normalized) MSE
-    is (s_i^h-s_{i+h})^2/D where s is in R^d.
-    We average over all i and possibly several episodes.
-
-    Since actions in the rollout are taken with respect to the closed-loop
-    controller, which re-plans at every moment, the closed-loop evaluation
-    tells us how far the agent's actual trajectories are from the
-    planner's trajectory.
 
     An evaluation of the predictive power of the dynamics tests
     how close the dynamics are to what the open-loop planner
@@ -62,14 +34,17 @@ class DynamicsMetrics:
     to the planner (i.e., from trajectory s_i^0 to s_i^H) versus
     what would have really happened (from t_i^0 to t_i^H). This
     gives a measure of the planner over-optimism or pessimism.
+
+    The metrics object accepts as arguments the maximum horizon H,
+    number environments for ground-truth evaluation, and the discount factor.
     """
 
-    def __init__(self, planning_horizon, make_env, flags, discount):
-        self._venv = env_info.make_venv(flags.evaluation_envs)
+    def __init__(self, planning_horizon, nenvs, discount):
+        self._venv = env_info.make_venv(nenvs)
         self._venv.reset()
-        self._env = make_env()
+        self._env = env_info.make_env()
         self._np_reward = NumpyReward(self._env)
-        self._num_envs = flags.evaluation_envs
+        self._num_envs = nenvs
         self._horizon = planning_horizon
         self._discount = discount
 
@@ -78,7 +53,7 @@ class DynamicsMetrics:
         # n = batch size, h = horizon, s = state dim
         return np.square(true_obs_nhs - pred_obs_nhs).mean(axis=2).mean(axis=0)
 
-    def log(self, obs, planned_acs, planned_obs, prefix=''):
+    def evaluate(self, obs, planned_acs, planned_obs, prefix=''):
         """
         Report H-step standardized dynamics accuracy.
         """
@@ -100,7 +75,8 @@ class DynamicsMetrics:
         planned_obs_nhs = planned_obs[mask]
 
         mse_h = self._mse_h(obs_nhs, planned_obs_nhs)
-        prefix += 'dynamics/open loop/'
+        prefix = prefix + ('/' if prefix else '') + 'dynamics/'
+
         self._print_mse_prefix(prefix, mse_h)
 
         obs_n1s = obs_ns[:, np.newaxis, :]
@@ -172,3 +148,73 @@ class DynamicsMetrics:
         """Close the internal simulation environment"""
         self._venv.close()
         self._env.close()
+
+class TFStateUnroller:
+    """
+    This class constructs a graph for unrolling a horizon-length
+    rollout according the given policy function and dynamics model.
+    """
+
+    def __init__(self, horizon, tf_action, tf_predict_dynamics,
+                 scope='unroll_dynamics'):
+        self._unroll_states_ph_ns = tf.placeholder(
+            tf.float32, shape=[None, env_info.ob_dim()])
+        n = tf.shape(self._unroll_states_ph_ns)[0]
+        with tf.variable_scope(scope):
+            actions_hna = tf.get_variable(
+                'dynamics_actions', initializer=tf.zeros(
+                    [horizon, n, env_info.ac_dim()]),
+                dtype=tf.float32, trainable=False, collections=[],
+                validate_shape=False)
+            states_hns = tf.get_variable(
+                'dynamics_states', initializer=tf.zeros(
+                    [horizon, n, env_info.ob_dim()]),
+                dtype=tf.float32, trainable=False, collections=[],
+                validate_shape=False)
+        self._unroll_loop = _tf_unroll(
+            horizon, self._unroll_states_ph_ns,
+            tf_action, tf_predict_dynamics,
+            actions_hna, states_hns)
+        self._initializer = [
+            actions_hna.initializer, states_hns.initializer]
+
+    def eval_dynamics(self, data, nsamples):
+        """
+        Unroll the actor and dynamics by the given horizon length.
+        return the initial observations, planned actions, and
+        planned resulting observations.
+
+        First axis always corresponds to the nsamples batching
+        dimension. Second axis is the horizon.
+        """
+        ixs = np.random.randint(data.size, size=(nsamples,))
+
+        obs = data.obs[ixs]
+        tf.get_default_session().run(
+            self._initializer, feed_dict={
+                self._unroll_states_ph_ns: obs})
+
+        acs_hna, obs_hns = tf.get_default_session().run(
+            self._unroll_loop, feed_dict={
+                self._unroll_states_ph_ns: obs})
+
+        planned_acs = np.swapaxes(acs_hna, 0, 1)
+        planned_obs = np.swapaxes(obs_hns, 0, 1)
+        return obs, planned_acs, planned_obs
+
+def _tf_unroll(h, initial_states_ns, act, dynamics, acs_hna, states_hns):
+    def _body(t, state_ns):
+        action_na = act(state_ns)
+        save_action_op = tf.scatter_update(acs_hna, t, action_na)
+        next_state_ns = dynamics(state_ns, action_na)
+        save_state_op = tf.scatter_update(
+            states_hns, t, next_state_ns)
+        with tf.control_dependencies([save_action_op, save_state_op]):
+            return [t + 1, next_state_ns]
+
+    loop_vars = [0, initial_states_ns]
+    loop, _ = tf.while_loop(lambda t, _: t < h, _body,
+                            loop_vars, back_prop=False)
+
+    with tf.control_dependencies([loop]):
+        return acs_hna.read_value(), states_hns.read_value()
