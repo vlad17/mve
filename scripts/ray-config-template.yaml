@@ -39,14 +39,14 @@ setup_commands:
     - cp /tmp/.tmux.conf $HOME
     - mkdir -p $HOME/.ssh
     - cp /tmp/aws-remote /tmp/aws-remote.pub $HOME/.ssh/
-    - test -e cmpc || GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote -o StrictHostKeyChecking=no' git clone git@github.com:vlad17/cmpc.git
-    - cd cmpc && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git fetch && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git reset --hard && cd ..
-    - cd cmpc && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git checkout <<<HEAD_SHA>>> && cd ..
-    - cp /tmp/mjkey.txt . && cmpc/scripts/install-mujoco.sh
-    - grep -v tensorflow cmpc/requirements.txt > r2 && mv r2 cmpc/requirements.txt
-    - source activate tensorflow_p36 && cd cmpc && grep -v exit ./scripts/ubuntu-install.sh | grep -v "sudo apt-get install -f" | LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" bash && cd ..
+    - test -e mve || GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote -o StrictHostKeyChecking=no' git clone git@github.com:vlad17/mve.git
+    - cd mve && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git fetch && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git reset --hard && cd ..
+    - cd mve && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git checkout <<<HEAD_SHA>>> && cd ..
+    - cp /tmp/mjkey.txt . && mve/scripts/install-mujoco.sh
+    - grep -v tensorflow mve/requirements.txt > r2 && mv r2 mve/requirements.txt
+    - source activate tensorflow_p36 && cd mve && grep -v exit ./scripts/ubuntu-install.sh | grep -v "sudo apt-get install -f" | LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" bash && cd ..
     - source activate tensorflow_p36 && LD_LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH" LIBRARY_PATH="$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH" python -c "import gym2"
-    - cd cmpc && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git reset --hard && cd ..
+    - cd mve && GIT_SSH_COMMAND='ssh -i ~/.ssh/aws-remote' git reset --hard && cd ..
     - sudo apt-get install -y tmux
     - "echo 'export LD_LIBRARY_PATH=\"$HOME/.mujoco/mjpro150/bin:$LD_LIBRARY_PATH\"' >> ~/.bashrc"
     - "echo 'export LIBRARY_PATH=\"$HOME/.mujoco/mjpro150/bin:$LIBRARY_PATH\"' >> ~/.bashrc"

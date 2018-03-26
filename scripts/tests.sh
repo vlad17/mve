@@ -38,8 +38,8 @@ hermetic_file() {
 main() {
     cmd=""
     function note_failure {
-        relative="../cmpc"
-        box "${cmd/$relative/cmpc}"
+        relative="../mve"
+        box "${cmd/$relative/mve}"
         cd ..
         rm -rf _test
     }
@@ -63,14 +63,13 @@ main() {
     mkdir _test
     cd _test
 
-    main_random="../cmpc/main_random_policy.py"
-    main_cmpc="../cmpc/main_cmpc.py"
-    main_ddpg="../cmpc/main_ddpg.py"
-    main_sac="../cmpc/main_sac.py"
-    tune="../cmpc/main_ray.py"
-    cmpc_plot="../cmpc/plot.py"
-    cmpc_plot_dyn="../cmpc/plot_dynamics.py"
-    eval_q="../cmpc/main_evaluate_qval.py"
+    main_random="../mve/main_random_policy.py"
+    main_mve="../mve/main_mve.py"
+    main_ddpg="../mve/main_ddpg.py"
+    main_sac="../mve/main_sac.py"
+    tune="../mve/main_ray.py"
+    plot="../mve/plot.py"
+    eval_q="../mve/main_evaluate_qval.py"
 
     experiment_flags_no_ts="--exp_name basic_tests --verbose true --horizon 5"
     experiment_flags="$experiment_flags_no_ts --timesteps 40"
@@ -89,16 +88,9 @@ main() {
     cmds=()
     # Random
     cmds+=("python $main_random $random_flags --env_name humanoid --env_parallelism 1")
-    # MPC
-    cmds+=("python $main_cmpc $rs_mpc_flags")
-    cmds+=("python $main_cmpc $short_mpc_flags")
-    cmds+=("python $main_cmpc $rs_mpc_flags --render_every 1")
-    cmds+=("python $main_cmpc $rs_mpc_flags --evaluation_envs 2")
-    cmds+=("python $main_cmpc $rs_mpc_flags --discount 0.9")
-    cmds+=("python $main_cmpc $rs_mpc_flags --dyn_dropout 0.5")
-    cmds+=("python $main_cmpc $rs_mpc_flags --dyn_l2_reg 0.1")
     # DDPG
-    cmds+=("python $main_ddpg $ddpg_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --render_every 1 --evaluation_envs 2")
+    cmds+=("python $main_ddpg $ddpg_flags --discount 0.9 --dyn_dropout 0.5 --dyn_l2_reg 0.1")
     cmds+=("python $main_ddpg $ddpg_flags --imaginary_buffer 1.0")
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4")
     cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4")
@@ -117,42 +109,15 @@ main() {
     cmds+=("python $main_sac $sac_flags")
     cmds+=("python $main_sac $sac_flags --policy_lr 1e-4 --value_lr 1e-4 --temperature 2.0")
     cmds+=("python $main_sac $sac_flags --model_horizon 5 --sac_mve true")
-    # CMPC
-    cloning="--mpc_optimizer random_shooter --rs_learner cloning"
-    cloning="$cloning --cloning_learner_depth 1 --cloning_learner_width 1"
-    cloning="$cloning --cloning_learner_batches_per_timestep 1"
-    cmds+=("python $main_cmpc $cloning $rs_mpc_flags")
-    cmds+=("python $main_cmpc $cloning $rs_mpc_flags --cloning_min_buf_size 200")
-    rs_ddpg="--mpc_optimizer random_shooter --rs_learner ddpg"
-    cmds+=("python $main_cmpc $rs_ddpg $rs_mpc_flags $ddpg_only_flags")
-    rs_zero="--mpc_optimizer random_shooter --rs_learner zero"
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags")
-    shooter_flags="--opt_horizon 1"
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags")
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --true_dynamics")
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --true_dynamics --rs_n_envs 2")
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --true_dynamics --simulated_paths 10 --rs_n_envs 5")
-    colocation_flags="--coloc_primal_steps 2"
-    colocation_flags="$colocation_flags --coloc_dual_steps 2 --coloc_primal_tol 1e-2"
-    colocation_flags="$colocation_flags --coloc_primal_lr 1e-4 --coloc_dual_lr 1e-3"
-    colocation_flags="$colocation_flags --onpol_paths 1"
-    colocation_flags="$colocation_flags --mpc_optimizer colocation"
-    cmds+=("python $main_cmpc $mpc_flags $colocation_flags --coloc_opt_horizon 2")
-    cmds+=("python $main_cmpc $mpc_flags $colocation_flags")
     # Envs
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name ant")
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name walker2d")
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name hc2")
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name pusher")
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name hopper")
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name swimmer")
-    cmds+=("python $main_cmpc $rs_zero $rs_mpc_flags $shooter_flags --env_name acrobot")
+    cmds+=("python $main_random $random_flags --env_name ant")
+    cmds+=("python $main_random $random_flags --env_name walker2d")
+    cmds+=("python $main_random $random_flags --env_name hc2")
+    cmds+=("python $main_random $random_flags --env_name pusher")
+    cmds+=("python $main_random $random_flags --env_name hopper")
+    cmds+=("python $main_random $random_flags --env_name swimmer")
+    cmds+=("python $main_random $random_flags --env_name acrobot")
     # Test recovery
-    cmds+=("python $main_cmpc $rs_mpc_flags --exp_name saved --save_every 15 --persist_replay_buffer true")
-    expected_dyn_save="data/saved_hc/3/checkpoints/dynamics.ckpt-00000045"
-    expected_rb_save="data/saved_hc/3/checkpoints/persistable_dataset.ckpt-00000045"
-    restore="--restore_dynamics $expected_dyn_save --restore_buffer $expected_rb_save"
-    cmds+=("python $main_cmpc $rs_mpc_flags --exp_name restored $restore")
     cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --exp_name ddpg_save --persist_replay_buffer true")
     savedir="data/ddpg_save_hc/3/checkpoints"
     restore="--exp_name ddpg_restore --restore_buffer $savedir/persistable_dataset.ckpt-00000200"
@@ -163,10 +128,10 @@ main() {
     eval_q_flags="--episodes 3 --output_path out.pdf --notex"
     eval_q_flags="$eval_q_flags --lims -1 1 -1 1 --title hello --episodes 1 --horizon 15"
     cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags")
-    cmds+=("python $main_cmpc $rs_mpc_flags --onpol_iters 3 --exp_name plotexp")
+    cmds+=("python $main_ddpg $ddpg_flags --exp_name plotexp --evaluate_every 100 --q_target_mixture true --mixture_estimator learned")
     for cmd in "${cmds[@]}"; do
-        relative="../cmpc"
-        box "${cmd/$relative/cmpc}"
+        relative="../mve"
+        box "${cmd/$relative/mve}"
         $cmd
     done
 
@@ -174,22 +139,15 @@ main() {
     cmd="echo \"$ray_yaml\" > params.yaml && python $tune --median_stop -1 --experiment_name testray --config params.yaml --self_host"
     hermetic_file params.yaml "$cmd"
 
-    instance="data/plotexp_hc:reward mean:x"
-    cmd="python $cmpc_plot \"$instance\" --outfile x.pdf --yaxis x --notex --xaxis xx --xrange 0 45"
+    instance="data/plotexp_hc:current policy reward mean:x"
+    cmd="python $plot \"$instance\" --outfile x.pdf --yaxis x --notex --xaxis xx --xrange 0 200"
     hermetic_file "x.pdf" "$cmd"
 
-    instance="data/plotexp_hc:reward mean:x"
-    hlines="data/plotexp_hc:reward mean:yy"
-    cmd="python $cmpc_plot \"$instance\" --outfile y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
+    instance="data/plotexp_hc:current policy reward mean:x"
+    hlines="data/plotexp_hc:current policy reward mean:yy"
+    cmd="python $plot \"$instance\" --outfile y.pdf --yaxis y --notex --hlines \"$hlines\" --smoothing 2"
     cmd="$cmd --yrange -1 100"
     hermetic_file "y.pdf" "$cmd"
-
-    instance="data/plotexp_hc:label1 data/plotexp_hc:label2"
-    cmd="python $cmpc_plot_dyn $instance --outfile z.pdf --notex --smoothing 2 --hsteps 1 2 3"
-    hermetic_file "z.pdf" "$cmd"
-    
-    cmd="python $cmpc_plot_dyn $instance --outfile z.pdf --notex --yrange 0 1 --hsteps 2"
-    hermetic_file "z.pdf" "$cmd"
 
     cd ..
     rm -rf _test

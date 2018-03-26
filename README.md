@@ -1,6 +1,6 @@
-# CMPC: Constrianed Model Predictive Control [![Build Status](https://travis-ci.com/vlad17/cmpc.svg?token=xAqzxKFpxN3pG4om3z4n&branch=master)](https://travis-ci.com/vlad17/cmpc)
+# MVE: Model-based Value Estimation [![Build Status](https://travis-ci.com/vlad17/cmpc.svg?token=xAqzxKFpxN3pG4om3z4n&branch=master)](https://travis-ci.com/vlad17/mve)
 
-Account for model inaccuracies in MPC.
+Using short-horizon nonlinear dynamics for on-policy simulation to improve value estimation.
 
 ## Requirements
 
@@ -70,9 +70,9 @@ Just use the [manual encryption instructions](https://docs.travis-ci.com/user/en
 
 ## Adding New Fully Observable Environment
 
-1. Create a new `FullyObservable<env>` under `cmpc/envs`. See `FullyObservableHalfCheetah.py` for a link to the Open AI Gym commit that contains the source code you should adapt.
-2. Expose the new environment by importing it in `cmpc/envs/__init__.py`
-3. Make it accessible through `cmpc/env_info.py`'s `_env_class` function.
+1. Create a new `FullyObservable<env>` under `mve/envs`. See `FullyObservableHalfCheetah.py` for a link to the Open AI Gym commit that contains the source code you should adapt.
+2. Expose the new environment by importing it in `mve/envs/__init__.py`
+3. Make it accessible through `mve/env_info.py`'s `_env_class` function.
 
 Make sure to test that your environment works and amend the tests in `scripts/tests.sh`.
 
