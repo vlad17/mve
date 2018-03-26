@@ -54,7 +54,7 @@ class _StackCrawlingFormatter(logging.Formatter):
         return s
 
 
-_LOGGER = logging.getLogger("cmpc")
+_LOGGER = logging.getLogger("mve")
 _FORMAT_STRING = "[%(asctime)-15s {pathname}:{lineno}] %(message)s"
 _FORMATTER = _StackCrawlingFormatter(_FORMAT_STRING)
 
@@ -73,7 +73,11 @@ def debug(s, *args):
     """debug(s, x1, ..., xn) logs s.format(x1, ..., xn)."""
     # Get the path name and line number of the function which called us.
     previous_frame = inspect.currentframe().f_back
-    pathname, lineno, _, _, _ = inspect.getframeinfo(previous_frame)
+    try:
+        pathname, lineno, _, _, _ = inspect.getframeinfo(previous_frame)
+    except Exception: # pylint: disable=broad-except
+        pathname = '<UNKNOWN-FILE>.py'
+        lineno = 0
     _FORMATTER.pathname = pathname
     _FORMATTER.lineno = lineno
     _LOGGER.debug(s.format(*args))
