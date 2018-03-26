@@ -27,8 +27,9 @@ def _evaluate():
 
     neps = flags().evaluation.episodes
     venv = env_info.make_venv(neps)
+    # TODO need_dynamics should really be a method in ddpg.py
     need_dynamics = (
-        flags().ddpg.mixture_estimator == 'learned' or
+        flags().ddpg.dynamics_type == 'learned' or
         flags().ddpg.imaginary_buffer > 0)
     if need_dynamics:
         dynamics = NNDynamicsModel()
@@ -121,6 +122,7 @@ if __name__ == "__main__":
     _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags(),
               DynamicsFlags()]
     _args = parse_args(_flags)
-    with setup_experiment_context(
-        _args, create_logdir=False, create_reporter=False):
+    with setup_experiment_context(_args,
+                                  create_logdir=False,
+                                  create_reporter=False):
         _evaluate()

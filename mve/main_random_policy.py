@@ -1,8 +1,5 @@
 """Generate random rollouts."""
 
-# import mujoco for weird dlopen reasons
-import mujoco_py  # pylint: disable=unused-import
-
 from context import flags
 import env_info
 from experiment import ExperimentFlags, setup_experiment_context

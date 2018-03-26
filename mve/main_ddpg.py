@@ -15,7 +15,7 @@ def train():
     Runs the DDPG + MVE training procedure, reading from the global flags.
     """
     need_dynamics = (
-        flags().ddpg.mixture_estimator == 'learned' or
+        flags().ddpg.dynamics_type == 'learned' or
         flags().ddpg.imaginary_buffer > 0)
     if need_dynamics:
         dynamics = NNDynamicsModel()

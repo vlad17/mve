@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import random
 import time
 
-from terminaltables import SingleTable
+from terminaltables import AsciiTable
 import tensorflow as tf
 import gym
 import numpy as np
@@ -269,12 +269,13 @@ class AssignableStatistic:
         """Denormalize a value according to these statistics"""
         return x * self._std_var + self._mean_var
 
+
 def print_table(data):
     """
     Use terminaltables to pretty-print a table to the terminal, where the
     table should be an even nested list of strings.
     """
-    table = SingleTable(data)
+    table = AsciiTable(data)
     table.inner_column_border = False
     print(table.table)
 

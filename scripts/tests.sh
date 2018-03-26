@@ -92,13 +92,11 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2")
     cmds+=("python $main_ddpg $ddpg_flags --env_name acrobot")
     cmds+=("python $main_ddpg $ddpg_flags --drop_tdk true")
-    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --q_target_mixture true")
-    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture true $dynamics_flags")
-    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator learned --q_target_mixture true $dynamics_flags --dyn_bn true")
-    cmds+=("python $main_ddpg $ddpg_flags --mixture_estimator oracle --actor_critic_mixture true")
+    cmds+=("python $main_ddpg $ddpg_flags --dynamics_type oracle --ddpg_mve true")
+    cmds+=("python $main_ddpg $ddpg_flags --dynamics_type learned --ddpg_mve true $dynamics_flags")
+    cmds+=("python $main_ddpg $ddpg_flags --dynamics_type learned --ddpg_mve true $dynamics_flags --dyn_bn true")
+    cmds+=("python $main_ddpg $ddpg_flags --dynamics_type oracle --ddpg_mve true")
     cmds+=("python $main_ddpg $ddpg_flags --sample_interval 200")
-    mix_all="--mixture_estimator oracle --q_target_mixture true --actor_critic_mixture true"
-    cmds+=("python $main_ddpg $ddpg_flags $mix_all")
     cmds+=("python $main_ddpg $ddpg_flags --ddpg_min_buf_size 200")
     # SAC
     cmds+=("python $main_sac $sac_flags")
@@ -123,7 +121,7 @@ main() {
     eval_q_flags="--episodes 3 --output_path out.pdf --notex"
     eval_q_flags="$eval_q_flags --lims -1 1 -1 1 --title hello --episodes 1 --horizon 15"
     cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags")
-    cmds+=("python $main_ddpg $ddpg_flags --exp_name plotexp --evaluate_every 100 --q_target_mixture true --mixture_estimator learned")
+    cmds+=("python $main_ddpg $ddpg_flags --exp_name plotexp --evaluate_every 100 --ddpg_mve true --dynamics_type learned")
     for cmd in "${cmds[@]}"; do
         relative="../mve"
         box "${cmd/$relative/mve}"

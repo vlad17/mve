@@ -85,34 +85,20 @@ class DDPGFlags(Flags):
                 type=int,
                 help='how frequently to update parameter-space noise'),
             ArgSpec(
-                name='oracle_nenvs',
-                default=0,
-                type=int,
-                help='number of envs to use for oracle Q-estimates, should be '
-                'the learner_batch_size for full parallelism (automatically'
-                ' set to this if 0)'),
-            ArgSpec(
-                name='mixture_estimator',
+                name='dynamics_type',
                 default='oracle',
                 type=str,
-                help='Defines the mixture estimator used for computing Q'
-                'values. This is only used of a corresponding flag such '
-                'as --q_target_mixture is activated. '
+                help='Defines the type of dynamics used for computing Q'
+                'values, which are only used if --sac_mve is true. '
                 'If oracle, use an oracle environment to compute '
                 'model_horizon-step rewards for mixing with the target '
                 'Q network. If learned, use a learned dynamics model.'),
             ArgSpec(
-                name='q_target_mixture',
+                name='ddpg_mve',
                 default=False,
                 type=distutils.util.strtobool,
                 help='Use the mixture estimator instead of the target critic '
                 '(or, more precisely, on top of the target critic)'),
-            ArgSpec(
-                name='actor_critic_mixture',
-                default=False,
-                type=distutils.util.strtobool,
-                help='Use the mixture estimator instead of the critic '
-                'which ddpg uses to maximize its policy with'),
             ArgSpec(
                 name='model_horizon',
                 default=1,
@@ -150,7 +136,7 @@ class DDPGFlags(Flags):
         Check if a dynamics model was provided in learned value mixture
         estimation.
         """
-        if self.mixture_estimator == 'learned' or \
+        if self.dynamics_type == 'learned' or \
                 self.imaginary_buffer > 0:
             assert dyn is not None, 'expecting a dynamics model'
         else:

@@ -11,7 +11,7 @@ import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
 from qvalues import qvals, offline_oracle_q, oracle_q
-from utils import scale_from_box, flatgrad, timeit
+from utils import scale_from_box, timeit
 
 
 def _tf_seq(a, b_fn):
@@ -68,79 +68,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
         opt = tf.train.AdamOptimizer(
             learning_rate=actor_lr, beta1=0.9, beta2=0.999, epsilon=1e-8)
-        if flags().ddpg.actor_critic_mixture:
-            assert flags().ddpg.mixture_estimator == 'oracle', \
-                'only oracle estimator handled for actor-critic mix, ' \
-                'got {}'.format(flags().ddpg.mixture_estimator)
-            # h-step observations
-            h = flags().ddpg.model_horizon
-            debug('using oracle Q estimator with {} steps for actor grad', h)
-            nenvs = flags().ddpg.learner_batch_size
-            # symmetric finite diffs + one central evaluation
-            nenvs *= env_info.ac_dim() * 2 + 1
-            self._oracle_actor_venv = env_info.make_venv(nenvs)
-            self._oracle_actor_venv.reset()
-
-            # This actor loss actually has some trickery going on to get
-            # autodiff to do the right thing.
-            #
-            # The actor-critic based policy gradient of DDPG (wrt policy mu
-            # parameters t) for a single state s is:
-            #
-            # d/dt(Q(s, mu(s))) = J(s) . dQ/da(s, mu(s))
-            #
-            # with J(s) the Jacobian of mu wrt t at a fixed state s.
-            # The above holds by chain rule
-            # and linearity of mean. If Q is perfect, the above is the policy
-            # gradient by the Deterministic Policy Gradient Theorem (Silver
-            # et al 2014) when s is sampled from the current policy's state
-            # visitation distribution.
-            #
-            # When s is sampled from a different distribution then we require
-            # a slightly different analysis from Degris et al 2012 to show
-            # that J(s) . dQ/da is an improvement direction.
-            # For a batch of states
-            # s by linearity of the mean function we can average gradients.
-            #
-            # When using model-expanded critic, Q becomes a function of t
-            # (the actions chosen are dependent on Q).
-            #
-            # Consider a fixed 1-step model-based expansion for a critic C:
-            # Q = r(s, a, s') + gamma * C(s', a'), s' = f(s, a), a' = mu(s')
-            # A modified version of the Degris et al analysis yields
-            # an improvement direction with R(a) = r(s, a, s')
-            # J(s) . dR/da + gamma * J(s') . dC/da(s', a')
-            # The above can be recovered in an autodiff tool with a loss:
-            # mu(s) . dR/da + gamma * C(s', mu(s'))
-
-            # TODO: multistep this will need to be a list of placeholders
-            self._dr_ph_na = tf.placeholder(
-                tf.float32, shape=[None, env_info.ac_dim()])
-            self._expanded_obs_ph_ns = tf.placeholder(
-                tf.float32, shape=[None, env_info.ob_dim()])
-            self._expanded_terminals_ph_n = tf.placeholder(
-                tf.float32, shape=[None])
-            self._actor_loss = -1 * tf.reduce_mean(
-                tf.reduce_sum(act_obs0 * self._dr_ph_na, axis=1) +
-                (1 - self._expanded_terminals_ph_n) * discount *
-                critic.tf_critic(
-                    self._expanded_obs_ph_ns,
-                    actor.tf_action(self._expanded_obs_ph_ns)))
-            original_loss = -1 * tf.reduce_mean(critic_at_actor_n)
-
-            new_grad = flatgrad(opt, self._actor_loss, actor.variables)
-            old_grad = flatgrad(opt, original_loss, actor.variables)
-            cos = tf.reduce_sum(new_grad * old_grad) / (
-                tf.norm(new_grad) * tf.norm(old_grad))
-            mag = tf.norm(new_grad) / tf.norm(old_grad)
-            self._reporter.scalar('expanded actor grad : original cosine',
-                                  cos)
-            self._reporter.scalar('expanded actor grad : original magnitude',
-                                  mag)
-            self._reporter.scalar('l2 expanded - original actor grad',
-                                  tf.norm(new_grad - old_grad))
-        else:
-            self._actor_loss = -1 * tf.reduce_mean(critic_at_actor_n)
+        self._actor_loss = -1 * tf.reduce_mean(critic_at_actor_n)
         self._reporter.scalar('actor loss', self._actor_loss)
         with tf.variable_scope(scope):
             with tf.variable_scope('opt_actor'):
@@ -153,10 +81,10 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         current_Q_n = critic.tf_critic(
             self.obs0_ph_ns, self.actions_ph_na)
         self._reporter.stats('critic Q', current_Q_n)
-        if flags().ddpg.q_target_mixture:
+        if flags().ddpg.ddpg_mve:
             # h-step observations
             h = flags().ddpg.model_horizon
-            if flags().ddpg.mixture_estimator == 'oracle':
+            if flags().ddpg.dynamics_type == 'oracle':
                 debug('using oracle Q estimator with {} steps as '
                       'target critic', h)
                 nenvs = flags().ddpg.learner_batch_size
@@ -205,7 +133,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                     if not flags().ddpg.drop_tdk:
                         residual_loss += tf.losses.mean_squared_error(
                             target_Q_hn[t], predicted_Q_n, weights=weights)
-            elif flags().ddpg.mixture_estimator == 'learned':
+            elif flags().ddpg.dynamics_type == 'learned':
                 debug('using learned-dynamics Q estimator with {} steps as '
                       'target critic', h)
                 assert learned_dynamics is not None
@@ -220,7 +148,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                     learned_dynamics)
             else:
                 raise ValueError('unrecognized mixture estimator {}'
-                                 .format(flags().ddpg.mixture_estimator))
+                                 .format(flags().ddpg.dynamics_type))
         else:
             next_Q_n = critic.tf_target_critic(
                 self.obs1_ph_ns, actor.tf_target_action(self.obs1_ph_ns))
@@ -325,12 +253,9 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         self._venv = env_info.make_venv(16)
 
         # Sloppily shoving imaginary data for training in here as well.
-        # TODO: move this to a separate file (along with lots of other stuff
-        # like exploration) when you have time.
         if flags().ddpg.imaginary_buffer > 0:
             assert learned_dynamics is not None
-            assert not flags().ddpg.q_target_mixture
-            assert not flags().ddpg.actor_critic_mixture
+            assert not flags().ddpg.ddpg_mve
             self._imdata = Dataset(flags().experiment.bufsize)
             self._simulation_states_ph_ns = tf.placeholder(
                 tf.float32, shape=[None, env_info.ob_dim()])
@@ -390,11 +315,9 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             self.terminals1_ph_n: terminals,
             self.rewards_ph_n: rewards,
             self.actions_ph_na: acs}
-        if flags().ddpg.q_target_mixture and \
-           flags().ddpg.mixture_estimator == 'oracle':
+        if flags().ddpg.ddpg_mve and \
+           flags().ddpg.dynamics_type == 'oracle':
             self._oracle_expand_states(feed_dict)
-        if flags().ddpg.actor_critic_mixture:
-            self._oracle_expand_actions(feed_dict)
         return feed_dict
 
     def _batch_generator(self, data, nbatches, batch_size):
@@ -470,47 +393,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             next_obs, next_acs, self._oracle_q_target_venv, h_n)
         return model_expanded_Q
 
-    def _oracle_expand_actions(self, feed_dict):
-        obs0_ns = feed_dict[self.obs0_ph_ns]
-
-        # n = mini-batch size
-        # e = forward, backward, central evaluations
-        next_obs_ns = np.asarray(obs0_ns, dtype=float)
-        next_acs_na = np.asarray(self._actor.act(next_obs_ns), dtype=float)
-        a = env_info.ac_dim()
-        s = env_info.ob_dim()
-        e = 2 * a + 1
-        obs0_ens = np.tile(next_obs_ns, [e, 1, 1])
-        acs0_ena = np.tile(next_acs_na, [e, 1, 1])
-
-        # the best floating point aware step size differentiating a
-        # scalar function f at x with symmetric finite differences is
-        # cube_root(3|f(x)| * precision / M)
-        # where M is a bound on the third-order Taylor expansion term
-        # (a local bound on the third derivative if f is thrice-differentiable)
-        # fudging the constants at precision = 10^(-16) we get a step size of:
-        eps = 1e-5
-
-        for i in range(env_info.ac_dim()):
-            acs0_ena[i, :, i] += eps
-        for i in range(env_info.ac_dim()):
-            acs0_ena[a + i, :, i] -= eps
-        # 2 * a + i is for the evaluation along the center
-
-        self._oracle_actor_venv.set_state_from_ob(obs0_ens.reshape(
-            -1, s))
-        obs1_ens, rew0_en, done_en, _ = self._oracle_actor_venv.step(
-            acs0_ena.reshape(-1, a))
-        obs1_ens = obs1_ens.reshape(e, -1, s)
-        rew0_en = rew0_en.reshape(e, -1)
-        done_en = done_en.reshape(e, -1)
-
-        diff_an = rew0_en[:a] - rew0_en[a:2 * a]
-        dr_an = diff_an / (2 * eps)
-        feed_dict[self._dr_ph_na] = dr_an.T
-        feed_dict[self._expanded_obs_ph_ns] = obs1_ens[-1]
-        feed_dict[self._expanded_terminals_ph_n] = done_en[-1].astype(float)
-
     def _generate_data(self, data, timesteps):
         im_to_real_ratio = flags().ddpg.imaginary_buffer
         h = flags().ddpg.model_horizon
@@ -527,9 +409,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             for o, a, n, r in zip(obs, acs, next_obs, rews):
                 self._imdata.next(o, n, r, False, a)
             obs = next_obs
-
-# TODO: create general methods for these patterns and abstract from
-# random shooter code as well
 
 
 def _tf_model_value_expand(h, initial_states_ns, act, critique, dynamics,
@@ -557,6 +436,7 @@ def _tf_model_value_expand(h, initial_states_ns, act, critique, dynamics,
     final_critic_n = tf.pow(discount, h_fl) * critique(
         final_states_ns, act(final_states_ns))
     return final_rewards_n + final_critic_n
+
 
 def _tf_compute_model_value_expansion(
         obs0_ns,

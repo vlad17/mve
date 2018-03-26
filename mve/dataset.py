@@ -1,7 +1,5 @@
 """Implementation of a transition dataset (aka replay buffer)"""
 
-# import mujoco for weird dlopen reasons
-import mujoco_py  # pylint: disable=unused-import
 import numpy as np
 
 from context import flags
@@ -67,6 +65,7 @@ class Path(object):
     def next_obs(self):
         """All states transitioned into so far."""
         return self._next_obs[:self._idx]
+
 
 class Dataset(object):
     """
