@@ -74,10 +74,5 @@ Just use the [manual encryption instructions](https://docs.travis-ci.com/user/en
 2. Expose the new environment by importing it in `mve/envs/__init__.py`
 3. Make it accessible through `mve/env_info.py`'s `_env_class` function.
 
-Make sure to test that your environment works and amend the tests in `scripts/tests.sh`.
+Make sure to test that your environment works and amend the tests in `scripts/tests.sh` to include a check that it runs correctly.
 
-## Outdated things
-
-The report and all scripts related to its creation in `report/` are currently out-dated with respect to the current code. They correspond to a report written up when the code base was at commit `cda6b4de42d`.
-
-The poster in `poster/` is also out-of-date.
