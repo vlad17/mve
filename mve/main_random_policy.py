@@ -5,7 +5,7 @@ import mujoco_py  # pylint: disable=unused-import
 
 from context import flags
 import env_info
-from experiment import ExperimentFlags, experiment_main
+from experiment import ExperimentFlags, setup_experiment_context
 from flags import (Flags, parse_args, ArgSpec)
 from random_policy import RandomPolicy
 from utils import timesteps
@@ -35,4 +35,5 @@ def _train():
 if __name__ == "__main__":
     _args = parse_args([
         ExperimentFlags(), RandomPolicyFlags()])
-    experiment_main(_args, _train)
+    with setup_experiment_context(_args):
+        _train()

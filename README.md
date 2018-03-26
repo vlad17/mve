@@ -6,8 +6,7 @@ Using short-horizon nonlinear dynamics for on-policy simulation to improve value
 
 Here are setup-specific requirements that you really, really have to do yourself:
 
-* MuJoCo 1.50, with the appropriate key available - [MuJoCo downloads](https://www.roboti.us/index.html)
-* Both MuJoCo installations are expected in `~/.mujoco` or the environment variable `MUJOCO_DIRECTORY`, if defined.
+* MuJoCo 1.50, with the appropriate key available - [MuJoCo downloads](https://www.roboti.us/index.html). On Linux, you can run `~/install-mujoco.sh` with the key `mjkey.txt` in the CWD.
 * Python 3.5 (`scripts/` assume this is the `python` and `pip` in `PATH`)
 * If you get any error messages relating to `glfw3`, then reinstall everything in a shell where the following environment variables are set (and for good measure in the shell where you're launching experiments):
 
@@ -36,9 +35,13 @@ Example installation:
     pip install -r requirements.txt
     
     # Lazy version (defaults to CPU)
+    conda create -y -n cpu-py3.5 python=3.5
+    ./scripts/install-mujoco.sh
     ./scripts/ubuntu-install.sh
     
     # Lazy version (GPU)
+    conda create -y -n gpu-py3.5 python=3.5
+    ./scripts/install-mujoco.sh
     sed -i 's/tensorflow/tensorflow-gpu/' requirements.txt
     ./scripts/ubuntu-install.sh
     
@@ -50,6 +53,7 @@ All scripts are available in `scripts/`, and should be run from the repo root.
 | ------ | ------- |
 | `lint.sh` | invokes `pylint` with the appropriate flags for this repo |
 | `ubuntu-install.sh` | installs all deps except MuJoCo/python on Ubuntu 14.04 or Ubuntu 16.04 |
+| `install-mujoco.sh` | add MuJoCo 1.50 on linux, assuming a key |
 | `tests.sh` | runs tests |
 | `fake-display.sh` | create a dummy X11 display (to render on a server) |
 | `launch-ray-aws.sh` | launch an AWS ray cluster at the current branch |

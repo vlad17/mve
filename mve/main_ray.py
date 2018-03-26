@@ -21,7 +21,7 @@ import ray
 from ray.tune import register_trainable, run_experiments
 from ray.tune.median_stopping_rule import MedianStoppingRule
 
-from experiment import experiment_main
+from experiment import setup_experiment_context
 from flags import (ArgSpec, Flags, parse_args)
 from main_ddpg import train as ddpg_train
 from main_ddpg import ALL_DDPG_FLAGS
@@ -208,7 +208,8 @@ def ray_train(config, status_reporter):
                 **kwargs)
 
     with reporter.report_hook(_report_hook):
-        experiment_main(parsed_flags, train_fn)
+        with setup_experiment_context(parsed_flags):
+            train_fn()
 
 
 def _main(args):

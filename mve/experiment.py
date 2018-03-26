@@ -3,7 +3,7 @@ This module defines the flags common to all experiments,
 and the general experimental procedure.
 """
 
-from contextlib import contextmanager, closing
+from contextlib import contextmanager, closing, ExitStack
 import distutils.util
 import json
 import os
@@ -136,7 +136,9 @@ def _make_data_directory(name):
     return name
 
 
-def experiment_main(flags, experiment_fn):
+@contextmanager
+def setup_experiment_context(
+        flags, create_logdir=True, create_reporter=True, create_env_info=True):
     """
     Given parsed arguments, this method does the high-level governance
     required for running an iterated experiment (including graph
@@ -147,29 +149,38 @@ def experiment_main(flags, experiment_fn):
 
     With logging, summary reporting, and parameters appropriately
     configured, for every sub-directory and its corresponding
-    seed, a new experiment is invoked on a fresh, seeded environment,
-    where experiment_fn() is called.
+    seed, a new experiment may be invoked on a fresh, seeded environment,
+    within this context.
+
+    Note that reporter can only be true if logdir is true.
     """
-    log.init(flags.experiment.verbose)
-    logdir = flags.experiment.log_directory()
+    assert not create_reporter or create_logdir, \
+        'reporter can only be created if logdir is'
+
     seed = flags.experiment.seed
-    logdir = os.path.join(logdir, str(seed))
-    logdir = _make_data_directory(logdir)
+    if create_logdir:
+        log.init(flags.experiment.verbose)
+        logdir = flags.experiment.log_directory()
+        logdir = os.path.join(logdir, str(seed))
+        logdir = _make_data_directory(logdir)
 
-    # Save params to disk.
-    flags.experiment.seed = seed
-    with open(os.path.join(logdir, 'params.json'), 'w') as f:
-        params = flags.asdict()
-        params['git_hash'] = _git_hash()
-        json.dump(params, f, sort_keys=True, indent=4)
+        # Save params to disk.
+        with open(os.path.join(logdir, 'params.json'), 'w') as f:
+            params = flags.asdict()
+            params['git_hash'] = _git_hash()
+            json.dump(params, f, sort_keys=True, indent=4)
 
-    g = tf.Graph()
-    with g.as_default():
+    with ExitStack() as stack:
+        g = tf.Graph()
+        stack.enter_context(g.as_default())
         seed_everything(seed)
         context().flags = flags
-        with reporter.create(logdir, flags.experiment.verbose):
-            with env_info.create():
-                experiment_fn()
+        if create_reporter:
+            stack.enter_context(
+                reporter.create(logdir, flags.experiment.verbose))
+        if create_env_info:
+            stack.enter_context(env_info.create())
+        yield
 
 
 def _git_hash():

@@ -9,7 +9,7 @@ from context import flags
 from ddpg_learner import DDPGLearner, DDPGFlags
 from dynamics import DynamicsFlags, NNDynamicsModel
 import env_info
-from experiment import ExperimentFlags, experiment_main
+from experiment import ExperimentFlags, setup_experiment_context
 from flags import (parse_args, Flags, ArgSpec)
 import tfnode
 from plot import plt, savefig, activate_tex
@@ -121,4 +121,6 @@ if __name__ == "__main__":
     _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags(),
               DynamicsFlags()]
     _args = parse_args(_flags)
-    experiment_main(_args, _evaluate)
+    with setup_experiment_context(
+        _args, create_logdir=False, create_reporter=False):
+        _evaluate()

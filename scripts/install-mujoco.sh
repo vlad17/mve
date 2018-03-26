@@ -19,3 +19,7 @@ if [ -f mjkey.txt ] ; then
     mv mjkey.txt ~/.mujoco
 fi
 
+if [ -f ~/.mujoco/mjkey.txt ] ; then
+    echo 'WARNING: no ~/.mujoco/mjkey.txt found, please add manually before continuing'
+fi
+
