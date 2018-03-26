@@ -21,6 +21,7 @@ import log
 import reporter
 from utils import seed_everything
 
+
 class ExperimentFlags(Flags):
     """Flags common to all experiments."""
 
@@ -29,17 +30,6 @@ class ExperimentFlags(Flags):
         yield ArgSpec(
             name='exp_name', type=str, default='unnamed_experiment',
             help='the name of the experiment')
-        try:
-            git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD'])
-            # git_hash is a byte string; we want a string.
-            git_hash = git_hash.decode('utf-8')
-            # git_hash also comes with an extra \n at the end, which we remove.
-            git_hash = git_hash.strip()
-        except subprocess.CalledProcessError:
-            git_hash = ""
-        yield ArgSpec(
-            name='git_hash', type=str, default=git_hash,
-            help='the git hash of the code being used')
         yield ArgSpec(
             name='seed',
             type=int,
@@ -63,40 +53,10 @@ class ExperimentFlags(Flags):
             type=int, default=int(1e6),
             help='transition replay buffer maximum size',)
         yield ArgSpec(
-            name='render_every',
-            type=int,
-            default=0,
-            help='if possible, render an episode every render_every timesteps.'
-            ' If set to 0 then no rendering.')
-        yield ArgSpec(
-            name='evaluate_every',
-            type=int,
-            default=0,
-            help='evaluate diagnostics episode every evaluate_every timesteps.'
-            ' If set to 0 then no evaluating.')
-        yield ArgSpec(
-            name='save_every',
-            type=int,
-            default=0,
-            help='save all persistent TF variables every save_every timesteps.'
-            ' Do not save if set to 0')
-        yield ArgSpec(
             name='discount',
             type=float,
             default=0.99,
             help='discount factor for the reward calculations')
-        yield ArgSpec(
-            name='reward_scaling',
-            default=1,
-            type=float,
-            help='Amount to scale all rewards by. Pass -1 to use hard-coded '
-            'reward scaling, based on environment.'
-        )
-        yield ArgSpec(
-            name='timesteps',
-            default=1000000,
-            type=int,
-            help='approximate number of timesteps to collect')
         yield ArgSpec(
             name='env_parallelism',
             default=8,
@@ -112,12 +72,6 @@ class ExperimentFlags(Flags):
     def __init__(self):
         super().__init__('experiment', 'experiment governance',
                          list(ExperimentFlags._generate_arguments()))
-        self._num_rendered = 0
-        self._num_saved = 0
-        self._num_evaluated = 0
-        self._last_rendered = -1
-        self._last_saved = -1
-        self._last_evaluated = -1
 
     @contextmanager
     def render_env(self):
@@ -143,58 +97,6 @@ class ExperimentFlags(Flags):
         Should be called at most once per timestep.
         """
         return reporter.timestep() < self.timesteps
-
-    def should_render(self):
-        """
-        Should we render in the current timestep?
-        """
-        if self.render_every == 0:
-            return False
-        if reporter.timestep() == self._last_rendered:
-            return True
-        next_render = self._num_rendered * self.render_every
-        if reporter.timestep() >= next_render:
-            while (self._num_rendered * self.render_every <=
-                   reporter.timestep()):
-                self._num_rendered += 1
-
-            self._last_rendered = reporter.timestep()
-            return True
-        return False
-
-    def should_save(self):
-        """
-        Should we save in the current timestep?
-        """
-        if self.save_every == 0:
-            return False
-        if reporter.timestep() == self._last_saved:
-            return True
-        next_save = self._num_saved * self.save_every
-        if reporter.timestep() >= next_save:
-            while (self._num_saved * self.save_every <=
-                   reporter.timestep()):
-                self._num_saved += 1
-            self._last_saved = reporter.timestep()
-            return True
-        return False
-
-    def should_evaluate(self):
-        """
-        Should we evaluate in the current timestep?
-        """
-        if self.evaluate_every == 0:
-            return False
-        if reporter.timestep() == self._last_evaluated:
-            return True
-        next_evaluate = self._num_evaluated * self.evaluate_every
-        if reporter.timestep() >= next_evaluate:
-            while (self._num_evaluated * self.evaluate_every <=
-                   reporter.timestep()):
-                self._num_evaluated += 1
-            self._last_evaluated = reporter.timestep()
-            return True
-        return False
 
 
 def _make_data_directory(name):
@@ -257,7 +159,9 @@ def experiment_main(flags, experiment_fn):
     # Save params to disk.
     flags.experiment.seed = seed
     with open(os.path.join(logdir, 'params.json'), 'w') as f:
-        json.dump(flags.asdict(), f, sort_keys=True, indent=4)
+        params = flags.asdict()
+        params['git_hash'] = _git_hash()
+        json.dump(params, f, sort_keys=True, indent=4)
 
     g = tf.Graph()
     with g.as_default():
@@ -266,3 +170,18 @@ def experiment_main(flags, experiment_fn):
         with reporter.create(logdir, flags.experiment.verbose):
             with env_info.create():
                 experiment_fn()
+
+
+def _git_hash():
+    try:
+        module_dir = os.path.dirname(os.path.abspath(__file__))
+        package_dir = os.path.dirname(module_dir)
+        git_hash = subprocess.check_output(
+            ['git', 'rev-parse', 'HEAD'], cwd=package_dir)
+        # git_hash is a byte string; we want a string.
+        git_hash = git_hash.decode('utf-8')
+        # git_hash also comes with an extra \n at the end, which we remove.
+        git_hash = git_hash.strip()
+    except subprocess.CalledProcessError:
+        git_hash = '<no git hash available>'
+    return git_hash

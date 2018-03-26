@@ -4,6 +4,7 @@
 import mujoco_py  # pylint: disable=unused-import
 import numpy as np
 
+from context import flags
 from ddpg.memory import RingBuffer
 import env_info
 from utils import get_ob_dim, get_ac_dim
@@ -79,9 +80,9 @@ class Dataset(object):
     Stores up to maxlen transitions.
     """
 
-    def __init__(self, max_horizon, maxlen):
+    def __init__(self, maxlen):
         ac_dim, ob_dim = env_info.ac_dim(), env_info.ob_dim()
-        self.max_horizon = max_horizon
+        self.max_horizon = flags().experiment.horizon
         self.maxlen = maxlen
         self._obs = RingBuffer(maxlen, (ob_dim,))
         self._next_obs = RingBuffer(maxlen, (ob_dim,))
@@ -96,7 +97,7 @@ class Dataset(object):
         equal to the total amount of trajectories given).
         """
         tot_transitions = sum(len(path.rewards) for path in paths)
-        dataset = Dataset(paths[0].max_horizon, tot_transitions)
+        dataset = Dataset(tot_transitions)
         dataset.add_paths(paths)
         return dataset
 

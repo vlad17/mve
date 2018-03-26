@@ -7,7 +7,7 @@ import distutils.util
 
 import tensorflow as tf
 
-import context
+from context import flags
 from flags import Flags, ArgSpec
 from tfnode import TFNode
 from utils import timeit
@@ -39,7 +39,7 @@ class _PersistableDataset(TFNode):
     Modifies a dataset's state upon restore() or save().
     """
 
-    def __init__(self, dataset, flags):
+    def __init__(self, dataset):
         self._transition_attrs = [
             'obs', 'next_obs', 'rewards', 'acs', 'terminals']
         transition_attr_shapes = [
@@ -71,10 +71,11 @@ class _PersistableDataset(TFNode):
                     ph: getattr(data, attr)
                     for attr, ph in transitions_ph.items()})
         self._dataset = dataset
-        super().__init__('persistable_dataset', flags.restore_buffer)
+        super().__init__('persistable_dataset',
+                         flags().persistable_dataset.restore_buffer)
 
     def save(self, step):
-        if not context.flags().persistable_dataset.persist_replay_buffer:
+        if not flags().persistable_dataset.persist_replay_buffer:
             return
         with timeit('syncing ringbuffer'):
             self._set_len(self._dataset.size)
@@ -89,11 +90,11 @@ class _PersistableDataset(TFNode):
         self._dataset.set_state(transitions)
 
 
-def add_dataset_to_persistance_registry(dataset, flags):
+def add_dataset_to_persistance_registry(dataset):
     """
-    Given a dataset.Dataset and PersistableDatasetFlags instance, adds a
+    Given a dataset.Dataset, adds a
     persistable version of the the dataset to the TF graph-based
     restore registry.
     """
     # TFNode constructor implicitly saves to registry
-    _PersistableDataset(dataset, flags)
+    _PersistableDataset(dataset)

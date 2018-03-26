@@ -18,6 +18,7 @@ import tfnode
 from persistable_dataset import add_dataset_to_persistance_registry
 from sample import Sampler, sample, sample_venv
 import reporter
+from reporting import Timer
 from utils import timeit, make_session_as_default
 
 class RLLoopFlags(Flags):
@@ -39,7 +40,30 @@ class RLLoopFlags(Flags):
                 name='learner_evaluation_envs',
                 default=16,
                 type=int,
-                help='number of environments to use for evaluating learner')]
+                help='number of environments to use for evaluating learner'),
+            ArgSpec(
+                name='render_every',
+                type=int,
+                default=0,
+                help='if possible, render an episode every render_every '
+                'timesteps. If set to 0 then no rendering.'),
+            ArgSpec(
+                name='timesteps',
+                default=1000000,
+                type=int,
+                help='approximate number of timesteps to collect'),
+            ArgSpec(
+                name='evaluate_every',
+                type=int,
+                default=0,
+                help='evaluate diagnostics episode every evaluate_every '
+                'timesteps. If set to 0 then no evaluating.'),
+            ArgSpec(
+                name='save_every',
+                type=int,
+                default=0,
+                help='save all persistent TF variables every save_every '
+                'timesteps. Do not save if set to 0')]
         super().__init__('loop', 'rl loop', args)
 
 
@@ -65,8 +89,8 @@ def rl_loop(learner, dynamics):
              flags().loop.dynamics_evaluation_envs,
              flags().experiment.discount)) as dm:
         sampler = Sampler(env)
-        data = Dataset(flags().experiment.horizon, flags().experiment.bufsize)
-        add_dataset_to_persistance_registry(data, flags().persistable_dataset)
+        data = Dataset(flags().experiment.bufsize)
+        add_dataset_to_persistance_registry(data)
         with make_session_as_default():
             tf.global_variables_initializer().run()
             tf.get_default_graph().finalize()
@@ -77,7 +101,11 @@ def rl_loop(learner, dynamics):
                 _loop(sampler, data, learner, dynamics, venv, dm, unroller)
 
 def _loop(sampler, data, learner, dynamics, eval_venv, dyn_metrics, unroller):
-    while flags().experiment.should_continue():
+    evaluate_timer = Timer(flags().loop.evaluate_every)
+    save_timer = Timer(flags().loop.save_every)
+    render_timer = Timer(flags().loop.render_every)
+
+    while reporter.timestep() < flags().loop.timesteps:
         with timeit('sample learner'):
             agent = learner.agent()
             n_episodes = sampler.sample(agent.explore_act, data)
@@ -92,14 +120,17 @@ def _loop(sampler, data, learner, dynamics, eval_venv, dyn_metrics, unroller):
 
         agent = learner.agent()
 
-        if flags().experiment.should_render():
+        if render_timer.has_timed_out():
+            render_timer.snooze()
             with flags().experiment.render_env() as render_env:
                 sample(render_env, agent.exploit_act, render=True)
 
-        if flags().experiment.should_save():
+        if save_timer.has_timed_out():
+            save_timer.snooze()
             tfnode.save_all(reporter.timestep())
 
-        if flags().experiment.should_evaluate():
+        if evaluate_timer.has_timed_out():
+            evaluate_timer.snooze()
             paths = sample_venv(eval_venv, agent.exploit_act)
             rews = [path.rewards.sum() for path in paths]
             reporter.add_summary_statistics('current policy reward', rews)
@@ -109,6 +140,9 @@ def _loop(sampler, data, learner, dynamics, eval_venv, dyn_metrics, unroller):
             reporter.add_summary_statistics('exploration policy reward', rews)
 
             learner.evaluate(data)
+
+            if dynamics:
+                dynamics.evaluate(data)
 
             if unroller:
                 nsamples = flags().loop.dynamics_evaluation_envs * 8

@@ -331,8 +331,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             assert learned_dynamics is not None
             assert not flags().ddpg.q_target_mixture
             assert not flags().ddpg.actor_critic_mixture
-            self._imdata = Dataset(flags().experiment.horizon,
-                                   flags().experiment.bufsize)
+            self._imdata = Dataset(flags().experiment.bufsize)
             self._simulation_states_ph_ns = tf.placeholder(
                 tf.float32, shape=[None, env_info.ob_dim()])
             self._sim_actions_na = actor.tf_action(

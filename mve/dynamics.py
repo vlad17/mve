@@ -215,9 +215,6 @@ class NNDynamicsModel(TFNode):
         self._norm.update_stats(data)
         self._norm.log_stats()
 
-        if flags().experiment.should_evaluate():
-            self._evaluate(data, 'dynamics/before training/')
-
         # I actually tried out the tf.contrib.train.Dataset API, and
         # it was *slower* than this feed_dict method. I figure that the
         # data throughput per batch is small enough (since the data is so
@@ -233,9 +230,6 @@ class NNDynamicsModel(TFNode):
                 self._next_state_ph_ns: next_obs,
                 self._dyn_training: True
             })
-
-        if flags().experiment.should_evaluate():
-            self._evaluate(data, 'dynamics/before training/')
 
     def _predict_tf(self, states, actions):
         state_action_pair = tf.concat([
@@ -270,9 +264,11 @@ class NNDynamicsModel(TFNode):
                     flags().dynamics.dyn_dropout))
         return outputs
 
-    def _evaluate(self, data, prefix):
+    def evaluate(self, data, prefix='dynamics'):
+        """report dynamics metrics"""
         if not data.size:
             return
+        prefix = prefix + ('/' if prefix else '')
         batch_size = flags().dynamics.dyn_batch_size * 10
         batch = next(data.sample_many(1, batch_size))
         obs, next_obs, _, acs, _ = batch
