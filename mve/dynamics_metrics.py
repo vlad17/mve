@@ -78,17 +78,17 @@ class DynamicsMetrics:
         # n = batch size, h = horizon, s = state dim
         return np.square(true_obs_nhs - pred_obs_nhs).mean(axis=2).mean(axis=0)
 
-    def log(self, data, prefix=''):
+    def log(self, obs, planned_acs, planned_obs, prefix=''):
         """
         Report H-step standardized dynamics accuracy.
         """
-        if data.planned_acs.size == 0:
+        if planned_acs.size == 0:
             return
 
-        acs_nha = data.planned_acs
+        acs_nha = planned_acs
         assert acs_nha.shape[1] == self._horizon, (
             acs_nha.shape, self._horizon)
-        obs_ns = data.obs
+        obs_ns = obs
         obs_nhs, mask = self._eval_open_loop(obs_ns, acs_nha)
         if np.sum(mask) == 0:
             log.debug('all open loop evaluations terminated early -- '
@@ -97,7 +97,7 @@ class DynamicsMetrics:
         acs_nha = acs_nha[mask]
         obs_nhs = obs_nhs[mask]
         obs_ns = obs_ns[mask]
-        planned_obs_nhs = data.planned_obs[mask]
+        planned_obs_nhs = planned_obs[mask]
 
         mse_h = self._mse_h(obs_nhs, planned_obs_nhs)
         prefix += 'dynamics/open loop/'

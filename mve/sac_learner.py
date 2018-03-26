@@ -3,6 +3,7 @@ A learner which uses SAC
 """
 import distutils.util
 
+from agent import Agent
 from context import flags
 from flags import Flags, ArgSpec
 from learner import Learner
@@ -130,17 +131,16 @@ class SACLearner(Learner, TFNode):
         self._sac = SAC(self.policy, self.qfn, self.vfn, dynamics)
         TFNode.__init__(self, 'sac', flags().sac.restore_sac)
 
-    def tf_action(self, states_ns):
-        return self.policy.tf_greedy_action(states_ns)
+    def agent(self):
+        return Agent.wrap(
+            self.policy.act,
+            self.policy.greedy_act)
 
-    def act(self, states_ns):
-        return self.policy.act(states_ns)
-
-    def greedy_act(self, states_ns):
-        return self.policy.greedy_act(states_ns)
-
-    def fit(self, data, timesteps):
+    def train(self, data, timesteps):
         if data.size < flags().sac.sac_min_buf_size:
             return
         nbatches = flags().sac.nbatches(timesteps)
         self._sac.train(data, nbatches, self._batch_size, timesteps)
+
+    def evaluate(self, data):
+        self._sac.evaluate(data)

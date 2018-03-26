@@ -4,6 +4,7 @@ policy-gradients.
 """
 import distutils.util
 
+from agent import Agent
 from context import flags
 from flags import Flags, ArgSpec
 from learner import Learner
@@ -189,17 +190,16 @@ class DDPGLearner(Learner, TFNode):
     def custom_init(self):
         self._ddpg.initialize_targets()
 
-    def tf_action(self, states_ns):
-        return self.actor.tf_action(states_ns)
+    def agent(self):
+        return Agent.wrap(
+            self.actor.perturbed_act,
+            self.actor.act)
 
-    def act(self, states_ns):
-        return self.actor.perturbed_act(states_ns)
-
-    def greedy_act(self, states_ns):
-        return self.actor.act(states_ns)
-
-    def fit(self, data, timesteps):
+    def train(self, data, timesteps):
         if data.size < flags().ddpg.ddpg_min_buf_size:
             return
         nbatches = flags().ddpg.nbatches(timesteps)
         self._ddpg.train(data, nbatches, self._batch_size, timesteps)
+
+    def evaluate(self, data):
+        self._ddpg.evaluate(data)

@@ -7,9 +7,10 @@ import numpy as np
 
 from context import flags
 from flags import Flags, ArgSpec
+import env_info
 import reporter
 from tfnode import TFNode
-from utils import build_mlp, get_ob_dim, get_ac_dim, AssignableStatistic
+from utils import build_mlp, AssignableStatistic
 
 
 class DynamicsFlags(Flags):
@@ -86,13 +87,13 @@ class DynamicsFlags(Flags):
 
 class _Statistics:
     def __init__(self, data):
-        if data.size == 0:
-            self.mean_ob = np.zeros(data.obs.shape[1])
-            self.std_ob = np.ones(data.obs.shape[1])
-            self.mean_delta = np.zeros(data.obs.shape[1])
-            self.std_delta = np.ones(data.obs.shape[1])
-            self.mean_ac = np.zeros(data.acs.shape[1])
-            self.std_ac = np.ones(data.acs.shape[1])
+        if not data:
+            self.mean_ob = np.zeros(env_info.ob_dim())
+            self.std_ob = np.ones(env_info.ob_dim())
+            self.mean_delta = np.zeros(env_info.ob_dim())
+            self.std_delta = np.ones(env_info.ob_dim())
+            self.mean_ac = np.zeros(env_info.ac_dim())
+            self.std_ac = np.ones(env_info.ac_dim())
         else:
             self.mean_ob = np.mean(data.obs, axis=0)
             self.std_ob = np.std(data.obs, axis=0)
@@ -102,11 +103,10 @@ class _Statistics:
             self.mean_ac = np.mean(data.acs, axis=0)
             self.std_ac = np.std(data.acs, axis=0)
 
-
 class _DeltaNormalizer:
-    def __init__(self, data, eps=1e-6):
+    def __init__(self, eps=1e-6):
         self._eps = eps
-        stats = _Statistics(data)
+        stats = _Statistics(None)
         self._ob_tf_stats = AssignableStatistic(
             'ob', stats.mean_ob, stats.std_ob)
         self._delta_tf_stats = AssignableStatistic(
@@ -160,8 +160,9 @@ class _DeltaNormalizer:
 class NNDynamicsModel(TFNode):
     """Stationary neural-network-based dynamics model."""
 
-    def __init__(self, env, norm_data, dyn_flags):
-        ob_dim, ac_dim = get_ob_dim(env), get_ac_dim(env)
+    def __init__(self):
+        dyn_flags = flags().dynamics
+        ob_dim, ac_dim = env_info.ob_dim(), env_info.ac_dim()
 
         self._input_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], 'dynamics_input_state')
@@ -171,7 +172,7 @@ class NNDynamicsModel(TFNode):
             tf.float32, [None, ob_dim], 'true_next_state_diff')
 
         with tf.variable_scope('dynamics'):
-            self._norm = _DeltaNormalizer(norm_data)
+            self._norm = _DeltaNormalizer()
         # only used if dyn_bn is set to true
         self._dyn_training = tf.placeholder_with_default(
             False, [], 'dynamics_dyn_training_mode')

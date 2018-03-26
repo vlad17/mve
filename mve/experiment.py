@@ -21,7 +21,6 @@ import log
 import reporter
 from utils import seed_everything
 
-
 class ExperimentFlags(Flags):
     """Flags common to all experiments."""
 
@@ -44,9 +43,7 @@ class ExperimentFlags(Flags):
         yield ArgSpec(
             name='seed',
             type=int,
-            default=[3],
-            nargs='+',
-            help='seeds for each trial')
+            default=3)
         yield ArgSpec(
             name='verbose',
             type=distutils.util.strtobool,
@@ -209,22 +206,22 @@ def _make_data_directory(name):
     following contents:
 
         data/foo
-        data/foo-1
-        data/foo-2
-        data/foo-3
+        data/foo-old-1
+        data/foo-old-2
+        data/foo-old-3
 
     Then, make_data_directory("foo") will rename data/foo to data/foo-4 and
     then create a fresh data/foo directory.
     """
     # Make the data directory if it does not already exist.
     if not os.path.exists('data'):
-        os.makedirs('data')
+        os.makedirs('data', exist_ok=True)
 
     name = os.path.join('data', name)
     ctr = 0
     logdir = name
     while os.path.exists(logdir):
-        logdir = name + '-{}'.format(ctr)
+        logdir = name + '-old-{}'.format(ctr)
         ctr += 1
     if ctr > 0:
         log.debug('Experiment already exists, moved old one to {}.', logdir)
@@ -241,35 +238,31 @@ def experiment_main(flags, experiment_fn):
     """
     Given parsed arguments, this method does the high-level governance
     required for running an iterated experiment (including graph
-    construction and session management)
+    construction and session management).
 
-    In particular, for every seed s0, ..., sn, this creates
-    a directory in data/${exp_name}_${env_name}/si for each i.
+    In particular, if the seed is s, then this method creates
+    a directory in data/${exp_name}_${env_name}/s.
 
     With logging, summary reporting, and parameters appropriately
     configured, for every sub-directory and its corresponding
-    seed, a new experiment is invoked on a fresh, seeded environment.
-
-    experiment_fn(flags) is called, with the seed modified in args
-    to indicate which seed was used.
+    seed, a new experiment is invoked on a fresh, seeded environment,
+    where experiment_fn() is called.
     """
     log.init(flags.experiment.verbose)
-    logdir_name = flags.experiment.log_directory()
-    logdir = _make_data_directory(logdir_name)
+    logdir = flags.experiment.log_directory()
+    seed = flags.experiment.seed
+    logdir = os.path.join(logdir, str(seed))
+    logdir = _make_data_directory(logdir)
 
-    all_seeds = flags.experiment.seed
-    for seed in all_seeds:
-        # Save params to disk.
-        logdir_seed = os.path.join(logdir, str(seed))
-        os.makedirs(logdir_seed)
-        flags.experiment.seed = seed
-        with open(os.path.join(logdir_seed, 'params.json'), 'w') as f:
-            json.dump(flags.asdict(), f, sort_keys=True, indent=4)
+    # Save params to disk.
+    flags.experiment.seed = seed
+    with open(os.path.join(logdir, 'params.json'), 'w') as f:
+        json.dump(flags.asdict(), f, sort_keys=True, indent=4)
 
-        g = tf.Graph()
-        with g.as_default():
-            seed_everything(seed)
-            context().flags = flags
-            with reporter.create(logdir_seed, flags.experiment.verbose), \
-                    env_info.create():
-                experiment_fn(flags)
+    g = tf.Graph()
+    with g.as_default():
+        seed_everything(seed)
+        context().flags = flags
+        with reporter.create(logdir, flags.experiment.verbose):
+            with env_info.create():
+                experiment_fn()

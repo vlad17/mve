@@ -3,6 +3,7 @@
 # import mujoco for weird dlopen reasons
 import mujoco_py  # pylint: disable=unused-import
 
+from context import flags
 import env_info
 from experiment import ExperimentFlags, experiment_main
 from flags import (Flags, parse_args, ArgSpec)
@@ -21,10 +22,10 @@ class RandomPolicyFlags(Flags):
                                   help='number of paths to evaluate')])
 
 
-def _train(args):
-    venv = env_info.make_venv(args.random.num_paths)
+def _train():
+    venv = env_info.make_venv(flags().random.num_paths)
     random_policy = RandomPolicy(venv)
-    paths = sample_venv(venv, random_policy)
+    paths = sample_venv(venv, random_policy.exploit_act)
     rewards = [path.rewards.sum() for path in paths]
     reporter.advance(timesteps(paths), len(paths))
     reporter.add_summary_statistics('reward', rewards)

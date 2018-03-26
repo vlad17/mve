@@ -5,6 +5,7 @@ import mujoco_py  # pylint: disable=unused-import
 import numpy as np
 
 from ddpg.memory import RingBuffer
+import env_info
 from utils import get_ob_dim, get_ac_dim
 
 
@@ -12,19 +13,13 @@ class Path(object):
     """
     Store rewards and transitions from a single rollout with a maximum
     horizon length.
-
-    May also store planning information.
     """
 
-    def __init__(self, env, initial_obs, max_horizon, planning_horizon):
+    def __init__(self, env, initial_obs, max_horizon):
         self._obs = np.empty((max_horizon, get_ob_dim(env)))
         self._next_obs = np.empty((max_horizon, get_ob_dim(env)))
         self._acs = np.empty((max_horizon, get_ac_dim(env)))
         self._rewards = np.empty(max_horizon)
-        self._planned_acs = np.empty(
-            (max_horizon, planning_horizon, get_ac_dim(env)))
-        self._planned_obs = np.empty(
-            (max_horizon, planning_horizon, get_ob_dim(env)))
         self._terminals = np.empty(max_horizon)
         self._idx = 0
         self._obs[0] = initial_obs
@@ -34,22 +29,12 @@ class Path(object):
         """Maximum path horizon"""
         return len(self._rewards)
 
-    def next(self, next_obs, reward, done, ac, planned_acs, planned_obs):
+    def next(self, next_obs, reward, done, ac):
         """Append a new transition to currently-stored ones"""
         assert self._idx < self.max_horizon, (self._idx, self.max_horizon)
         self._next_obs[self._idx] = next_obs
         self._rewards[self._idx] = reward
         self._acs[self._idx] = ac
-        if planned_acs is not None:
-            self._planned_acs[self._idx] = planned_acs
-        else:
-            assert self._planned_acs.size == 0
-            assert self._planned_obs.size == 0
-        if planned_obs is not None:
-            self._planned_obs[self._idx] = planned_obs
-        else:
-            assert self._planned_obs.size == 0
-            assert self._planned_acs.size == 0
         self._idx += 1
         done = done or self._idx == self.max_horizon
         self._terminals[self._idx - 1] = done
@@ -82,17 +67,6 @@ class Path(object):
         """All states transitioned into so far."""
         return self._next_obs[:self._idx]
 
-    @property
-    def planned_acs(self):
-        """All planned actions so far."""
-        return self._planned_acs[:self._idx]
-
-    @property
-    def planned_obs(self):
-        """All planned observations so far."""
-        return self._planned_obs[:self._idx]
-
-
 class Dataset(object):
     """
     Stores all data for transitions across several rollouts.
@@ -103,13 +77,10 @@ class Dataset(object):
     a new state dataset.next_obs[i], etc.
 
     Stores up to maxlen transitions.
-
-    Note by default a dataset DOES NOT store plans. Change planning_horizon > 0
-    if you want it to do so.
     """
 
-    def __init__(self, ac_dim, ob_dim, max_horizon, maxlen,
-                 planning_horizon=0):
+    def __init__(self, max_horizon, maxlen):
+        ac_dim, ob_dim = env_info.ac_dim(), env_info.ob_dim()
         self.max_horizon = max_horizon
         self.maxlen = maxlen
         self._obs = RingBuffer(maxlen, (ob_dim,))
@@ -117,16 +88,6 @@ class Dataset(object):
         self._rewards = RingBuffer(maxlen, tuple())
         self._acs = RingBuffer(maxlen, (ac_dim,))
         self._terminals = RingBuffer(maxlen, tuple())
-        self._planned_acs = RingBuffer(maxlen, (planning_horizon, ac_dim))
-        self._planned_obs = RingBuffer(maxlen, (planning_horizon, ob_dim))
-
-    @staticmethod
-    def from_env(env, max_horizon, maxlen):
-        """
-        Generate a dataset with action/observation as specified by an
-        environment.
-        """
-        return Dataset(get_ac_dim(env), get_ob_dim(env), max_horizon, maxlen)
 
     @staticmethod
     def from_paths(paths):
@@ -135,12 +96,7 @@ class Dataset(object):
         equal to the total amount of trajectories given).
         """
         tot_transitions = sum(len(path.rewards) for path in paths)
-        ac_dim = paths[0].acs.shape[1]
-        ob_dim = paths[0].obs.shape[1]
-        plan_horizon = paths[0].planned_acs.shape[1]
-        dataset = Dataset(
-            ac_dim, ob_dim, paths[0].max_horizon, tot_transitions,
-            plan_horizon)
+        dataset = Dataset(paths[0].max_horizon, tot_transitions)
         dataset.add_paths(paths)
         return dataset
 
@@ -177,16 +133,6 @@ class Dataset(object):
         """All states transitioned into."""
         return self._next_obs.all_data()
 
-    @property
-    def planned_acs(self):
-        """All planned actions."""
-        return self._planned_acs.all_data()
-
-    @property
-    def planned_obs(self):
-        """All planned observations."""
-        return self._planned_obs.all_data()
-
     def add_paths(self, paths):
         """Aggregate data from a list of paths"""
         for path in paths:
@@ -197,9 +143,6 @@ class Dataset(object):
             self._rewards.append_all(path.rewards)
             self._acs.append_all(path.acs)
             self._terminals.append_all(path.terminals)
-            plan_horizon = self.planned_acs.shape[1]
-            self._planned_acs.append_all(path.planned_acs[:, :plan_horizon, :])
-            self._planned_obs.append_all(path.planned_obs[:, :plan_horizon, :])
 
     def set_state(self, dictionary):
         """
@@ -222,16 +165,13 @@ class Dataset(object):
         """
         return max(self.size // batch_size, 1)
 
-    def next(
-            self, ob, next_ob, reward, done, action, planned_acs, planned_obs):
+    def next(self, ob, next_ob, reward, done, action):
         """Update RingBuffers directly using results of a step."""
         self._obs.append(ob)
         self._next_obs.append(next_ob)
         self._rewards.append(reward)
         self._acs.append(action)
         self._terminals.append(done)
-        self._planned_acs.append(planned_acs)
-        self._planned_obs.append(planned_obs)
 
     def sample_many(self, nbatches, batch_size):
         """

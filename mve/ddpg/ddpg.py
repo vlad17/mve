@@ -1,7 +1,5 @@
 """DDPG training."""
 
-import types
-
 import tensorflow as tf
 import numpy as np
 
@@ -14,7 +12,7 @@ import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
 from qvalues import qvals, offline_oracle_q, oracle_q
-from utils import scale_from_box, as_controller, flatgrad, timeit
+from utils import scale_from_box, flatgrad, timeit
 
 
 def _tf_seq(a, b_fn):
@@ -359,9 +357,8 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             assert learned_dynamics is not None
             assert not flags().ddpg.q_target_mixture
             assert not flags().ddpg.actor_critic_mixture
-            self._imdata = Dataset.from_env(
-                self._venv, flags().experiment.horizon,
-                flags().experiment.bufsize)
+            self._imdata = Dataset(flags().experiment.horizon,
+                                   flags().experiment.bufsize)
             self._simulation_states_ph_ns = tf.placeholder(
                 tf.float32, shape=[None, env_info.ob_dim()])
             self._sim_actions_na = actor.tf_action(
@@ -372,9 +369,17 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                 self._simulation_states_ph_ns, self._sim_actions_na,
                 self._sim_next_states_ns)
 
-    def _evaluate(self):
+    def evaluate(self, data):
+        """misc evaluation"""
+        batch_size = flags().ddpg.learner_batch_size
+        batch = self._sample(next(data.sample_many(1, batch_size)))
+        self._reporter.report(batch)
+
+        if hasattr(self, '_dyn_metrics'):
+            self._eval_dynamics(data, '')
+
         # runs out-of-band trials for less noise performance evaluation
-        paths = sample_venv(self._venv, as_controller(self._actor.target_act))
+        paths = sample_venv(self._venv, self._actor.target_act)
         rews = [path.rewards.sum() for path in paths]
         reporter.add_summary_statistics('target policy reward', rews)
         acs = np.concatenate([path.acs for path in paths])
@@ -395,7 +400,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             if np.isfinite(qmse):
                 reporter.add_summary('Q MSE/' + name, qmse)
 
-        paths = sample_venv(self._venv, as_controller(self._actor.act))
+        paths = sample_venv(self._venv, self._actor.act)
         rews = [path.rewards.sum() for path in paths]
         reporter.add_summary_statistics('current policy reward', rews)
 
@@ -432,10 +437,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
     def train(self, data, nbatches, batch_size, timesteps):
         """Run nbatches training iterations of DDPG"""
-        if flags().experiment.should_evaluate():
-            if hasattr(self, '_dyn_metrics'):
-                self._eval_dynamics(data, 'ddpg before/')
-
         if flags().ddpg.imaginary_buffer > 0:
             with timeit('generating imaginary data'):
                 self._generate_data(data, timesteps)
@@ -453,16 +454,6 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                       'critic loss {:.4g} actor loss {:.4g} '
                       'action noise {:.4g}',
                       i, nbatches, cl, al, an)
-
-        if flags().experiment.should_evaluate():
-            if data.size:
-                batch = self._sample(next(data.sample_many(1, batch_size)))
-                self._reporter.report(batch)
-
-            self._evaluate()
-
-            if hasattr(self, '_dyn_metrics'):
-                self._eval_dynamics(data, 'ddpg after/')
 
     def _oracle_expand_states(self, feed_dict):
         h = flags().ddpg.model_horizon
@@ -556,25 +547,19 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                            data.size)
         ixs = np.random.randint(data.size, size=(eval_samples,))
 
-        proto_path = types.SimpleNamespace()
-        proto_path.max_horizon = data.max_horizon
-        for attr in ['obs', 'next_obs', 'rewards', 'acs', 'terminals']:
-            val = getattr(data, attr)
-            val = val[ixs]
-            setattr(proto_path, attr, val)
-
+        obs = data.obs[ixs]
         tf.get_default_session().run(
             self._initializer, feed_dict={
-                self._unroll_states_ph_ns: proto_path.obs})
+                self._unroll_states_ph_ns: obs})
 
         acs_hna, obs_hns = tf.get_default_session().run(
             self._unroll_loop, feed_dict={
-                self._unroll_states_ph_ns: proto_path.obs})
+                self._unroll_states_ph_ns: obs})
 
-        proto_path.planned_acs = np.swapaxes(acs_hna, 0, 1)
-        proto_path.planned_obs = np.swapaxes(obs_hns, 0, 1)
-        sampled = Dataset.from_paths([proto_path])
-        self._dyn_metrics.log(sampled, prefix)
+        planned_acs = np.swapaxes(acs_hna, 0, 1)
+        planned_obs = np.swapaxes(obs_hns, 0, 1)
+        self._dyn_metrics.log(
+            obs, planned_acs, planned_obs, prefix)
 
     def _generate_data(self, data, timesteps):
         im_to_real_ratio = flags().ddpg.imaginary_buffer
@@ -590,7 +575,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
                  self._sim_rewards_n], feed_dict={
                      self._simulation_states_ph_ns: obs})
             for o, a, n, r in zip(obs, acs, next_obs, rews):
-                self._imdata.next(o, n, r, False, a, None, None)
+                self._imdata.next(o, n, r, False, a)
             obs = next_obs
 
 # TODO: create general methods for these patterns and abstract from

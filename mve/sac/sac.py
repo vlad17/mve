@@ -12,7 +12,7 @@ from log import debug
 from sample import sample_venv
 from tf_reporter import TFReporter
 from qvalues import qvals, offline_oracle_q
-from utils import as_controller, timeit
+from utils import timeit
 
 
 class SAC:
@@ -170,16 +170,6 @@ class SAC:
         self._policy = policy
         self._vfn = vfn
         self._qfn = qfn
-        self._venv = env_info.make_venv(16)
-
-    def _evaluate(self):
-        # runs out-of-band trials for less noise performance evaluation
-        paths = sample_venv(self._venv, as_controller(self._policy.greedy_act))
-        rews = [path.rewards.sum() for path in paths]
-        reporter.add_summary_statistics('current policy reward', rews)
-        paths = sample_venv(self._venv, as_controller(self._policy.act))
-        rews = [path.rewards.sum() for path in paths]
-        reporter.add_summary_statistics('exploration policy reward', rews)
 
     def _sample(self, batch):
         obs, next_obs, rewards, acs, terminals = batch
@@ -191,12 +181,17 @@ class SAC:
             self.actions_ph_na: acs}
         return feed_dict
 
+    def evaluate(self, data):
+        """evaluation report"""
+        batch_size = flags().sac.learner_batch_size
+        batch = self._sample(next(data.sample_many(1, batch_size)))
+        self._reporter.report(batch)
+
+        if hasattr(self, '_dyn_metrics'):
+            self._eval_dynamics(data, '')
+
     def train(self, data, nbatches, batch_size, _):
         """Run nbatches training iterations of SAC"""
-        if flags().experiment.should_evaluate():
-            if hasattr(self, '_dyn_metrics'):
-                self._eval_dynamics(data, 'sac before/')
-
         batches = data.sample_many(nbatches, batch_size)
         for i, batch in enumerate(batches, 1):
             feed_dict = self._sample(batch)
@@ -210,16 +205,6 @@ class SAC:
                       'policy loss {:.4g} qfn loss {:.4g} '
                       'vfn loss {:.4g}',
                       i, nbatches, pl, ql, vl)
-
-        if flags().experiment.should_evaluate():
-            if data.size:
-                batch = self._sample(next(data.sample_many(1, batch_size)))
-                self._reporter.report(batch)
-
-            self._evaluate()
-
-            if hasattr(self, '_dyn_metrics'):
-                self._eval_dynamics(data, 'sac after/')
 
     def _eval_dynamics(self, data, prefix):
         # TODO -- abstract common code instead of being this lazy

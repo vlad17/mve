@@ -6,7 +6,6 @@ import tensorflow as tf
 import numpy as np
 
 from context import flags
-from dataset import Dataset
 from ddpg_learner import DDPGLearner, DDPGFlags
 from dynamics import DynamicsFlags, NNDynamicsModel
 from dynamics_metrics import DynamicsMetricsFlags
@@ -17,11 +16,11 @@ import tfnode
 from plot import plt, savefig, activate_tex
 from qvalues import qvals
 from sample import sample_venv
-from utils import timeit, as_controller, make_session_as_default
+from utils import timeit, make_session_as_default
 import seaborn as sns
 
 
-def _evaluate(_):
+def _evaluate():
     if not flags().evaluation.notex:
         activate_tex()
 
@@ -33,9 +32,7 @@ def _evaluate(_):
         flags().ddpg.mixture_estimator == 'learned' or
         flags().ddpg.imaginary_buffer > 0)
     if need_dynamics:
-        data = Dataset.from_env(venv, flags().experiment.horizon,
-                                flags().experiment.bufsize)
-        dynamics = NNDynamicsModel(venv, data, flags().dynamics)
+        dynamics = NNDynamicsModel()
     else:
         dynamics = None
 
@@ -45,8 +42,7 @@ def _evaluate(_):
         tf.global_variables_initializer().run()
         tf.get_default_graph().finalize()
         tfnode.restore_all()
-        controller = as_controller(learner.actor.act)
-        _evaluate_with_session(venv, learner, controller)
+        _evaluate_with_session(venv, learner, learner.agent().exploit_act)
 
 
 def _evaluate_with_session(venv, learner, controller):

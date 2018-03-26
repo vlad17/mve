@@ -14,7 +14,6 @@ import numpy as np
 from numpy.polynomial.polynomial import polyval
 
 from context import flags
-from controller import Controller
 import log
 
 
@@ -269,26 +268,6 @@ class AssignableStatistic:
     def tf_denormalize(self, x):
         """Denormalize a value according to these statistics"""
         return x * self._std_var + self._mean_var
-
-
-def as_controller(act):
-    """
-    Generates a controller interface to a single act() method,
-    which should accept a tensor of states and return a tensor of actions.
-    """
-    return _ActorAsController(act)
-
-
-class _ActorAsController(Controller):
-    def __init__(self, act):
-        self._act = act
-
-    def act(self, states_ns):
-        return self._act(states_ns), None, None
-
-    def planning_horizon(self):
-        return 0
-
 
 def print_table(data):
     """

@@ -41,8 +41,7 @@ class _PersistableDataset(TFNode):
 
     def __init__(self, dataset, flags):
         self._transition_attrs = [
-            'obs', 'next_obs', 'rewards', 'acs', 'terminals',
-            'planned_acs', 'planned_obs']
+            'obs', 'next_obs', 'rewards', 'acs', 'terminals']
         transition_attr_shapes = [
             getattr(dataset, attr).shape for attr in self._transition_attrs]
         transition_attr_shapes = [
