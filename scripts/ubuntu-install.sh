@@ -4,13 +4,6 @@
 #
 # ./scripts/ubuntu-install.sh
 
-if [[ -z "${MUJOCO_DIRECTORY}" ]]; then
-    sleep 0
-else
-    export MUJOCO_PY_MJKEY_PATH=$(readlink -f "${MUJOCO_DIRECTORY}/mjkey.txt")
-    export MUJOCO_PY_MJPRO_PATH=$(readlink -f "${MUJOCO_DIRECTORY}/mjpro131")
-fi
-
 set -euo pipefail
 
 pyv=$(python -c "import platform;print('.'.join(platform.python_version_tuple()[:2]))")

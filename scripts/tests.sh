@@ -2,22 +2,25 @@
 
 # Very simple invocations that validate things don't blow up in all
 # command-line configurations. Doesn't do any semantic checking, but will catch
-# egregious errors. Don't source this. If arguments are specified, they are
-# assumed to be the path for the MuJoCo key and installation.
+# egregious errors. Don't source this. 
 #
-#   ./scripts/tests.sh # uses ~/.mujoco/ paths
-#   MUJOCO_DIRECTORY=DIR ./scripts/tests.sh # uses DIR instead of ~/.mujoco
+#   ./scripts/tests.sh
+#   ./scripts/tests.sh --dry-run
 
 set -eo pipefail
 
-if [[ -z "${MUJOCO_DIRECTORY}" ]]; then
-    sleep 0
-else
-    export MUJOCO_PY_MJKEY_PATH=$(readlink -f "${MUJOCO_DIRECTORY}/mjkey.txt")
-    export MUJOCO_PY_MJPRO_PATH=$(readlink -f "${MUJOCO_DIRECTORY}/mjpro131")
+set -u
+
+if [ $# -gt 1 ] || [ $# -eq 1 ] && [ "$1" != "--dry-run" ] ; then
+    echo 'usage: ./scripts/tests.sh [--dry-run]' 1>&2
+    exit 1
 fi
 
-set -u
+if [ $# -eq 1 ] ; then
+    DRY_RUN="true"
+else
+    DRY_RUN="false"
+fi
 
 box() {
     msg="* $1 *"
@@ -31,8 +34,10 @@ hermetic_file() {
     if [ -f "$1" ] ; then
         rm "$1"
     fi
-    sh -c "$2"
-    rm "$1"
+    if [ "$DRY_RUN" != "true" ] ; then
+        sh -c "$2"
+        rm "$1"
+    fi
 }
 
 main() {
@@ -70,7 +75,8 @@ main() {
     tune="../mve/main_ray.py"
     plot="../mve/plot.py"
     eval_q="../mve/main_evaluate_qval.py"
-
+    ddpg_dyn_plot="../mve/ddpg_dynamics_plot.py"
+    
     experiment_flags_no_ts="--exp_name basic_tests --verbose true --horizon 5"
     experiment_flags="$experiment_flags_no_ts"
     random_flags="$experiment_flags --num_paths 8"
@@ -111,21 +117,28 @@ main() {
     cmds+=("python $main_random $random_flags --env_name swimmer")
     cmds+=("python $main_random $random_flags --env_name acrobot")
     # Test recovery
-    cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --exp_name ddpg_save --persist_replay_buffer true")
+    persist_flags="--persist_replay_buffer true"
+    ddpg_dyn_flags="--dynamics_type learned --ddpg_mve true"
+    cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --exp_name ddpg_save $persist_flags $ddpg_dyn_flags")
     savedir="data/ddpg_save_hc/3/checkpoints"
-    restore="--exp_name ddpg_restore --restore_buffer $savedir/persistable_dataset.ckpt-00000200"
+    restore="--exp_name ddpg_restore"
     restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000200"
-    cmds+=("python $main_ddpg $ddpg_flags $restore")
+    restore_with_dyn="--restore_dynamics data/ddpg_save_hc/3/checkpoints/dynamics.ckpt-00000200"
+    restore_with_dyn="$restore $ddpg_only_flags $ddpg_dyn_flags $restore_with_dyn"
+    restore_buffer=" --restore_buffer $savedir/persistable_dataset.ckpt-00000200"
+    cmds+=("python $main_ddpg $ddpg_flags $restore_with_dyn $restore_buffer")
     # Plot tests
-    restore_ddpg="--seed 3 --restore_ddpg $savedir/ddpg.ckpt-00000200"
     eval_q_flags="--episodes 3 --output_path out.pdf --notex"
     eval_q_flags="$eval_q_flags --lims -1 1 -1 1 --title hello --episodes 1 --horizon 15"
-    cmds+=("python $eval_q $eval_q_flags $restore_ddpg $ddpg_only_flags")
+    cmds+=("python $eval_q $eval_q_flags $restore_with_dyn")
+    cmds+=("python $ddpg_dyn_plot --plot_nenvs 4 --plot_horizon 3 $restore_with_dyn")
     cmds+=("python $main_ddpg $ddpg_flags --exp_name plotexp --evaluate_every 100 --ddpg_mve true --dynamics_type learned")
     for cmd in "${cmds[@]}"; do
         relative="../mve"
         box "${cmd/$relative/mve}"
-        $cmd
+        if [ "$DRY_RUN" != "true" ] ; then
+            $cmd
+        fi
     done
 
     # Tune
