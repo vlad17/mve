@@ -1,8 +1,9 @@
-import gym, sys
+import gym, sys, argparse
 
 import deepq
 from deepq import EnvSim
 
+#TODO: use argparse
 
 def callback(lcl, _glb):
     # stop training if reward exceeds 199
@@ -10,10 +11,13 @@ def callback(lcl, _glb):
     return is_solved
 
 
-def main(horizon=0):
+def main(horizon=0, seed=1234):
     env = gym.make("CartPole-v0")
+    env.seed(seed)
     testenv = gym.make("CartPole-v0")
+    testenv.seed(seed)
     sim = EnvSim(gym.make("CartPole-v0"))
+    sim.env.seed(seed)
     model = deepq.models.mlp([64])
     act = deepq.learn(
         env,
@@ -29,7 +33,7 @@ def main(horizon=0):
         true_dynamics=True,
         sim=sim,
         testenv=testenv,
-        datafile="cartpolev0-" + str(horizon) + "-test.pkl",
+        datafile="cartpolev0-" + str(horizon) + "-test-"+ str(seed) +"-seed.pkl",
         gamma=0.99,
         train_freq=1
     )
@@ -38,4 +42,4 @@ def main(horizon=0):
 
 
 if __name__ == '__main__':
-    main(horizon=int(sys.argv[1]))
+    main(horizon=int(sys.argv[1]), seed=int(sys.argv[2]))

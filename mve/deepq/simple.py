@@ -102,7 +102,8 @@ def learn(env,
           sim=None,
           testenv=None,
           datafile="out.pkl",
-          greedy=False):
+          greedy=False,
+          seed=1234):
     """Train a deepq model.
 
     Parameters
@@ -172,6 +173,8 @@ def learn(env,
 
     sess = tf.Session()
     sess.__enter__()
+    tf.set_random_seed(seed)
+
 
     # capture the shape outside the closure so that the env object is not serialized
     # by cloudpickle when serializing make_obs_ph
