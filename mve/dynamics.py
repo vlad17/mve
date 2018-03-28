@@ -3,14 +3,13 @@
 import distutils.util
 
 import tensorflow as tf
-import numpy as np
 
 from context import flags
 from flags import Flags, ArgSpec
 import env_info
 import reporter
 from tfnode import TFNode
-from utils import build_mlp, AssignableStatistic
+from utils import build_mlp
 
 
 class DynamicsFlags(Flags):
@@ -85,85 +84,14 @@ class DynamicsFlags(Flags):
         return nbatches
 
 
-class _Statistics:
-    def __init__(self, data):
-        if not data:
-            self.mean_ob = np.zeros(env_info.ob_dim())
-            self.std_ob = np.ones(env_info.ob_dim())
-            self.mean_delta = np.zeros(env_info.ob_dim())
-            self.std_delta = np.ones(env_info.ob_dim())
-            self.mean_ac = np.zeros(env_info.ac_dim())
-            self.std_ac = np.ones(env_info.ac_dim())
-        else:
-            self.mean_ob = np.mean(data.obs, axis=0)
-            self.std_ob = np.std(data.obs, axis=0)
-            diffs = data.next_obs - data.obs
-            self.mean_delta = np.mean(diffs, axis=0)
-            self.std_delta = np.std(diffs, axis=0)
-            self.mean_ac = np.mean(data.acs, axis=0)
-            self.std_ac = np.std(data.acs, axis=0)
-
-class _DeltaNormalizer:
-    def __init__(self, eps=1e-6):
-        self._eps = eps
-        stats = _Statistics(None)
-        self._ob_tf_stats = AssignableStatistic(
-            'ob', stats.mean_ob, stats.std_ob)
-        self._delta_tf_stats = AssignableStatistic(
-            'delta', stats.mean_delta, stats.std_delta)
-        self._ac_tf_stats = AssignableStatistic(
-            'ac', stats.mean_ac, stats.std_ac)
-
-    def norm_obs(self, obs):
-        """normalize observations"""
-        return self._ob_tf_stats.tf_normalize(obs)
-
-    def norm_acs(self, acs):
-        """normalize actions"""
-        return self._ac_tf_stats.tf_normalize(acs)
-
-    def norm_delta(self, deltas):
-        """normalize deltas"""
-        return self._delta_tf_stats.tf_normalize(deltas)
-
-    def denorm_delta(self, deltas):
-        """denormalize deltas"""
-        return self._delta_tf_stats.tf_denormalize(deltas)
-
-    def update_stats(self, data):
-        """update the stateful normalization statistics"""
-        stats = _Statistics(data)
-        self._ob_tf_stats.update_statistics(stats.mean_ob, stats.std_ob)
-        self._delta_tf_stats.update_statistics(
-            stats.mean_delta, stats.std_delta)
-        self._ac_tf_stats.update_statistics(stats.mean_ac, stats.std_ac)
-
-    def log_stats(self):
-        """report normalization statistics"""
-        stats = [
-            (self._ob_tf_stats, 'observations'),
-            (self._ac_tf_stats, 'actions'),
-            (self._delta_tf_stats, 'deltas')]
-
-        prefix = 'dynamics statistics/'
-        for stat, name in stats:
-            reporter.add_summary_statistics(
-                prefix + name + '/mean magnitude',
-                np.absolute(stat.mean()),
-                hide=True)
-            reporter.add_summary_statistics(
-                prefix + name + '/std',
-                stat.std(),
-                hide=True)
-
-
 class NNDynamicsModel(TFNode):
     """Stationary neural-network-based dynamics model."""
 
-    def __init__(self):
+    def __init__(self, norm):
         dyn_flags = flags().dynamics
         ob_dim, ac_dim = env_info.ob_dim(), env_info.ac_dim()
 
+        self._norm = norm
         self._input_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], 'dynamics_input_state')
         self._input_action_ph_na = tf.placeholder(
@@ -171,8 +99,6 @@ class NNDynamicsModel(TFNode):
         self._next_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], 'true_next_state_diff')
 
-        with tf.variable_scope('dynamics'):
-            self._norm = _DeltaNormalizer()
         # only used if dyn_bn is set to true
         self._dyn_training = tf.placeholder_with_default(
             False, [], 'dynamics_dyn_training_mode')
@@ -212,8 +138,6 @@ class NNDynamicsModel(TFNode):
             return
         if data.size < flags().dynamics.dyn_min_buf_size:
             return
-        self._norm.update_stats(data)
-        self._norm.log_stats()
 
         # I actually tried out the tf.contrib.train.Dataset API, and
         # it was *slower* than this feed_dict method. I figure that the

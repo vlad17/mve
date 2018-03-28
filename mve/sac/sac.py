@@ -176,6 +176,7 @@ class SAC:
                       'vfn loss {:.4g}',
                       i, nbatches, pl, ql, vl)
 
+
 def _tf_compute_model_value_expansion(
         obs0_ns,
         acs0_na,

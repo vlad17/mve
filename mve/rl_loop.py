@@ -10,7 +10,7 @@ from contextlib import closing
 import tensorflow as tf
 
 from context import flags
-from dataset import Dataset
+from memory import Dataset
 from dynamics_metrics import DynamicsMetrics, TFStateUnroller
 import env_info
 from flags import Flags, ArgSpec
@@ -20,6 +20,7 @@ from sample import Sampler, sample, sample_venv
 import reporter
 from reporting import Timer
 from utils import timeit, make_session_as_default
+
 
 class RLLoopFlags(Flags):
     """Specification for the dynamics metrics"""
@@ -67,11 +68,11 @@ class RLLoopFlags(Flags):
         super().__init__('loop', 'rl loop', args)
 
 
-def rl_loop(learner, dynamics):
+def rl_loop(learner, norm, dynamics):
     """
-    Assumiung that the learner and dynamics (None if no dynamics) have been
-    constructed, this creates a setting for the RL agent to sample from
-    and put collected data into.
+    Assumiung that the learner, normalizer, and dynamics (None if no dynamics)
+    have been constructed, this creates a setting for the RL agent to sample
+    from and put collected data into.
 
     This method creates a TF session and loops continuously, training
     the agent and evaluating at intervals specified by the experiment
@@ -84,10 +85,10 @@ def rl_loop(learner, dynamics):
     else:
         unroller = None
     with closing(env_info.make_env()) as env, \
-         closing(DynamicsMetrics(
-             flags().loop.dynamics_evaluation_horizon,
-             flags().loop.dynamics_evaluation_envs,
-             flags().experiment.discount)) as dm:
+        closing(DynamicsMetrics(
+            flags().loop.dynamics_evaluation_horizon,
+            flags().loop.dynamics_evaluation_envs,
+            flags().experiment.discount)) as dm:
         sampler = Sampler(env)
         data = Dataset(flags().experiment.bufsize)
         add_dataset_to_persistance_registry(data)
@@ -98,9 +99,12 @@ def rl_loop(learner, dynamics):
 
             learner_nenvs = flags().loop.learner_evaluation_envs
             with closing(env_info.make_venv(learner_nenvs)) as venv:
-                _loop(sampler, data, learner, dynamics, venv, dm, unroller)
+                _loop(sampler, data, learner,
+                      dynamics, venv, dm, unroller, norm)
 
-def _loop(sampler, data, learner, dynamics, eval_venv, dyn_metrics, unroller):
+
+def _loop(sampler, data, learner,
+          dynamics, eval_venv, dyn_metrics, unroller, norm):
     evaluate_timer = Timer(flags().loop.evaluate_every)
     save_timer = Timer(flags().loop.save_every)
     render_timer = Timer(flags().loop.render_every)
@@ -110,6 +114,7 @@ def _loop(sampler, data, learner, dynamics, eval_venv, dyn_metrics, unroller):
             agent = learner.agent()
             n_episodes = sampler.sample(agent.explore_act, data)
         reporter.advance(sampler.nsteps(), n_episodes)
+        norm.update_stats(data)
 
         if dynamics:
             with timeit('dynamics fit'):
@@ -140,6 +145,7 @@ def _loop(sampler, data, learner, dynamics, eval_venv, dyn_metrics, unroller):
             reporter.add_summary_statistics('exploration policy reward', rews)
 
             learner.evaluate(data)
+            norm.log_stats()
 
             if dynamics:
                 dynamics.evaluate(data)

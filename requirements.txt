@@ -8,9 +8,10 @@ tensorflow>=1.4
 # tensorflow-gpu>=1.4
 mujoco-py>=1.50,<=1.50.1.38 # https://github.com/openai/mujoco-py/issues/196
 gym==0.9.5
-ray>=0.3.1
+ray>=0.4
 cloudpickle==0.4.1
 terminaltables
 git+git://github.com/vlad17/gym2.git@master#egg=gym2
 numba
 boto3
+opencv-python

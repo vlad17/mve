@@ -34,6 +34,7 @@ hermetic_file() {
     if [ -f "$1" ] ; then
         rm "$1"
     fi
+    box "${cmd/$relative/mve}"
     if [ "$DRY_RUN" != "true" ] ; then
         sh -c "$2"
         rm "$1"
@@ -123,15 +124,16 @@ main() {
     savedir="data/ddpg_save_hc/3/checkpoints"
     restore="--exp_name ddpg_restore"
     restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000200"
-    restore_with_dyn="--restore_dynamics data/ddpg_save_hc/3/checkpoints/dynamics.ckpt-00000200"
-    restore_with_dyn="$restore $ddpg_only_flags $ddpg_dyn_flags $restore_with_dyn"
+    restore="--restore_dynamics data/ddpg_save_hc/3/checkpoints/dynamics.ckpt-00000200"
+    restore="$restore $ddpg_only_flags $ddpg_dyn_flags $restore"
+    restore="$restore --restore_normalization data/ddpg_save_hc/3/checkpoints/normalization.ckpt-00000200"
     restore_buffer=" --restore_buffer $savedir/persistable_dataset.ckpt-00000200"
-    cmds+=("python $main_ddpg $ddpg_flags $restore_with_dyn $restore_buffer")
+    cmds+=("python $main_ddpg $ddpg_flags $restore $restore_buffer")
     # Plot tests
     eval_q_flags="--episodes 3 --output_path out.pdf --notex"
     eval_q_flags="$eval_q_flags --lims -1 1 -1 1 --title hello --episodes 1 --horizon 15"
-    cmds+=("python $eval_q $eval_q_flags $restore_with_dyn")
-    cmds+=("python $ddpg_dyn_plot --plot_nenvs 4 --plot_horizon 3 $restore_with_dyn")
+    cmds+=("python $eval_q $eval_q_flags $restore")
+    cmds+=("python $ddpg_dyn_plot --plot_nenvs 4 --plot_horizon 3 $restore")
     cmds+=("python $main_ddpg $ddpg_flags --exp_name plotexp --evaluate_every 100 --ddpg_mve true --dynamics_type learned")
     for cmd in "${cmds[@]}"; do
         relative="../mve"

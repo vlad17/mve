@@ -4,14 +4,14 @@ import tensorflow as tf
 import numpy as np
 
 from context import flags
-from dataset import Dataset
+from memory import Dataset
 import env_info
 from log import debug
 import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
 from qvalues import qvals, offline_oracle_q, oracle_q
-from utils import scale_from_box, timeit
+from utils import timeit
 
 
 def _tf_seq(a, b_fn):
@@ -36,7 +36,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
 
     def __init__(self, actor, critic, discount=0.99, scope='ddpg',  # pylint: disable=too-many-branches
                  actor_lr=1e-3, critic_lr=1e-3, explore_stddev=0.2,
-                 learned_dynamics=None):
+                 learned_dynamics=None, normalizer=None):
 
         self._reporter = TFReporter()
 
@@ -210,12 +210,10 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         # once every iteration.
         with tf.control_dependencies([optimize_actor_op]):
             re_perturb = actor.tf_perturb_update(adaptive_noise)
-            mean_ac = scale_from_box(
-                env_info.ac_space(), actor.tf_action(self.obs0_ph_ns))
+            mean_ac = normalizer.norm_acs(actor.tf_action(self.obs0_ph_ns))
             with tf.control_dependencies([re_perturb]):
-                perturb_ac = scale_from_box(
-                    env_info.ac_space(), actor.tf_perturbed_action(
-                        self.obs0_ph_ns))
+                perturb_ac = normalizer.norm_acs(
+                    actor.tf_perturbed_action(self.obs0_ph_ns))
                 batch_observed_noise = tf.sqrt(
                     tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
                 save_noise = tf.group(

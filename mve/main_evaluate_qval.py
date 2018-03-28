@@ -12,6 +12,7 @@ import env_info
 from experiment import ExperimentFlags, setup_experiment_context
 from flags import (parse_args, Flags, ArgSpec)
 import tfnode
+from memory import Normalizer, NormalizationFlags
 from plot import plt, savefig, activate_tex
 from qvalues import qvals
 from sample import sample_venv
@@ -31,12 +32,13 @@ def _evaluate():
     need_dynamics = (
         flags().ddpg.dynamics_type == 'learned' or
         flags().ddpg.imaginary_buffer > 0)
+    norm = Normalizer()
     if need_dynamics:
-        dynamics = NNDynamicsModel()
+        dynamics = NNDynamicsModel(norm)
     else:
         dynamics = None
 
-    learner = DDPGLearner(dynamics=dynamics)
+    learner = DDPGLearner(dynamics=dynamics, normalizer=norm)
 
     with make_session_as_default():
         tf.global_variables_initializer().run()
@@ -120,7 +122,7 @@ class EvaluationFlags(Flags):
 
 if __name__ == "__main__":
     _flags = [ExperimentFlags(), EvaluationFlags(), DDPGFlags(),
-              DynamicsFlags()]
+              DynamicsFlags(), NormalizationFlags()]
     _args = parse_args(_flags)
     with setup_experiment_context(_args,
                                   create_logdir=False,

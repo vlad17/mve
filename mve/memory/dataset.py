@@ -3,8 +3,8 @@
 import numpy as np
 
 from context import flags
-from ddpg.memory import RingBuffer
 import env_info
+from .ringbuffer import RingBuffer
 from utils import get_ob_dim, get_ac_dim
 
 

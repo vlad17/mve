@@ -6,7 +6,7 @@ import numpy as np
 
 from context import flags
 from flags import Flags, ArgSpec
-from dataset import Path
+from memory import Path
 import sys
 
 

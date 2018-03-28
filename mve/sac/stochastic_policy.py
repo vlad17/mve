@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from context import flags
 import env_info
-from utils import (build_mlp, scale_to_box, scale_from_box, trainable_vars)
+from utils import build_mlp, trainable_vars
 
 
 class StochasticPolicy:
@@ -60,12 +60,13 @@ class SquashedGaussianPolicy(StochasticPolicy):
     and squashed into a compact [-1, 1] interval.
     """
 
-    def __init__(self, scope='sac/policy'):
+    def __init__(self, normalizer, scope='sac/policy'):
         """
         Generates a diagonal gaussian policy which keeps its log standard
         deviations between the lower and upper bounds provided as arguments.
         """
         self._scope = scope
+        self._norm = normalizer
         self._obs_ph_ns = tf.placeholder(tf.float32, [None, env_info.ob_dim()])
         self._acs_na, _ = self.tf_sample_action_with_log_prob(self._obs_ph_ns)
         self._greedy_acs_na = self.tf_greedy_action(self._obs_ph_ns)
@@ -74,7 +75,7 @@ class SquashedGaussianPolicy(StochasticPolicy):
     def _tf_mu_logstd(self, obs_ns):
         # below scaling line should be eventually replaced with normalization
         # see issue (#359)
-        obs_ns = scale_from_box(env_info.ob_space(), obs_ns)
+        obs_ns = self._norm.norm_obs(obs_ns)
         unclipped_mu_logstd_n2a = build_mlp(
             obs_ns, scope=self._scope,
             output_size=(env_info.ac_dim() * 2),
@@ -129,10 +130,9 @@ class SquashedGaussianPolicy(StochasticPolicy):
         sample_na = self._scale(unbounded_sample_na)
         return sample_na, logprob_n
 
-    @staticmethod
-    def _scale(unbounded_acs_na):
-        unit_acs_na = (tf.tanh(unbounded_acs_na) + 1) / 2
-        return scale_to_box(env_info.ac_space(), unit_acs_na)
+    def _scale(self, unbounded_acs_na):
+        unit_acs_na = tf.tanh(unbounded_acs_na)
+        return self._norm.denorm_acs(unit_acs_na)
 
     @staticmethod
     def _scale_correction(unbounded_acs_na, unbounded_log_prob_n):

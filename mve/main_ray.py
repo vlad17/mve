@@ -229,7 +229,7 @@ def _main(args):
 
     experiment_setting = {
         'run': 'ray_train',
-        'resources': {'cpu': args.tune.ncpus, 'gpu': args.tune.ngpus},
+        'trial_resources': {'cpu': args.tune.ncpus, 'gpu': args.tune.ngpus},
         'stop': {'done': 1},
         'config': config,
         'local_dir': './data'

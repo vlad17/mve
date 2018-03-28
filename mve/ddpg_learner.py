@@ -153,14 +153,16 @@ class DDPGLearner(Learner, TFNode):
     and ddpg.models.Critic, respectively.
     """
 
-    def __init__(self, dynamics=None):
+    def __init__(self, dynamics=None, normalizer=None):
         flags().ddpg.expect_dynamics(dynamics)
         self._batch_size = flags().ddpg.learner_batch_size
         self.actor = Actor(
+            normalizer=normalizer,
             width=flags().ddpg.learner_width,
             depth=flags().ddpg.learner_depth,
             scope='ddpg')
         self.critic = Critic(
+            normalizer=normalizer,
             width=flags().ddpg.learner_width,
             depth=flags().ddpg.learner_depth,
             scope='ddpg',
@@ -170,6 +172,7 @@ class DDPGLearner(Learner, TFNode):
                           actor_lr=flags().ddpg.actor_lr,
                           critic_lr=flags().ddpg.critic_lr,
                           scope='ddpg', learned_dynamics=dynamics,
+                          normalizer=normalizer,
                           explore_stddev=flags().ddpg.explore_stddev)
         TFNode.__init__(self, 'ddpg', flags().ddpg.restore_ddpg)
 

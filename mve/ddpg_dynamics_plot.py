@@ -13,6 +13,7 @@ from experiment import ExperimentFlags, setup_experiment_context
 from flags import (parse_args, Flags, ArgSpec)
 import tfnode
 import matplotlib.pyplot as plt
+from memory import Normalizer, NormalizationFlags
 from persistable_dataset import PersistableDatasetFlags
 from sample import sample_venv
 from utils import timeit, make_session_as_default
@@ -40,7 +41,8 @@ def _run_dyn_plot():
 
     N = flags().dyn_plot.plot_nenvs
     with closing(env_info.make_venv(N)) as venv:
-        dynamics = NNDynamicsModel()
+        norm = Normalizer()
+        dynamics = NNDynamicsModel(norm)
 
         s = tf.placeholder(tf.float32, [None, env_info.ob_dim()])
         a = tf.placeholder(tf.float32, [None, env_info.ac_dim()])
@@ -51,7 +53,7 @@ def _run_dyn_plot():
             return tf.get_default_session().run(
                 ns, feed_dict={s: ss, a: aa})
 
-        learner = DDPGLearner(dynamics=dynamics)
+        learner = DDPGLearner(dynamics=dynamics, normalizer=norm)
         with make_session_as_default():
             tf.global_variables_initializer().run()
             tf.get_default_graph().finalize()
@@ -107,7 +109,8 @@ def _loop(venv, learner, dynamics):
 
 if __name__ == "__main__":
     _flags = [ExperimentFlags(), PersistableDatasetFlags(),
-              DDPGFlags(), DynamicsFlags(), DDPGDynamicsPlot()]
+              DDPGFlags(), DynamicsFlags(), DDPGDynamicsPlot(),
+              NormalizationFlags()]
     _args = parse_args(_flags)
     with setup_experiment_context(_args,
                                   create_logdir=False,

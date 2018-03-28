@@ -20,7 +20,6 @@ import log
 def create_tf_config(gpu=True, lightweight=False):
     """
     Create a TF session config that doesn't eat all GPU memory
-
     A lightweight TF config says to only use one CPU and one thread
     """
     kwargs = {}
@@ -80,56 +79,6 @@ def get_ob_dim(env):
     assert isinstance(ob_space, gym.spaces.Box), type(ob_space)
     assert len(ob_space.shape) == 1, ob_space.shape
     return ob_space.shape[0]
-
-
-def _finite_env(space):
-    return all(np.isfinite(space.low)) and all(np.isfinite(space.high))
-
-
-def scale_to_box(space, relative):
-    """
-    Given a hyper-rectangle specified by a gym box space, scale
-    relative coordinates between 0 and 1 to the box's coordinates,
-    such that the relative vector of all zeros has the smallest
-    coordinates (the "bottom left" corner) and vice-versa for ones.
-
-    If environment is infinite, no scaling is performed.
-    """
-    if not _finite_env(space):
-        return relative
-    relative *= (space.high - space.low)
-    relative += space.low
-    return relative
-
-
-def scale_from_box(space, absolute):
-    """
-    Given a hyper-rectangle specified by a gym box space, scale
-    exact coordinates from within that space to
-    relative coordinates between 0 and 1.
-
-    If environment is infinite, no scaling is performed.
-    """
-    if not _finite_env(space):
-        return absolute
-    absolute -= space.low
-    absolute /= (space.high - space.low)
-    return absolute
-
-
-def create_random_tf_action(ac_space):
-    """
-    Given an environment `env` with states of length s and actions of length a,
-    `create_random_tf_action(env.action_space)` will return a function `f` that
-    takes in an n x s tensor and returns an n x a tensor drawn uniformly at
-    random from `env.action_space`.
-    """
-    def _policy(state_ns):
-        n = tf.shape(state_ns)[0]
-        ac_dim = ac_space.low.shape
-        ac_na = tf.random_uniform((n,) + ac_dim)
-        return scale_to_box(ac_space, ac_na)
-    return _policy
 
 
 def build_mlp(input_placeholder,
@@ -205,69 +154,6 @@ def rate_limit(limit, fn, *args_n):
             dst[loc] = src
 
     return returns
-
-
-class AssignableStatistic:
-    """
-    Need stateful statistics so we don't have to feed
-    stats through a feed_dict every time we want to use the
-    dynamics.
-
-    This class keeps track of the mean and std as given.
-
-    This class also does some funny business when the standard
-    deviation it's given ever falls below epsilon: at this point
-    standard deviation is no longer used in normalization.
-    """
-
-    def __init__(self, suffix, initial_mean, initial_std, epsilon=1e-4):
-        initial_mean = np.asarray(initial_mean).astype('float32')
-        initial_std = np.asarray(initial_std).copy().astype('float32')
-        self._avoid_std_normalization = np.zeros(initial_std.shape, dtype=bool)
-        self._epsilon = epsilon
-        below_eps = initial_std < epsilon
-        initial_std[np.where(below_eps)] = 1.0
-        self._avoid_std_normalization[np.where(below_eps)] = True
-        self._mean_var = tf.get_variable(
-            name='mean_' + suffix, trainable=False,
-            initializer=initial_mean)
-        self._std_var = tf.get_variable(
-            name='std_' + suffix, trainable=False,
-            initializer=initial_std)
-        self._mean_ph = tf.placeholder(tf.float32, initial_mean.shape)
-        self._std_ph = tf.placeholder(tf.float32, initial_std.shape)
-        self._assign_both = tf.group(
-            tf.assign(self._mean_var, self._mean_ph),
-            tf.assign(self._std_var, self._std_ph))
-
-    def update_statistics(self, mean, std):
-        """
-        Update the stateful statistics using the default session.
-        """
-        std = np.copy(std)
-        below_eps = std < self._epsilon
-        self._avoid_std_normalization[np.where(below_eps)] = True
-        std[np.where(self._avoid_std_normalization)] = 1.0
-        tf.get_default_session().run(
-            self._assign_both, feed_dict={
-                self._mean_ph: mean,
-                self._std_ph: std})
-
-    def mean(self):
-        """Returns current mean"""
-        return tf.get_default_session().run(self._mean_var)
-
-    def std(self):
-        """Returns current std"""
-        return tf.get_default_session().run(self._std_var)
-
-    def tf_normalize(self, x):
-        """Normalize a value according to these statistics"""
-        return (x - self._mean_var) / (self._std_var)
-
-    def tf_denormalize(self, x):
-        """Denormalize a value according to these statistics"""
-        return x * self._std_var + self._mean_var
 
 
 def print_table(data):
