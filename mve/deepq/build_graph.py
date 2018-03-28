@@ -315,7 +315,7 @@ def build_act_with_param_noise(make_obs_ph, q_func, num_actions, scope="deepq", 
 
 
 def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=None, gamma=1.0,
-    double_q=True, scope="deepq", reuse=None, param_noise=False, param_noise_filter_func=None, horizon=0, true_dynamics=True, sim=None):
+    double_q=True, scope="deepq", reuse=None, param_noise=False, param_noise_filter_func=None, horizon=0, true_dynamics=True, sim=None, ema=False):
     """Creates the train function:
 
     Parameters
@@ -432,12 +432,20 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             optimize_expr = optimizer.minimize(weighted_error, var_list=q_func_vars)
 
         # update_target_fn will be called periodically to copy Q network to target Q network
-        update_target_expr = []
-        for var, var_target in zip(sorted(q_func_vars, key=lambda v: v.name),
-                                   sorted(target_q_func_vars, key=lambda v: v.name)):
-            update_target_expr.append(var_target.assign(var))
-        update_target_expr = tf.group(*update_target_expr)
-
+        if ema:
+            ema = tf.train.ExponentialMovingAverage(decay=0.2)
+            ema_op = ema.apply(q_func_vars)
+            update_target_expr = [ema_op]
+            for var, var_target in zip(sorted(q_func_vars, key=lambda v: v.name),
+                                       sorted(target_q_func_vars, key=lambda v: v.name)):
+                update_target_expr.append(var_target.assign(ema.average(var)))
+            update_target_expr = tf.group(*update_target_expr)
+        else:
+            update_target_expr = []
+            for var, var_target in zip(sorted(q_func_vars, key=lambda v: v.name),
+                                       sorted(target_q_func_vars, key=lambda v: v.name)):
+                update_target_expr.append(var_target.assign(var))
+            update_target_expr = tf.group(*update_target_expr)
         # Create callable functions
         train = U.function(
             inputs=[
