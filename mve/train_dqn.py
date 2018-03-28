@@ -35,7 +35,8 @@ def main(horizon=0, seed=1234):
         testenv=testenv,
         datafile="cartpolev0-" + str(horizon) + "-test-"+ str(seed) +"-seed.pkl",
         gamma=0.99,
-        train_freq=1
+        train_freq=1,
+        seed=seed
     )
     print("Saving model to cartpole_model.pkl")
     act.save("cartpole_model.pkl")
