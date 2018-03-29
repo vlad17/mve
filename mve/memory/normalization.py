@@ -2,8 +2,8 @@
 This module defines the one-stop normalization shop for all observed transition
 related normalization statistics.
 
-Note that actions are "normalized" so that they reside in [-1, 1]; they are not
-mean-centered or std-rescaled.
+Henceforth, normalization refers to mean-centering and std-rescaling ops while
+scaling refers to converting a value in a certain range into [-1, 1]
 """
 
 import tensorflow as tf
@@ -17,7 +17,6 @@ import reporter
 from tfnode import TFNode
 
 # TODO: consider online statistics updating (with exp decay)
-# TODO: consider knob for actions to be standardized.
 
 
 class NormalizationFlags(Flags):
@@ -58,6 +57,8 @@ class Normalizer(TFNode):
         with tf.variable_scope('normalization'):
             self._ob_tf_stats = AssignableStatistic(
                 'ob', stats.mean_ob, stats.std_ob)
+            self._ac_tf_stats = AssignableStatistic(
+                'ac', stats.mean_ac, stats.std_ac)
             self._delta_tf_stats = AssignableStatistic(
                 'delta', stats.mean_delta, stats.std_delta)
         super().__init__(
@@ -67,15 +68,13 @@ class Normalizer(TFNode):
         """normalize observations"""
         return self._ob_tf_stats.tf_normalize(obs)
 
-    @staticmethod
-    def norm_acs(acs):
+    def norm_acs(self, acs):
         """normalize actions"""
-        return _scale_from_box(env_info.ac_space(), acs)
+        return self._ac_tf_stats.tf_normalize(acs)
 
-    @staticmethod
-    def denorm_acs(acs):
+    def denorm_acs(self, acs):
         """denormalize actions"""
-        return _scale_to_box(env_info.ac_space(), acs)
+        return self._ac_tf_stats.tf_denormalize(acs)
 
     def norm_delta(self, deltas):
         """normalize deltas"""
@@ -89,6 +88,7 @@ class Normalizer(TFNode):
         """update the stateful normalization statistics"""
         stats = _Statistics(data)
         self._ob_tf_stats.update_statistics(stats.mean_ob, stats.std_ob)
+        self._ac_tf_stats.update_statistics(stats.mean_ac, stats.std_ac)
         self._delta_tf_stats.update_statistics(
             stats.mean_delta, stats.std_delta)
 
@@ -108,6 +108,16 @@ class Normalizer(TFNode):
                 prefix + name + '/std',
                 stat.std(),
                 hide=True)
+
+
+def scale_acs(acs):
+    """scale actions into [-1, 1]"""
+    return _scale_from_box(env_info.ac_space(), acs)
+
+
+def unscale_acs(acs):
+    """unscale actions back into their original box"""
+    return _scale_to_box(env_info.ac_space(), acs)
 
 
 class _Statistics:

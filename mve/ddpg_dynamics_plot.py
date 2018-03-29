@@ -53,7 +53,7 @@ def _run_dyn_plot():
             return tf.get_default_session().run(
                 ns, feed_dict={s: ss, a: aa})
 
-        learner = DDPGLearner(dynamics=dynamics, normalizer=norm)
+        learner = DDPGLearner(dynamics=dynamics)
         with make_session_as_default():
             tf.global_variables_initializer().run()
             tf.get_default_graph().finalize()

@@ -24,7 +24,7 @@ def train():
     else:
         dynamics = None
 
-    learner = DDPGLearner(dynamics=dynamics, normalizer=normalizer)
+    learner = DDPGLearner(dynamics=dynamics)
     rl_loop(learner, normalizer, dynamics)
 
 

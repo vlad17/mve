@@ -121,13 +121,13 @@ class SACLearner(Learner, TFNode):
     from a maxent policy.
     """
 
-    def __init__(self, dynamics=None, normalizer=None):
+    def __init__(self, dynamics=None):
         flags().sac.expect_dynamics(dynamics)
         self._batch_size = flags().sac.learner_batch_size
 
-        self.policy = SquashedGaussianPolicy(normalizer)
-        self.qfn = QFunction(normalizer)
-        self.vfn = VFunction(normalizer)
+        self.policy = SquashedGaussianPolicy()
+        self.qfn = QFunction()
+        self.vfn = VFunction()
         self._sac = SAC(self.policy, self.qfn, self.vfn, dynamics)
         TFNode.__init__(self, 'sac', flags().sac.restore_sac)
 

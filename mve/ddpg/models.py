@@ -9,6 +9,7 @@ thing.
 import tensorflow as tf
 
 import env_info
+from memory import scale_acs, unscale_acs
 from utils import build_mlp
 
 
@@ -69,8 +70,7 @@ class Actor:
     AdaptiveNoise.
     """
 
-    def __init__(self, normalizer=None, scope='ddpg', depth=2, width=64):
-        self._norm = normalizer
+    def __init__(self, scope='ddpg', depth=2, width=64):
         self.depth = depth
         self._common_mlp_kwargs = {
             'output_size': env_info.ac_dim(),
@@ -137,11 +137,10 @@ class Actor:
         return self._tf_action(states_ns, 'target_actor')
 
     def _tf_action(self, states_ns, child_scope):
-        states_ns = self._norm.norm_obs(states_ns)
         with tf.variable_scope(self._scope, reuse=tf.AUTO_REUSE):
             relative_acs = build_mlp(
                 states_ns, scope=child_scope, **self._common_mlp_kwargs)
-        return self._norm.denorm_acs(relative_acs)
+        return unscale_acs(relative_acs)
 
 
 class Critic:
@@ -150,9 +149,7 @@ class Critic:
     optimizable variables.
     """
 
-    def __init__(self, normalizer=None,
-                 scope='ddpg', width=64, depth=2, l2reg=0):
-        self._norm = normalizer
+    def __init__(self, scope='ddpg', width=64, depth=2, l2reg=0):
         self._common_mlp_kwargs = {
             'output_size': 1,
             'size': width,
@@ -192,8 +189,7 @@ class Critic:
             self._acs_ph_na: acs_na})
 
     def _tf_critic(self, states_ns, acs_na, scope):
-        states_ns = self._norm.norm_obs(states_ns)
-        acs_na = self._norm.norm_acs(acs_na)
+        acs_na = scale_acs(acs_na)
         with tf.variable_scope(self._scope, reuse=tf.AUTO_REUSE):
             inputs = tf.concat([states_ns, acs_na], axis=1)
             out = build_mlp(inputs, scope=scope, **self._common_mlp_kwargs)
