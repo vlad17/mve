@@ -48,17 +48,17 @@ class SACFlags(Flags):
             ArgSpec(
                 name='learner_width',
                 type=int,
-                default=64,
+                default=128,
                 help='width for both policy, qfn, vfn networks'),
             ArgSpec(
                 name='learner_batches_per_timestep',
-                default=4,
+                default=1,
                 type=float,
                 help='number of mini-batches to train dynamics per '
                 'new sample observed'),
             ArgSpec(
                 name='learner_batch_size',
-                default=2056,
+                default=1024,
                 type=int,
                 help='number of minibatches to train on per iteration'),
             ArgSpec(
@@ -92,7 +92,7 @@ class SACFlags(Flags):
             ArgSpec(
                 name='vfn_target_rate',
                 type=float,
-                default=0.01,
+                default=1e-3,
                 help='target update rate for value function'),
         ]
         super().__init__('sac', 'SAC', arguments)

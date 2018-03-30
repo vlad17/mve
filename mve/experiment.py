@@ -33,7 +33,7 @@ class ExperimentFlags(Flags):
         yield ArgSpec(
             name='seed',
             type=int,
-            default=3)
+            default=1)
         yield ArgSpec(
             name='verbose',
             type=distutils.util.strtobool,
@@ -65,9 +65,10 @@ class ExperimentFlags(Flags):
             'evaluation: this is already minimized with the cpu count')
         yield ArgSpec(
             name='tf_parallelism',
-            default=None,
+            default=8,
             type=int,
-            help='maximum number of CPUs to be used by TF exec thread pools')
+            help='maximum number of CPUs to be used by TF exec thread pools; '
+            'use 0 for system default, all CPUs')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',

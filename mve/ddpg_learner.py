@@ -50,32 +50,32 @@ class DDPGFlags(Flags):
             ArgSpec(
                 name='learner_width',
                 type=int,
-                default=64,
+                default=128,
                 help='width for both actor and critic networks'),
             ArgSpec(
                 name='learner_batches_per_timestep',
-                default=4,
+                default=1,
                 type=float,
                 help='number of mini-batches to train dynamics per '
                 'new sample observed'),
             ArgSpec(
                 name='learner_batch_size',
-                default=512,
+                default=1024,
                 type=int,
                 help='number of minibatches to train on per iteration'),
             ArgSpec(
                 name='actor_target_rate',
-                default=1e-2,
+                default=1e-3,
                 type=float,
                 help='decay rate for actor target network'),
             ArgSpec(
                 name='critic_target_rate',
-                default=1e-2,
+                default=1e-3,
                 type=float,
                 help='decay rate for critic target network'),
             ArgSpec(
                 name='explore_stddev',
-                default=0.,
+                default=0.1,
                 type=float,
                 help='goal action standard deviation for exploration,'
                 ' after rescaling actions to [0, 1]'),

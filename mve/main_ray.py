@@ -75,9 +75,9 @@ class TuneFlags(Flags):
             help='default ray port to connect to')
         yield ArgSpec(
             name='median_stop',
-            default=int(1e6),
+            default=0,
             type=int,
-            help='cutoff for median stopping rule, use -1 for none')
+            help='cutoff for median stopping rule, use 0 for none')
         yield ArgSpec(
             name='experiment_name',
             required=True,

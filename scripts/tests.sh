@@ -121,12 +121,12 @@ main() {
     persist_flags="--persist_replay_buffer true"
     ddpg_dyn_flags="--dynamics_type learned --ddpg_mve true"
     cmds+=("python $main_ddpg $ddpg_flags --save_every 1 --exp_name ddpg_save $persist_flags $ddpg_dyn_flags")
-    savedir="data/ddpg_save_hc/3/checkpoints"
+    savedir="data/ddpg_save_hc/1/checkpoints"
     restore="--exp_name ddpg_restore"
     restore="$restore --restore_ddpg $savedir/ddpg.ckpt-00000200"
-    restore="--restore_dynamics data/ddpg_save_hc/3/checkpoints/dynamics.ckpt-00000200"
+    restore="--restore_dynamics data/ddpg_save_hc/1/checkpoints/dynamics.ckpt-00000200"
     restore="$restore $ddpg_only_flags $ddpg_dyn_flags $restore"
-    restore="$restore --restore_normalization data/ddpg_save_hc/3/checkpoints/normalization.ckpt-00000200"
+    restore="$restore --restore_normalization data/ddpg_save_hc/1/checkpoints/normalization.ckpt-00000200"
     restore_buffer=" --restore_buffer $savedir/persistable_dataset.ckpt-00000200"
     cmds+=("python $main_ddpg $ddpg_flags $restore $restore_buffer")
     # Plot tests
