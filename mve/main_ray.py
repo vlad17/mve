@@ -204,7 +204,6 @@ def ray_train(config, status_reporter):
             status_reporter(
                 timesteps_total=reporter.timestep(),
                 done=0,
-                info=summaries,
                 **kwargs)
 
     with reporter.report_hook(_report_hook):
