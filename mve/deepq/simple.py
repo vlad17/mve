@@ -30,7 +30,7 @@ def eval(act, env):
 
 def run_experiment(model, env_name="CartPole-v0", buffer_size=50000, learning_starts=1000,
     target_update_freq=1000, eval_freq=100, print_freq=10, max_iter=200000, learning_rate=5e-4,
-    ema=False, double_q=True, horizon=0, true_dynamics=True):
+    ema=False, double_q=True, horizon=0, true_dynamics=True, batch_size=32, train_freq=1):
     with U.make_session(8):
         # Create the environment
         env = gym.make(env_name)
@@ -80,8 +80,9 @@ def run_experiment(model, env_name="CartPole-v0", buffer_size=50000, learning_st
                 break
             # Minimize the error in Bellman's equation on a batch sampled from replay buffer.
             if t > learning_starts:
-                obses_t, actions, rewards, obses_tp1, dones = replay_buffer.sample(32)
-                train(obses_t, actions, rewards, obses_tp1, dones, np.ones_like(rewards))
+                for i in range(int(np.ceil(1.0/train_freq))):
+                    obses_t, actions, rewards, obses_tp1, dones = replay_buffer.sample(batch_size)
+                    train(obses_t, actions, rewards, obses_tp1, dones, np.ones_like(rewards))
             # Update target network periodically.
             if t % target_update_freq == 0:
                 update_target()
