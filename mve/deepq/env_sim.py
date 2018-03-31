@@ -9,7 +9,7 @@ class EnvSim(object):
         self.action_space = env.action_space.n
         self.dynamics = dynamics
 
-    def simulate(self, state, action):
+    def simulate(self, state, action, t=0):
         assert len(state.shape) == 2
         data = []
         for i in range(state.shape[0]):
