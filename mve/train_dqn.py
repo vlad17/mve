@@ -1,18 +1,5 @@
-import gym
-import itertools, pickle, sys
-import numpy as np
-import tensorflow as tf
 import tensorflow.contrib.layers as layers
-
-import baselines.common.tf_util as U
-
-from baselines import logger
 import deepq
-# from baselines import deepq
-from deepq import EnvSim
-from deepq.replay_buffer import ReplayBuffer
-from deepq.utils import BatchInput
-from baselines.common.schedules import LinearSchedule
 from deepq.simple import run_experiment
 
 
