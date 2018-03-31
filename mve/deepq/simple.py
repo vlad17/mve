@@ -91,7 +91,7 @@ def run_experiment(model, env_name="CartPole-v0", buffer_size=50000, learning_st
                 scores.append(sc)
                 print("SCORE", sc)
                 sys.stdout.flush()
-                with open("cartpole-v0-" + str(horizon) + "-true-5.pkl", "wb") as f:
+                with open("cartpole-v0-" + str(horizon) + "-true-10.pkl", "wb") as f:
                     pickle.dump(scores, f)
 
             if done and len(episode_rewards) % print_freq == 0:
@@ -100,8 +100,6 @@ def run_experiment(model, env_name="CartPole-v0", buffer_size=50000, learning_st
                 logger.record_tabular("mean 10 episode reward", round(np.mean(episode_rewards[-11:-1]), 1))
                 logger.record_tabular("mean 100 episode reward", round(np.mean(episode_rewards[-101:-1]), 1))
                 logger.record_tabular("% time spent exploring", int(100 * exploration.value(t)))
-                # if t > 100:
-                #     print(episode_rewards[-101:-1], np.mean(episode_rewards[-101:-1]))
                 logger.dump_tabular()
             if t >= max_iter:
                 break
