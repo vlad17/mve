@@ -433,7 +433,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
 
         # update_target_fn will be called periodically to copy Q network to target Q network
         if ema:
-            ema = tf.train.ExponentialMovingAverage(decay=0.2)
+            ema = tf.train.ExponentialMovingAverage(decay=0.999)
             ema_op = ema.apply(q_func_vars)
             update_target_expr = [ema_op]
             for var, var_target in zip(sorted(q_func_vars, key=lambda v: v.name),

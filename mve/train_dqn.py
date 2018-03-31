@@ -1,46 +1,15 @@
-import gym, sys, argparse
+import sys
+import tensorflow as tf
+import tensorflow.contrib.layers as layers
+from deepq.simple import run_experiment
 
-import deepq
-from deepq import EnvSim
-
-#TODO: use argparse
-
-def callback(lcl, _glb):
-    # stop training if reward exceeds 199
-    is_solved = lcl['t'] > 100 and sum(lcl['episode_rewards'][-101:-1]) / 100 >= 199
-    return is_solved
-
-
-def main(horizon=0, seed=1234):
-    env = gym.make("CartPole-v0")
-    env.seed(seed)
-    testenv = gym.make("CartPole-v0")
-    testenv.seed(seed)
-    sim = EnvSim(gym.make("CartPole-v0"))
-    sim.env.seed(seed)
-    model = deepq.models.mlp([64])
-    act = deepq.learn(
-        env,
-        q_func=model,
-        lr=1e-3,
-        max_timesteps=100000,
-        buffer_size=50000,
-        exploration_fraction=0.1,
-        exploration_final_eps=0.02,
-        print_freq=10,
-        callback=None,
-        horizon=horizon,
-        true_dynamics=True,
-        sim=sim,
-        testenv=testenv,
-        datafile="cartpolev0-" + str(horizon) + "-test-"+ str(seed) +"-seed.pkl",
-        gamma=0.99,
-        train_freq=1,
-        seed=seed
-    )
-    print("Saving model to cartpole_model.pkl")
-    act.save("cartpole_model.pkl")
-
+def model(inpt, num_actions, scope, reuse=False):
+    """This model takes as input an observation and returns values of all actions."""
+    with tf.variable_scope(scope, reuse=reuse):
+        out = inpt
+        out = layers.fully_connected(out, num_outputs=64, activation_fn=tf.nn.tanh)
+        out = layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
+        return out
 
 if __name__ == '__main__':
-    main(horizon=int(sys.argv[1]), seed=int(sys.argv[2]))
+    run_experiment(model, horizon=int(sys.argv[1]))
