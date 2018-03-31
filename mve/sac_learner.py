@@ -83,6 +83,13 @@ class SACFlags(Flags):
                 help='Minimum number of frames in replay buffer before '
                      'training'),
             ArgSpec(
+                name='reparameterization_trick',
+                default=True,
+                type=distutils.util.strtobool,
+                help='Use the reparameterization trick to estimate the '
+                'entropy-regularized policy gradient, if false use the '
+                'policy gradient with the reinforce trick'),
+            ArgSpec(
                 name='drop_tdk',
                 default=False,
                 type=distutils.util.strtobool,
