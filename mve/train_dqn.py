@@ -82,8 +82,8 @@ if __name__ == '__main__':
                 episode_rewards.append(0)
 
             is_solved = t > 100 and np.mean(episode_rewards[-101:-1]) >= 200
-            if is_solved:
-                break
+            # if is_solved:
+            #     break
             #     # Show off the result
             #     env.render()
             # else:
@@ -99,7 +99,7 @@ if __name__ == '__main__':
                 scores.append(sc)
                 print("SCORE", sc)
                 sys.stdout.flush()
-                with open("cartpole-v0-" + sys.argv[1] + "-true-7.pkl", "wb") as f:
+                with open("cartpole-v0-" + sys.argv[1] + "-true-8.pkl", "wb") as f:
                     pickle.dump(scores, f)
 
             if done and len(episode_rewards) % 10 == 0:
@@ -109,5 +109,5 @@ if __name__ == '__main__':
                 logger.record_tabular("mean 100 episode reward", round(np.mean(episode_rewards[-101:-1]), 1))
                 logger.record_tabular("% time spent exploring", int(100 * exploration.value(t)))
                 logger.dump_tabular()
-            if t >= 200000:
+            if t >= 100000:
                 break
