@@ -28,9 +28,10 @@ def eval(act, env):
             break
     return score
 
-def run_experiment(model, env_name="CartPole-v0", buffer_size=50000, learning_starts=1000,
+def run_experiment(model, env_name="CartPole-v0", buffer_size=200000, learning_starts=1000,
     target_update_freq=1000, eval_freq=100, print_freq=10, max_iter=200000, learning_rate=5e-4,
-    ema=False, double_q=True, horizon=0, true_dynamics=True, batch_size=32, train_freq=1):
+    ema=False, double_q=True, horizon=0, true_dynamics=True, batch_size=32, train_freq=1,
+    gamma=0.99):
     with U.make_session(8):
         # Create the environment
         env = gym.make(env_name)
@@ -46,7 +47,8 @@ def run_experiment(model, env_name="CartPole-v0", buffer_size=50000, learning_st
             horizon=horizon,
             double_q=double_q,
             ema=ema,
-            true_dynamics=true_dynamics
+            true_dynamics=true_dynamics,
+            gamma=gamma
         )
         # Create the replay buffer
         replay_buffer = ReplayBuffer(buffer_size)
@@ -67,7 +69,8 @@ def run_experiment(model, env_name="CartPole-v0", buffer_size=50000, learning_st
             action = act(obs[None], update_eps=exploration.value(t))[0]
             new_obs, rew, done, _ = env.step(action)
             # Store transition in the replay buffer.
-            replay_buffer.add(obs, action, rew, new_obs, float(done))
+            if t < 70000:
+                replay_buffer.add(obs, action, rew, new_obs, float(done))
             obs = new_obs
 
             episode_rewards[-1] += rew
@@ -76,8 +79,8 @@ def run_experiment(model, env_name="CartPole-v0", buffer_size=50000, learning_st
                 episode_rewards.append(0)
 
             is_solved = t > 100 and np.mean(episode_rewards[-101:-1]) >= 200
-            if is_solved:
-                break
+            # if is_solved:
+            #     break
             # Minimize the error in Bellman's equation on a batch sampled from replay buffer.
             if t > learning_starts:
                 for i in range(int(np.ceil(1.0/train_freq))):
@@ -91,7 +94,7 @@ def run_experiment(model, env_name="CartPole-v0", buffer_size=50000, learning_st
                 scores.append(sc)
                 print("SCORE", sc)
                 sys.stdout.flush()
-                with open("cartpole-v0-" + str(horizon) + "-true-10.pkl", "wb") as f:
+                with open("cartpole-v0-" + str(horizon) + "-true-12.pkl", "wb") as f:
                     pickle.dump(scores, f)
 
             if done and len(episode_rewards) % print_freq == 0:
