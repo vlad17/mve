@@ -107,11 +107,11 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                 if t % target_update_freq == 0:
                     update_target()
                 if t % eval_freq == 0:
-                    sc = eval(act, testenv, 1)
+                    sc = eval(act, testenv, 3)
                     scores.append(sc)
                     print("SCORE", sc)
                     sys.stdout.flush()
-                    with open("cartpole-v0-" + sys.argv[1] + "-true.pkl", "wb") as f:
+                    with open("cartpole-v0-" + str(horizon) + "-true-"+ str(seed) +"-seed.pkl", "wb") as f:
                         pickle.dump(scores, f)
 
                 if done and len(episode_rewards) % 10 == 0:
@@ -127,5 +127,5 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
 if __name__ == '__main__':
     seed=None
     if len(sys.argv) > 2:
-        seed = sys.argv[2]
+        seed = int(sys.argv[2])
     run_experiment(model, horizon=int(sys.argv[1]), target_update_freq=1, ema=True, seed=seed)
