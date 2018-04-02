@@ -13,6 +13,7 @@ from deepq import EnvSim
 from deepq.replay_buffer import ReplayBuffer
 from deepq.utils import BatchInput
 from baselines.common.schedules import LinearSchedule
+import argparse #TODO: use this
 
 
 def model(inpt, num_actions, scope, reuse=False):
@@ -41,11 +42,16 @@ def eval(act, env, n=1):
 
 def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learning_rate=5e-4,
     buffer_size=50000, train_freq=1, learning_starts=1000, max_iter=150000, batch_size=32,
-    target_update_freq=1000, eval_freq=100, ema=False, double_q=True, true_dynamics=True):
+    target_update_freq=1000, eval_freq=100, ema=False, double_q=True, true_dynamics=True,
+    seed=None):
     with U.make_session(8):
             # Create the environment
             env = gym.make(env_name)
             testenv = gym.make(env_name)
+            if seed:
+                env.seed(seed)
+                testenv.seed(seed)
+                tf.set_random_seed(seed)
             sim = EnvSim(testenv)
             # Create all the functions necessary to train the model
             act, train, update_target, debug = deepq.build_train(
@@ -105,7 +111,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     scores.append(sc)
                     print("SCORE", sc)
                     sys.stdout.flush()
-                    with open("cartpole-v0-" + sys.argv[1] + "-true-15.pkl", "wb") as f:
+                    with open("cartpole-v0-" + sys.argv[1] + "-true.pkl", "wb") as f:
                         pickle.dump(scores, f)
 
                 if done and len(episode_rewards) % 10 == 0:
@@ -119,4 +125,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     break
 
 if __name__ == '__main__':
-    run_experiment(model, horizon=int(sys.argv[1]), target_update_freq=1, ema=True)
+    seed=None
+    if len(sys.argv) > 2:
+        seed = sys.argv[2]
+    run_experiment(model, horizon=int(sys.argv[1]), target_update_freq=1, ema=True, seed=seed)
