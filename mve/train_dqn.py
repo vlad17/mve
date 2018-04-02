@@ -40,9 +40,8 @@ def eval(act, env, n=1):
     return score/float(n)
 
 def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learning_rate=5e-4,
-    buffer_size=50000, train_freq=1, learning_starts=1000, max_iter=100000, batch_size=32,
-    target_update_freq=1000, eval_freq=100, ema=False, double_q=True, true_dynamics=True,
-    print_freq=10):
+    buffer_size=50000, train_freq=1, learning_starts=1000, max_iter=150000, batch_size=32,
+    target_update_freq=1000, eval_freq=100, ema=False, double_q=True, true_dynamics=True):
     with U.make_session(8):
             # Create the environment
             env = gym.make(env_name)
@@ -93,7 +92,6 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                 #     break
                 #     # Show off the result
                 #     env.render()
-                # else:
                 # Minimize the error in Bellman's equation on a batch sampled from replay buffer.
                 if t > learning_starts:
                     for i in range(train_freq):
@@ -107,10 +105,10 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     scores.append(sc)
                     print("SCORE", sc)
                     sys.stdout.flush()
-                    with open("cartpole-v0-" + sys.argv[1] + "-true-14.pkl", "wb") as f:
+                    with open("cartpole-v0-" + sys.argv[1] + "-true-15.pkl", "wb") as f:
                         pickle.dump(scores, f)
 
-                if done and len(episode_rewards) % print_freq == 0:
+                if done and len(episode_rewards) % 10 == 0:
                     logger.record_tabular("steps", t)
                     logger.record_tabular("episodes", len(episode_rewards))
                     logger.record_tabular("mean 10 episode reward", round(np.mean(episode_rewards[-11:-1]), 1))
@@ -121,4 +119,4 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     break
 
 if __name__ == '__main__':
-    run_experiment(model, horizon=int(sys.argv[1]))
+    run_experiment(model, horizon=int(sys.argv[1]), target_update_freq=1, ema=True)
