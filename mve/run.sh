@@ -1,4 +1,1 @@
-python3 train_dqn.py 10 1234
-python3 train_dqn.py 10 2345
-python3 train_dqn.py 10 3456
-python3 train_dqn.py 10 4567
+python3 train_dqn.py $1 1234 & python3 train_dqn.py $1 2345 & python3 train_dqn.py $1 3456 & python3 train_dqn.py $1 4567 && fg

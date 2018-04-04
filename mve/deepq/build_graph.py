@@ -416,21 +416,21 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             else:
                 q_tp1_best = tf.reduce_max(q_func(state, num_actions, scope="target_q_func", reuse=True), 1)
             q_tp1_best_masked = (1.0 - max_done) * q_tp1_best
-            trick=False
+            trick=True
             if trick:
-                q_tp1_best_masked = (1.0 - done_mask_ph) * q_tp1_best
+                # q_tp1_best_masked = (1.0 - done_mask_ph) * q_tp1_best
                 r_back = 0.0
                 weighted_error = 0.0
                 for i in range(horizon + 1):
-                    r_back = rs[horizon - 1 - i] + gamma * r_back
+                    r_back = rs[horizon - i] + gamma * r_back
                     q_tp1_best_masked *= gamma
-                    q = qs[horizon - 1 - i]
-                    weighted_error += tf.reduce_mean(importance_weights_ph * U.huber_loss(q - tf.stop_gradient(r_back + q_tp1_best_masked)))
-                weighted_error *= 1.0/(horizon+1)
+                    q = qs[horizon - i]
+                    weighted_error += tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back + q_tp1_best_masked)))
+                # weighted_error *= 1.0/(horizon+1)
                 td_error = weighted_error
             else:
                 # compute RHS of bellman equation
-                q_t_selected_target = rew_t_ph + total_reward + (gamma ** (horizon + 1 )) * q_tp1_best_masked
+                q_t_selected_target = rew_t_ph + total_reward + (gamma ** (horizon + 1)) * q_tp1_best_masked
 
                 # compute the error (potentially clipped)
                 td_error = q_t_selected - tf.stop_gradient(q_t_selected_target)
