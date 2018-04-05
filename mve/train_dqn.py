@@ -1,5 +1,5 @@
 import gym
-import itertools, pickle, sys
+import itertools, pickle, sys, random
 import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
@@ -52,6 +52,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                 env.seed(seed)
                 testenv.seed(seed)
                 tf.set_random_seed(seed)
+                random.seed(seed)
             sim = EnvSim(testenv)
             # Create all the functions necessary to train the model
             act, train, update_target, debug = deepq.build_train(
@@ -110,8 +111,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     sc = eval(act, testenv, 3)
                     scores.append(sc)
                     print("SCORE", sc)
-                    sys.stdout.flush()
-                    with open("cartpole-v0-" + str(horizon) + "-true-"+ str(seed) +"-seed-1.pkl", "wb") as f:
+                    with open("cartpole-v0-" + str(horizon) + "-true-"+ str(seed) +"-seed-0.pkl", "wb") as f:
                         pickle.dump(scores, f)
 
                 if done and len(episode_rewards) % 10 == 0:

@@ -403,7 +403,8 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             total_reward = 0
             max_done = done_mask_ph
             for i in range(horizon):
-                qs.append(tf.reduce_max(q_func(state, num_actions, scope="q_func", reuse=True), 1))
+                a = tf.stop_gradient(tf.one_hot(tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True),1), num_actions))
+                qs.append(tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*a, 1))
                 action = tf.reshape(tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True), axis=1), [-1, 1])
                 state, reward, done = tf.split(tf.reshape(tf.stop_gradient(tf.py_func(sim.simulate, [state, action], tf.float32)), [-1, 6]), [4, 1, 1], 1)
                 max_done = tf.clip_by_value(done + max_done, 0,1)
@@ -416,7 +417,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             else:
                 q_tp1_best = tf.reduce_max(q_func(state, num_actions, scope="target_q_func", reuse=True), 1)
             q_tp1_best_masked = (1.0 - max_done) * q_tp1_best
-            trick=True
+            trick=False
             if trick:
                 # q_tp1_best_masked = (1.0 - done_mask_ph) * q_tp1_best
                 r_back = 0.0
@@ -426,7 +427,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                     q_tp1_best_masked *= gamma
                     q = qs[horizon - i]
                     weighted_error += tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back + q_tp1_best_masked)))
-                # weighted_error *= 1.0/(horizon+1)
+                weighted_error *= 1.0/(horizon+1)
                 td_error = weighted_error
             else:
                 # compute RHS of bellman equation
