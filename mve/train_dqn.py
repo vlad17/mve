@@ -112,7 +112,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     sc = eval(act, testenv, 3)
                     scores.append(sc)
                     print("SCORE", sc)
-                    with open("cartpole-v0-" + str(horizon) + "-true-"+ str(seed) +"-seed-4.pkl", "wb") as f:
+                    with open("cartpole-v0-" + str(horizon) + "-testing-"+ str(seed) +"-seed-5.pkl", "wb") as f:
                         pickle.dump(scores, f)
 
                 if done and len(episode_rewards) % 10 == 0:
