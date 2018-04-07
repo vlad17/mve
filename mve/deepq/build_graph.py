@@ -392,23 +392,23 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
         q_tp1 = q_func(obs_tp1_input.get(), num_actions, scope="target_q_func")
         target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name + "/target_q_func")
 
+        # q scores for actions which we know were selected in the given state.
+        q_t_selected = tf.reduce_sum(q_t * tf.one_hot(act_t_ph, num_actions), 1)
 
-        qs = []
+        qs = [q_t_selected]
         rs = [rew_t_ph]
-        # compute estimate of best possible value starting from state at t + 1
         if true_dynamics: # learnt dynamics not yet supported
-            state = obs_t_input.get()
+            state = obs_tp1_input.get()
             max_done = done_mask_ph
-            for i in range(horizon+1):
-                # a = tf.stop_gradient(tf.one_hot(tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True),1), num_actions))
-                if i == 0:
-                    action = tf.reshape(act_t_ph, [-1, 1])
-                    aph = tf.stop_gradient(tf.one_hot(tf.squeeze(action), num_actions))
-                else:
-                    action = tf.reshape(tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True), axis=1), [-1, 1])
-                    aph = tf.stop_gradient(tf.one_hot(tf.squeeze(action), num_actions))
+            for i in range(horizon):
+                action = tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True), axis=1)
+                aph = tf.stop_gradient(tf.one_hot(action, num_actions))
                 qs.append(tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
-                state, reward, done = tf.split(tf.reshape(tf.stop_gradient(tf.py_func(sim.simulate, [state, action], tf.float32)), [-1, sim.env.observation_space.shape[0] + 2]),
+                state, reward, done = tf.split(
+                    tf.reshape(
+                        tf.stop_gradient(
+                            tf.py_func(sim.simulate, [state, tf.reshape(action, [-1, 1])], tf.float32)),
+                        [-1, sim.env.observation_space.shape[0]+2]),
                     [sim.env.observation_space.shape[0], 1, 1], 1)
                 reward = tf.squeeze(reward)
                 done = tf.squeeze(done)
@@ -421,8 +421,9 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             else:
                 q_tp1_best = tf.reduce_max(q_func(state, num_actions, scope="target_q_func", reuse=True), 1)
             q_tp1_best_masked = (1.0 - max_done) * q_tp1_best
-
+            
             # TD-k Trick
+            trick=True
             r_back = q_tp1_best_masked
             weighted_error = 0.0
             rs = rs[::-1]
@@ -431,7 +432,8 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 r_back = rs[i] + gamma * r_back
                 q_tp1_best_masked *= gamma
                 q = qs[i]
-                weighted_error += tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back)))
+                if trick or i == horizon:
+                    weighted_error += tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back)))
             weighted_error /= horizon+1.0
             td_error = weighted_error
 
