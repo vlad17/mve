@@ -420,18 +420,18 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             q_tp1_best_masked = (1.0 - max_done) * q_tp1_best
             
             # TD-k Trick
-            trick=False
-            r_back = q_tp1_best_masked
+            trick = True
+            cumulative_reversed_reward = q_tp1_best_masked
             weighted_error = 0.0
             imagined_rewards = imagined_rewards[::-1]
             imagined_q_vals = imagined_q_vals[::-1]
             for i in range(horizon + 1):
-                r_back = imagined_rewards[i] + gamma * r_back
+                cumulative_reversed_reward = imagined_rewards[i] + gamma * cumulative_reversed_reward
                 q_tp1_best_masked *= gamma
-                q = imagined_q_vals[i]
                 if trick or i == horizon:
-                    weighted_error += tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back)))
-            weighted_error /= horizon+1.0
+                    weighted_error += tf.reduce_mean(U.huber_loss(imagined_q_vals[i] - tf.stop_gradient(cumulative_reversed_reward)))
+            if trick:
+                weighted_error /= horizon+1.0
             td_error = weighted_error
 
         # compute optimization op (potentially with gradient clipping)
