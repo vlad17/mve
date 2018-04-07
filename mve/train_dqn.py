@@ -103,7 +103,8 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                 if t > learning_starts:
                     for i in range(train_freq):
                         obses_t, actions, rewards, obses_tp1, dones = replay_buffer.sample(batch_size)
-                        train(obses_t, actions, rewards, obses_tp1, dones, np.ones_like(rewards))
+                        ret = train(obses_t, actions, rewards, obses_tp1, dones, np.ones_like(rewards))
+                        # import IPython; IPython.embed()
                 # Update target network periodically.
                 if t % target_update_freq == 0:
                     update_target()
