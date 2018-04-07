@@ -408,7 +408,8 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                     action = tf.reshape(tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True), axis=1), [-1, 1])
                     aph = tf.stop_gradient(tf.one_hot(tf.squeeze(action), num_actions))
                 qs.append(tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
-                state, reward, done = tf.split(tf.reshape(tf.stop_gradient(tf.py_func(sim.simulate, [state, action], tf.float32)), [-1, 6]), [4, 1, 1], 1)
+                state, reward, done = tf.split(tf.reshape(tf.stop_gradient(tf.py_func(sim.simulate, [state, action], tf.float32)), [-1, sim.env.observation_space.shape[0] + 2]),
+                    [sim.env.observation_space.shape[0], 1, 1], 1)
                 reward = tf.squeeze(reward)
                 done = tf.squeeze(done)
                 max_done = tf.clip_by_value(done + max_done, 0,1)
