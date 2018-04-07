@@ -432,7 +432,6 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                     weighted_error += tf.reduce_mean(U.huber_loss(imagined_q_vals[i] - tf.stop_gradient(cumulative_reversed_reward)))
             if trick:
                 weighted_error /= horizon+1.0
-            td_error = weighted_error
 
         # compute optimization op (potentially with gradient clipping)
         if grad_norm_clipping is not None:
@@ -469,7 +468,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 done_mask_ph,
                 importance_weights_ph
             ],
-            outputs=td_error,
+            outputs=weighted_error,
             updates=[optimize_expr]
         )
         update_target = U.function([], [], updates=[update_target_expr])
