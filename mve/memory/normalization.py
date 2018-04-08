@@ -110,16 +110,6 @@ class Normalizer(TFNode):
                 hide=True)
 
 
-def scale_acs(acs):
-    """scale actions into [-1, 1]"""
-    return _scale_from_box(env_info.ac_space(), acs)
-
-
-def unscale_acs(acs):
-    """unscale actions back into their original box"""
-    return _scale_to_box(env_info.ac_space(), acs)
-
-
 class _Statistics:
     def __init__(self, data):
         if not data:
@@ -141,36 +131,3 @@ class _Statistics:
 
 def _finite_env(space):
     return all(np.isfinite(space.low)) and all(np.isfinite(space.high))
-
-
-def _scale_to_box(space, relative):
-    """
-    Given a hyper-rectangle specified by a gym box space, scale
-    relative coordinates between -1 and 1 to the box's coordinates,
-    such that the relative vector of all zeros has the smallest
-    coordinates (the "bottom left" corner) and vice-versa for ones.
-
-    If environment is infinite, no scaling is performed.
-    """
-    if not _finite_env(space):
-        return relative
-    relative += 1
-    relative /= 2
-    relative *= (space.high - space.low)
-    relative += space.low
-    return relative
-
-
-def _scale_from_box(space, absolute):
-    """
-    Given a hyper-rectangle specified by a gym box space, scale
-    exact coordinates from within that space to
-    relative coordinates between -1 and 1.
-
-    If environment is infinite, no scaling is performed.
-    """
-    if not _finite_env(space):
-        return absolute
-    absolute -= space.low
-    absolute /= (space.high - space.low)
-    return absolute * 2 - 1

@@ -3,15 +3,17 @@ This file was made in the style of fully_observable_half_cheetah.py,
 mimicking the analogous gym environment.
 """
 
+from gym import spaces
 import numpy as np
 import tensorflow as tf
 
 from .fully_observable import FullyObservable
 from .render_free_mjc import RenderFreeMJC
+from .rescale import scale_from_unit
 
 
 class FullyObservableHumanoid(RenderFreeMJC, FullyObservable):
-    """A fully-observable version of humanoid."""
+    """A fully-observable version of humanoid (actions rescaled to [-1, 1])"""
 
     # gym code
     # def __init__(self):
@@ -20,6 +22,9 @@ class FullyObservableHumanoid(RenderFreeMJC, FullyObservable):
 
     def __init__(self):
         super().__init__('humanoid.xml', 5)
+        self._original_action_space = self.action_space
+        self.action_space = spaces.Box(
+            -1, 1, self._original_action_space.low.shape)
 
     # def mass_center(model, sim):
     #     mass = np.expand_dims(model.body_mass, 1)
@@ -78,6 +83,7 @@ class FullyObservableHumanoid(RenderFreeMJC, FullyObservable):
         return reward
 
     def np_reward(self, state, action, next_state):
+        # this call assumes action is already rescaled (not for external use)
         reward = 0
         reward = self._incremental_reward(
             state, action, next_state, reward,
@@ -88,6 +94,7 @@ class FullyObservableHumanoid(RenderFreeMJC, FullyObservable):
         return reward
 
     def tf_reward(self, state, action, next_state):
+        action = scale_from_unit(self._original_action_space, action)
         curr_reward = tf.zeros([tf.shape(state)[0]])
         return self._incremental_reward(
             state, action, next_state, curr_reward,
@@ -97,6 +104,11 @@ class FullyObservableHumanoid(RenderFreeMJC, FullyObservable):
             lambda x: tf.shape(x)[0])
 
     def _step(self, action):
+        if hasattr(self, '_original_action_space'):
+            # this attribute may not be defined for weird gym init reasons,
+            # don't worry about it (gym is just trying to get the
+            # observation size
+            action = scale_from_unit(self._original_action_space, action)
         reward, state_after = self._mjc_step(action)
         qpos = self.sim.data.qpos
         done = bool((qpos[2] < 1.0) or (qpos[2] > 2.0))

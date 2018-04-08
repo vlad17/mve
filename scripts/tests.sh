@@ -97,7 +97,6 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --critic_lr 1e-4")
     cmds+=("python $main_ddpg $ddpg_flags --actor_lr 1e-4")
     cmds+=("python $main_ddpg $ddpg_flags --critic_l2_reg 1e-2")
-    cmds+=("python $main_ddpg $ddpg_flags --env_name acrobot")
     cmds+=("python $main_ddpg $ddpg_flags --drop_tdk true")
     cmds+=("python $main_ddpg $ddpg_flags --dynamics_type oracle --ddpg_mve true")
     cmds+=("python $main_ddpg $ddpg_flags --dynamics_type learned --ddpg_mve true $dynamics_flags")
@@ -116,6 +115,7 @@ main() {
     cmds+=("python $main_random $random_flags --env_name pusher")
     cmds+=("python $main_random $random_flags --env_name hopper")
     cmds+=("python $main_random $random_flags --env_name swimmer")
+    cmds+=("python $main_random $random_flags --env_name humanoid")
     cmds+=("python $main_random $random_flags --env_name acrobot")
     # Test recovery
     persist_flags="--persist_replay_buffer true"

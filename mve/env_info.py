@@ -2,6 +2,9 @@
 Contains metadata relating to an environment. These are useful constants
 that need to be passed around everywhere but are instead maintained in
 this single metadata class.
+
+All continuous environments simply assume the actions are in [-1, 1]^n for
+some n. This really simplifies a lot of logic.
 """
 
 import os
@@ -94,6 +97,8 @@ def make_env():
     env = _env_class()()
     env.seed(_next_seeds(1)[0])
     context().env_info.add_env(env)
+    assert next(iter(set(env.action_space.low))) == -1, env.action_space.low
+    assert next(iter(set(env.action_space.high))) == 1, env.action_space.high
     return env
 
 

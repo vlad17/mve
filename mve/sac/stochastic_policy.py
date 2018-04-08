@@ -5,7 +5,6 @@ import tensorflow as tf
 
 from context import flags
 import env_info
-from memory import unscale_acs
 from utils import build_mlp, trainable_vars
 
 
@@ -145,8 +144,7 @@ class SquashedGaussianPolicy(StochasticPolicy):
         return sample_na, logprob_n
 
     def _scale(self, unbounded_acs_na):
-        unit_acs_na = tf.tanh(unbounded_acs_na)
-        return unscale_acs(unit_acs_na)
+        return tf.tanh(unbounded_acs_na)
 
     @staticmethod
     def _scale_correction(unbounded_acs_na, unbounded_log_prob_n):

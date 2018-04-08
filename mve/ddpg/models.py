@@ -9,7 +9,6 @@ thing.
 import tensorflow as tf
 
 import env_info
-from memory import scale_acs, unscale_acs
 from utils import build_mlp
 
 
@@ -78,7 +77,7 @@ class Actor:
             'size': width,
             'activation': tf.nn.relu,
             'reuse': None,
-            'output_activation': tf.nn.sigmoid,
+            'output_activation': tf.nn.tanh,
             'activation_norm': _layer_norm}
         self._scope = scope
 
@@ -138,9 +137,9 @@ class Actor:
 
     def _tf_action(self, states_ns, child_scope):
         with tf.variable_scope(self._scope, reuse=tf.AUTO_REUSE):
-            relative_acs = build_mlp(
+            acs = build_mlp(
                 states_ns, scope=child_scope, **self._common_mlp_kwargs)
-        return unscale_acs(relative_acs)
+        return acs
 
 
 class Critic:
@@ -189,7 +188,6 @@ class Critic:
             self._acs_ph_na: acs_na})
 
     def _tf_critic(self, states_ns, acs_na, scope):
-        acs_na = scale_acs(acs_na)
         with tf.variable_scope(self._scope, reuse=tf.AUTO_REUSE):
             inputs = tf.concat([states_ns, acs_na], axis=1)
             out = build_mlp(inputs, scope=scope, **self._common_mlp_kwargs)

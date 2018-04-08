@@ -6,7 +6,6 @@ import tensorflow as tf
 
 from context import flags
 import env_info
-from memory import scale_acs
 from utils import build_mlp, trainable_vars
 
 
@@ -26,7 +25,6 @@ class QFunction:
 
     def tf_state_action_value(self, obs_ns, acs_na):
         """TF tensor for the Q value at given states, actions"""
-        acs_na = scale_acs(acs_na)
         cat = tf.concat([obs_ns, acs_na], axis=1)
         q_n1 = build_mlp(
             cat, scope=self._scope,
