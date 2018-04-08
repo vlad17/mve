@@ -397,6 +397,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
 
         imagined_q_vals = [q_t_selected]
         imagined_rewards = [rew_t_ph]
+        imagined_done = [0.0]
         if true_dynamics: # learnt dynamics not yet supported
             state = obs_tp1_input.get()
             max_done = done_mask_ph
@@ -409,8 +410,9 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                             tf.py_func(sim.simulate, [state, tf.reshape(action, [-1, 1])], tf.float32)),
                         [-1, sim.env.observation_space.shape[0]+2]),
                     [sim.env.observation_space.shape[0], 1, 1], 1)
-                max_done = tf.clip_by_value(tf.squeeze(done) + max_done, 0,1)
+                imagined_done.append(max_done)
                 imagined_rewards.append(tf.squeeze(reward)*(1 - max_done))
+                max_done = tf.clip_by_value(tf.squeeze(done) + max_done, 0,1)
             if double_q:
                 q_tp1_using_online_net = q_func(state, num_actions, scope="q_func", reuse=True)
                 q_tp1_best_using_online_net = tf.argmax(q_tp1_using_online_net, 1)
@@ -425,11 +427,12 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             weighted_error = 0.0
             imagined_rewards = imagined_rewards[::-1]
             imagined_q_vals = imagined_q_vals[::-1]
+            imagined_done = imagined_done[::-1]
             for i in range(horizon + 1):
                 cumulative_reversed_reward = imagined_rewards[i] + gamma * cumulative_reversed_reward
                 q_tp1_best_masked *= gamma
                 if trick or i == horizon:
-                    weighted_error += tf.reduce_mean(U.huber_loss(imagined_q_vals[i] - tf.stop_gradient(cumulative_reversed_reward)))
+                    weighted_error += tf.reduce_mean((1.0 - imagined_done[i]) * U.huber_loss(imagined_q_vals[i] - tf.stop_gradient(cumulative_reversed_reward)))
             if trick:
                 weighted_error /= horizon+1.0
 
