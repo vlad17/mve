@@ -8,6 +8,7 @@ the timers "time out" relative to this value.
 
 import reporter
 
+
 class Timer:
     """
     A logging timer keeps track of the last time it was snoozed.
@@ -19,11 +20,14 @@ class Timer:
     is again snoozed.
 
     A period of 0 means that the timer should never time out.
+
+    The timer starts snoozed, so the first time it's active is
+    when we're one period in.
     """
 
     def __init__(self, period):
         self._period = period
-        self._last_snoozed = -period
+        self._last_snoozed = 0
 
     def has_timed_out(self):
         """Returns if the period has elapsed since last snoozed"""
