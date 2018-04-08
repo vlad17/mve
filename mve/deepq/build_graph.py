@@ -402,19 +402,22 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             max_done = done_mask_ph
             for i in range(horizon):
                 action = tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True), axis=1)
-                imagined_q_vals.append((1.0 - max_done) * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*tf.stop_gradient(tf.one_hot(action, num_actions)), 1))
+                imagined_q_vals.append((1.0 - max_done)
+                    * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)
+                        * tf.stop_gradient(tf.one_hot(action, num_actions)), 1))
                 state, reward, done = tf.split(
                     tf.reshape(
                         tf.stop_gradient(
                             tf.py_func(sim.simulate, [state, tf.reshape(action, [-1, 1])], tf.float32)),
                         [-1, sim.env.observation_space.shape[0]+2]),
                     [sim.env.observation_space.shape[0], 1, 1], 1)
-                max_done = tf.clip_by_value(tf.squeeze(done) + max_done, 0,1)
                 imagined_rewards.append(tf.squeeze(reward)*(1 - max_done))
+                max_done = tf.maximum(tf.squeeze(done), max_done)
             if double_q:
                 q_tp1_using_online_net = q_func(state, num_actions, scope="q_func", reuse=True)
                 q_tp1_best_using_online_net = tf.argmax(q_tp1_using_online_net, 1)
-                q_tp1_best = tf.reduce_sum(q_func(state, num_actions, scope="target_q_func", reuse=True) * tf.one_hot(q_tp1_best_using_online_net, num_actions), 1)
+                q_tp1_best = tf.reduce_sum(q_func(state, num_actions, scope="target_q_func", reuse=True)
+                    * tf.one_hot(q_tp1_best_using_online_net, num_actions), 1)
             else:
                 q_tp1_best = tf.reduce_max(q_func(state, num_actions, scope="target_q_func", reuse=True), 1)
             q_tp1_best_masked = (1.0 - max_done) * q_tp1_best
@@ -430,8 +433,6 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 q_tp1_best_masked *= gamma
                 if trick or i == horizon:
                     weighted_error += tf.reduce_mean(U.huber_loss(imagined_q_vals[i] - tf.stop_gradient(cumulative_reversed_rewards)))
-            if trick:
-                weighted_error /= horizon+1.0
 
         # compute optimization op (potentially with gradient clipping)
         if grad_norm_clipping is not None:
