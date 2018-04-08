@@ -2,29 +2,18 @@ import gym
 import itertools, pickle, sys, random
 import numpy as np
 import tensorflow as tf
-import tensorflow.contrib.layers as layers
 
 import baselines.common.tf_util as U
 
 from baselines import logger
 import deepq
-# from baselines import deepq
 from deepq import EnvSim
 from deepq.replay_buffer import ReplayBuffer
 from deepq.utils import BatchInput
 from baselines.common.schedules import LinearSchedule
 import argparse #TODO: use this
 
-
-def model(inpt, num_actions, scope, reuse=False):
-    """This model takes as input an observation and returns values of all actions."""
-    with tf.variable_scope(scope, reuse=reuse):
-        out = inpt
-        out = layers.fully_connected(out, num_outputs=64, activation_fn=tf.nn.tanh)
-        out = layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
-        return out
-
-def eval(act, env, n=1):
+def eval(act, env, n=1, render=False):
     score = 0
     done = False
     obs = env.reset()
@@ -33,8 +22,8 @@ def eval(act, env, n=1):
             env_action = act(np.array(obs)[None], update_eps=0)[0]
             obs, rew, done, _ = env.step(env_action)
             score += rew
-            if i > 200:
-                print(done)
+            if render:
+                env.render()
             if done:
                 env.reset()
                 break
@@ -95,10 +84,6 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     episode_rewards.append(0)
 
                 is_solved = t > 100 and np.mean(episode_rewards[-101:-1]) >= 200
-                # if is_solved:
-                #     break
-                #     # Show off the result
-                #     env.render()
                 # Minimize the error in Bellman's equation on a batch sampled from replay buffer.
                 if t > learning_starts:
                     for i in range(train_freq):
@@ -112,7 +97,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     sc = eval(act, testenv, 3)
                     scores.append(sc)
                     print("SCORE", sc)
-                    with open("cartpole-v0-" + str(horizon) + "-true-"+ str(seed) +"-seed-4.pkl", "wb") as f:
+                    with open("cartpole-v0-" + str(horizon) + "-testing-"+ str(seed) +"-seed-8.pkl", "wb") as f:
                         pickle.dump(scores, f)
 
                 if done and len(episode_rewards) % 10 == 0:
@@ -129,4 +114,4 @@ if __name__ == '__main__':
     seed=None
     if len(sys.argv) > 2:
         seed = int(sys.argv[2])
-    run_experiment(model, horizon=int(sys.argv[1]), target_update_freq=1, ema=True, seed=seed)
+    run_experiment(deepq.models.mlp([64]), horizon=int(sys.argv[1]), target_update_freq=1, ema=True, seed=seed)

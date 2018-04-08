@@ -402,18 +402,15 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             max_done = done_mask_ph
             for i in range(horizon):
                 action = tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True), axis=1)
-                aph = tf.stop_gradient(tf.one_hot(action, num_actions))
-                imagined_q_vals.append((1.0 - max_done) * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
+                imagined_q_vals.append((1.0 - max_done) * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*tf.stop_gradient(tf.one_hot(action, num_actions)), 1))
                 state, reward, done = tf.split(
                     tf.reshape(
                         tf.stop_gradient(
                             tf.py_func(sim.simulate, [state, tf.reshape(action, [-1, 1])], tf.float32)),
                         [-1, sim.env.observation_space.shape[0]+2]),
                     [sim.env.observation_space.shape[0], 1, 1], 1)
-                reward = tf.squeeze(reward)
-                done = tf.squeeze(done)
-                max_done = tf.clip_by_value(done + max_done, 0,1)
-                imagined_rewards.append(reward*(1 - max_done))
+                max_done = tf.clip_by_value(tf.squeeze(done) + max_done, 0,1)
+                imagined_rewards.append(tf.squeeze(reward)*(1 - max_done))
             if double_q:
                 q_tp1_using_online_net = q_func(state, num_actions, scope="q_func", reuse=True)
                 q_tp1_best_using_online_net = tf.argmax(q_tp1_using_online_net, 1)
