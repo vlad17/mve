@@ -158,9 +158,11 @@ def setup_experiment_context(
     assert not create_reporter or create_logdir, \
         'reporter can only be created if logdir is'
 
+    # console logger
+    log.init(flags.experiment.verbose)
+
     seed = flags.experiment.seed
     if create_logdir:
-        log.init(flags.experiment.verbose)
         logdir = flags.experiment.log_directory()
         logdir = os.path.join(logdir, str(seed))
         logdir = _make_data_directory(logdir)
