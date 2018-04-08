@@ -41,7 +41,7 @@ def eval(act, env, n=1):
     return score/float(n)
 
 def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learning_rate=5e-4,
-    buffer_size=50000, train_freq=1, learning_starts=1000, max_iter=150000, batch_size=32,
+    buffer_size=50000, train_freq=1, learning_starts=1000, max_iter=100000, batch_size=32,
     target_update_freq=1000, eval_freq=100, ema=False, double_q=True, true_dynamics=True,
     seed=None):
     with U.make_session(8):

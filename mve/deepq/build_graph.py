@@ -395,15 +395,15 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
         # q scores for actions which we know were selected in the given state.
         q_t_selected = tf.reduce_sum(q_t * tf.one_hot(act_t_ph, num_actions), 1)
 
-        qs = [q_t_selected]
-        rs = [rew_t_ph]
+        imagined_q_vals = [q_t_selected]
+        imagined_rewards = [rew_t_ph]
         if true_dynamics: # learnt dynamics not yet supported
             state = obs_tp1_input.get()
             max_done = done_mask_ph
             for i in range(horizon):
                 action = tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True), axis=1)
                 aph = tf.stop_gradient(tf.one_hot(action, num_actions))
-                qs.append(tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
+                imagined_q_vals.append((1.0 - max_done) * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
                 state, reward, done = tf.split(
                     tf.reshape(
                         tf.stop_gradient(
@@ -413,7 +413,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 reward = tf.squeeze(reward)
                 done = tf.squeeze(done)
                 max_done = tf.clip_by_value(done + max_done, 0,1)
-                rs.append(reward*(1 - max_done))
+                imagined_rewards.append(reward*(1 - max_done))
             if double_q:
                 q_tp1_using_online_net = q_func(state, num_actions, scope="q_func", reuse=True)
                 q_tp1_best_using_online_net = tf.argmax(q_tp1_using_online_net, 1)
@@ -424,22 +424,21 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             
             # TD-k Trick
             trick=True
-            r_back = q_tp1_best_masked
+            cumulative_reversed_rewards = q_tp1_best_masked
             weighted_error = 0.0
-            rs = rs[::-1]
-            qs = qs[::-1]
+            imagined_rewards = imagined_rewards[::-1]
+            imagined_q_vals = imagined_q_vals[::-1]
             for i in range(horizon + 1):
-                r_back = rs[i] + gamma * r_back
+                cumulative_reversed_rewards = imagined_rewards[i] + gamma * cumulative_reversed_rewards
                 q_tp1_best_masked *= gamma
-                q = qs[i]
                 if trick or i == horizon:
-                    weighted_error += tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back)))
-            weighted_error /= horizon+1.0
-            td_error = weighted_error
+                    weighted_error += tf.reduce_mean(U.huber_loss(imagined_q_vals[i] - tf.stop_gradient(cumulative_reversed_rewards)))
+            if trick:
+                weighted_error /= horizon+1.0
 
         # compute optimization op (potentially with gradient clipping)
         if grad_norm_clipping is not None:
-            gradients = optimizer.compute_gradients(weighted_error, var_list=q_func_vars)
+            gradients = optimizer.compute_gradients(weighted_error, var_list=q_func_vaimagined_rewards)
             for i, (grad, var) in enumerate(gradients):
                 if grad is not None:
                     gradients[i] = (tf.clip_by_norm(grad, grad_norm_clipping), var)
@@ -472,7 +471,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 done_mask_ph,
                 importance_weights_ph
             ],
-            outputs=td_error,
+            outputs=weighted_error,
             updates=[optimize_expr]
         )
         update_target = U.function([], [], updates=[update_target_expr])
