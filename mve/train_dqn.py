@@ -13,7 +13,7 @@ from deepq.utils import BatchInput
 from baselines.common.schedules import LinearSchedule
 import argparse #TODO: use this
 
-def eval(act, env, n=1):
+def eval(act, env, n=1, render=False):
     score = 0
     done = False
     obs = env.reset()
@@ -22,8 +22,8 @@ def eval(act, env, n=1):
             env_action = act(np.array(obs)[None], update_eps=0)[0]
             obs, rew, done, _ = env.step(env_action)
             score += rew
-            if i > 200:
-                print(done)
+            if render:
+                env.render()
             if done:
                 env.reset()
                 break
@@ -84,10 +84,6 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     episode_rewards.append(0)
 
                 is_solved = t > 100 and np.mean(episode_rewards[-101:-1]) >= 200
-                # if is_solved:
-                #     break
-                #     # Show off the result
-                #     env.render()
                 # Minimize the error in Bellman's equation on a batch sampled from replay buffer.
                 if t > learning_starts:
                     for i in range(train_freq):
