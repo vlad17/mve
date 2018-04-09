@@ -1,4 +1,4 @@
-# MVE: Model-based Value Estimation [![Build Status](https://travis-ci.com/vlad17/cmpc.svg?token=xAqzxKFpxN3pG4om3z4n&branch=master)](https://travis-ci.com/vlad17/mve)
+# MVE: Model-based Value Estimation [![Build Status](https://travis-ci.com/vlad17/mve.svg?token=xAqzxKFpxN3pG4om3z4n&branch=master)](https://travis-ci.com/vlad17/mve)
 
 Using short-horizon nonlinear dynamics for on-policy simulation to improve value estimation.
 

@@ -7,6 +7,7 @@ import tensorflow as tf
 from context import flags
 from flags import Flags, ArgSpec
 import env_info
+from log import debug
 import reporter
 from tfnode import TFNode
 from utils import build_mlp
@@ -146,7 +147,7 @@ class NNDynamicsModel(TFNode):
         # saving us more time.
         nbatches = flags().dynamics.nbatches(timesteps)
         batch_size = flags().dynamics.dyn_batch_size
-        for batch in data.sample_many(nbatches, batch_size):
+        for i, batch in enumerate(data.sample_many(nbatches, batch_size), 1):
             obs, next_obs, _, acs, _ = batch
             self._update_op.run(feed_dict={
                 self._input_state_ph_ns: obs,
@@ -154,6 +155,18 @@ class NNDynamicsModel(TFNode):
                 self._next_state_ph_ns: next_obs,
                 self._dyn_training: True
             })
+            if (i % max(nbatches // 10, 1)) == 0:
+                dyn_loss, one_step_error = tf.get_default_session().run(
+                    [self._dyn_loss, self._one_step_pred_error],
+                    feed_dict={
+                        self._input_state_ph_ns: obs,
+                        self._input_action_ph_na: acs,
+                        self._next_state_ph_ns: next_obs,
+                    })
+                fmt = '{: ' + str(len(str(nbatches))) + 'd}'
+                debug('dynamics ' + fmt + ' of ' + fmt + ' batches - '
+                      'dyn loss {:.4g} one-step mse {:.4g} ',
+                      i, nbatches, dyn_loss, one_step_error)
 
     def _predict_tf(self, states, actions):
         state_action_pair = tf.concat([

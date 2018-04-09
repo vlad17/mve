@@ -24,7 +24,7 @@ def train():
     else:
         dynamics = None
 
-    learner = SACLearner(dynamics=dynamics, normalizer=normalizer)
+    learner = SACLearner(dynamics=dynamics)
     rl_loop(learner, normalizer, dynamics)
 
 

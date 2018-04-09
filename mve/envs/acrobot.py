@@ -85,7 +85,7 @@ class VectorizedContinuousAcrobot(VectorEnv):
         self.n = n
         self.observation_space = spaces.Box(low=low, high=high)
         self.action_space = spaces.Box(
-            low=np.zeros(3),
+            low=-np.ones(3),
             high=np.ones(3))
         self.state = np.empty((n, 4))  # 4 non-control latent state dims
         # only do one step of rk4 integration

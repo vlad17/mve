@@ -33,7 +33,7 @@ class ExperimentFlags(Flags):
         yield ArgSpec(
             name='seed',
             type=int,
-            default=3)
+            default=1)
         yield ArgSpec(
             name='verbose',
             type=distutils.util.strtobool,
@@ -65,9 +65,10 @@ class ExperimentFlags(Flags):
             'evaluation: this is already minimized with the cpu count')
         yield ArgSpec(
             name='tf_parallelism',
-            default=None,
+            default=8,
             type=int,
-            help='maximum number of CPUs to be used by TF exec thread pools')
+            help='maximum number of CPUs to be used by TF exec thread pools; '
+            'use 0 for system default, all CPUs')
 
     def __init__(self):
         super().__init__('experiment', 'experiment governance',
@@ -157,9 +158,11 @@ def setup_experiment_context(
     assert not create_reporter or create_logdir, \
         'reporter can only be created if logdir is'
 
+    # console logger
+    log.init(flags.experiment.verbose)
+
     seed = flags.experiment.seed
     if create_logdir:
-        log.init(flags.experiment.verbose)
         logdir = flags.experiment.log_directory()
         logdir = os.path.join(logdir, str(seed))
         logdir = _make_data_directory(logdir)

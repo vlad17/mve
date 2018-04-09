@@ -2,8 +2,8 @@
 This module defines the one-stop normalization shop for all observed transition
 related normalization statistics.
 
-Note that actions are "normalized" so that they reside in [-1, 1]; they are not
-mean-centered or std-rescaled.
+Henceforth, normalization refers to mean-centering and std-rescaling ops while
+scaling refers to converting a value in a certain range into [-1, 1]
 """
 
 import tensorflow as tf
@@ -17,7 +17,6 @@ import reporter
 from tfnode import TFNode
 
 # TODO: consider online statistics updating (with exp decay)
-# TODO: consider knob for actions to be standardized.
 
 
 class NormalizationFlags(Flags):
@@ -58,6 +57,8 @@ class Normalizer(TFNode):
         with tf.variable_scope('normalization'):
             self._ob_tf_stats = AssignableStatistic(
                 'ob', stats.mean_ob, stats.std_ob)
+            self._ac_tf_stats = AssignableStatistic(
+                'ac', stats.mean_ac, stats.std_ac)
             self._delta_tf_stats = AssignableStatistic(
                 'delta', stats.mean_delta, stats.std_delta)
         super().__init__(
@@ -67,15 +68,13 @@ class Normalizer(TFNode):
         """normalize observations"""
         return self._ob_tf_stats.tf_normalize(obs)
 
-    @staticmethod
-    def norm_acs(acs):
+    def norm_acs(self, acs):
         """normalize actions"""
-        return _scale_from_box(env_info.ac_space(), acs)
+        return self._ac_tf_stats.tf_normalize(acs)
 
-    @staticmethod
-    def denorm_acs(acs):
+    def denorm_acs(self, acs):
         """denormalize actions"""
-        return _scale_to_box(env_info.ac_space(), acs)
+        return self._ac_tf_stats.tf_denormalize(acs)
 
     def norm_delta(self, deltas):
         """normalize deltas"""
@@ -89,6 +88,7 @@ class Normalizer(TFNode):
         """update the stateful normalization statistics"""
         stats = _Statistics(data)
         self._ob_tf_stats.update_statistics(stats.mean_ob, stats.std_ob)
+        self._ac_tf_stats.update_statistics(stats.mean_ac, stats.std_ac)
         self._delta_tf_stats.update_statistics(
             stats.mean_delta, stats.std_delta)
 
@@ -131,36 +131,3 @@ class _Statistics:
 
 def _finite_env(space):
     return all(np.isfinite(space.low)) and all(np.isfinite(space.high))
-
-
-def _scale_to_box(space, relative):
-    """
-    Given a hyper-rectangle specified by a gym box space, scale
-    relative coordinates between -1 and 1 to the box's coordinates,
-    such that the relative vector of all zeros has the smallest
-    coordinates (the "bottom left" corner) and vice-versa for ones.
-
-    If environment is infinite, no scaling is performed.
-    """
-    if not _finite_env(space):
-        return relative
-    relative += 1
-    relative /= 2
-    relative *= (space.high - space.low)
-    relative += space.low
-    return relative
-
-
-def _scale_from_box(space, absolute):
-    """
-    Given a hyper-rectangle specified by a gym box space, scale
-    exact coordinates from within that space to
-    relative coordinates between -1 and 1.
-
-    If environment is infinite, no scaling is performed.
-    """
-    if not _finite_env(space):
-        return absolute
-    absolute -= space.low
-    absolute /= (space.high - space.low)
-    return absolute * 2 - 1

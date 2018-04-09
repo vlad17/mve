@@ -38,7 +38,7 @@ def _evaluate():
     else:
         dynamics = None
 
-    learner = DDPGLearner(dynamics=dynamics, normalizer=norm)
+    learner = DDPGLearner(dynamics=dynamics)
 
     with make_session_as_default():
         tf.global_variables_initializer().run()

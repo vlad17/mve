@@ -144,18 +144,24 @@ class Dataset(object):
             self._acs.append_all(path.acs)
             self._terminals.append_all(path.terminals)
 
+    def get_state(self):
+        """return all state in a dictionary mapping to numpy arrays"""
+        return {
+            'obs': self.obs,
+            'next_obs': self.next_obs,
+            'rewards': self.rewards,
+            'acs': self.acs,
+            'terminals': self.terminals}
+
     def set_state(self, dictionary):
         """
         Set the internal ringbuffers to contain the values in the dictionary
         (which should be keyed to the corresponding property).
         """
         for attr, arr in dictionary.items():
-            # technically, we should wipe what the ringbuffer currently
-            # contains to "really" set the state. We don't have to do this
-            # if the ringbuffer is currently empty, which we assume
-            # is the case always
             rb = getattr(self, '_' + attr)
-            assert rb.length == 0, len(rb)
+            rb = RingBuffer(rb.maxlen, rb.data.shape[1:], rb.data.dtype)
+            setattr(self, '_' + attr, rb)
             rb.append_all(arr)
 
     def batches_per_epoch(self, batch_size):

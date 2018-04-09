@@ -60,22 +60,18 @@ class SquashedGaussianPolicy(StochasticPolicy):
     and squashed into a compact [-1, 1] interval.
     """
 
-    def __init__(self, normalizer, scope='sac/policy'):
+    def __init__(self, scope='sac/policy'):
         """
         Generates a diagonal gaussian policy which keeps its log standard
         deviations between the lower and upper bounds provided as arguments.
         """
         self._scope = scope
-        self._norm = normalizer
         self._obs_ph_ns = tf.placeholder(tf.float32, [None, env_info.ob_dim()])
         self._acs_na, _ = self.tf_sample_action_with_log_prob(self._obs_ph_ns)
         self._greedy_acs_na = self.tf_greedy_action(self._obs_ph_ns)
         self.variables = trainable_vars(self._scope)
 
     def _tf_mu_logstd(self, obs_ns):
-        # below scaling line should be eventually replaced with normalization
-        # see issue (#359)
-        obs_ns = self._norm.norm_obs(obs_ns)
         unclipped_mu_logstd_n2a = build_mlp(
             obs_ns, scope=self._scope,
             output_size=(env_info.ac_dim() * 2),
@@ -103,9 +99,7 @@ class SquashedGaussianPolicy(StochasticPolicy):
 
     @staticmethod
     def _tf_sample(mu_na, logstd_na):
-        # stop gradient necessary here so we don't influence expectations
-        return tf.stop_gradient(
-            tf.random_normal(tf.shape(mu_na)) * tf.exp(logstd_na) + mu_na)
+        return tf.random_normal(tf.shape(mu_na)) * tf.exp(logstd_na) + mu_na
 
     @staticmethod
     def _tf_log_prob(x_na, mu_na, logstd_na):
@@ -119,9 +113,28 @@ class SquashedGaussianPolicy(StochasticPolicy):
         return logprob_n
 
     def tf_sample_action_with_log_prob(self, obs_ns):
+        return self._tf_sample_action_with_log_prob(
+            obs_ns, stop_gradient=True)
+
+    def _tf_sample_action_with_log_prob(self, obs_ns, stop_gradient=True):
+        # stop_gradient stops the contribution of the parameters to the
+        # sampling directly.
+        # when using the reparameterization trick, we *do* want the
+        # Jacobian effect of the policy parameters on the sampling, so
+        # we would have stop_gradient set to false. However for vanilla
+        # policy gradient we don't want this on because it would not
+        # correspond to performing a valid reinforce gradient estimation.
+
         # latent mean, logstd, and log prob
         mu_na, logstd_na = self._tf_mu_logstd(obs_ns)
+
+        # stop the gradient for computing the sample log prob, the
+        # parameters of the policy should only affect the log prob
+        # gradient by their influence on the policy distribution.
         unbounded_sample_na = self._tf_sample(mu_na, logstd_na)
+        if stop_gradient:
+            unbounded_sample_na = tf.stop_gradient(unbounded_sample_na)
+
         unbounded_logprob_n = self._tf_log_prob(
             unbounded_sample_na, mu_na, logstd_na)
         # squash with tanh and scale
@@ -131,8 +144,7 @@ class SquashedGaussianPolicy(StochasticPolicy):
         return sample_na, logprob_n
 
     def _scale(self, unbounded_acs_na):
-        unit_acs_na = tf.tanh(unbounded_acs_na)
-        return self._norm.denorm_acs(unit_acs_na)
+        return tf.tanh(unbounded_acs_na)
 
     @staticmethod
     def _scale_correction(unbounded_acs_na, unbounded_log_prob_n):
@@ -172,10 +184,18 @@ class SquashedGaussianPolicy(StochasticPolicy):
         reporter.stats('abs(scaled sample acs)', tf.abs(acs_na))
 
     def expectation(self, obs_ns, fn):
-        # TODO consider the reparameterization trick instead of reinforce
-        # here
-        onpol_act_na, log_prob_acs_n = self.tf_sample_action_with_log_prob(
-            obs_ns)
+        if flags().sac.reparameterization_trick:
+            # for the reparameterization trick, we do not stop the gradient
+            # when sampling from the latent distribution, intentionally.
+            # This way we can use gradient information of fn to improve the
+            # parameters
+            onpol_act_na, log_prob_acs_n = (
+                self._tf_sample_action_with_log_prob(
+                    obs_ns, stop_gradient=False))
+            return tf.reduce_mean(fn(onpol_act_na, log_prob_acs_n))
+        # else use the reinforce trick
+        onpol_act_na, log_prob_acs_n = self._tf_sample_action_with_log_prob(
+            obs_ns, stop_gradient=True)
         return tf.reduce_mean(
             log_prob_acs_n * tf.stop_gradient(
                 fn(onpol_act_na, log_prob_acs_n)))

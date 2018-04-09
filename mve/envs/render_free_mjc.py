@@ -16,6 +16,8 @@ class RenderFreeMJC(gym.envs.mujoco.mujoco_env.MujocoEnv):
 
     def _render(self, mode='human', close=False):
         if close:
+            if not hasattr(self, 'viewer'):
+                self.viewer = None
             if self.viewer is not None:
                 self.viewer = None  # pylint: disable=attribute-defined-outside-init
             return None

@@ -12,13 +12,12 @@ from utils import build_mlp, trainable_vars
 class QFunction:
     """State-action-value function."""
 
-    def __init__(self, normalizer, scope='sac/qfn'):
+    def __init__(self, scope='sac/qfn'):
         self._states_ph_ns = tf.placeholder(
             tf.float32, [None, env_info.ob_dim()])
         self._acs_ph_na = tf.placeholder(
             tf.float32, [None, env_info.ac_dim()])
         self._scope = scope
-        self._norm = normalizer
 
         self._value_n = self.tf_state_action_value(
             self._states_ph_ns, self._acs_ph_na)
@@ -26,8 +25,6 @@ class QFunction:
 
     def tf_state_action_value(self, obs_ns, acs_na):
         """TF tensor for the Q value at given states, actions"""
-        obs_ns = self._norm.norm_obs(obs_ns)
-        acs_na = self._norm.norm_acs(acs_na)
         cat = tf.concat([obs_ns, acs_na], axis=1)
         q_n1 = build_mlp(
             cat, scope=self._scope,
@@ -48,18 +45,16 @@ class QFunction:
 class VFunction:
     """State-value function."""
 
-    def __init__(self, normalizer, scope='sac/vfn'):
+    def __init__(self, scope='sac/vfn'):
         self._states_ph_ns = tf.placeholder(
             tf.float32, [None, env_info.ob_dim()])
         self._scope = scope
-        self._norm = normalizer
 
         self._value_n = self.tf_state_value(self._states_ph_ns)
         self.variables = trainable_vars(self._scope)
 
     def tf_state_value(self, obs_ns):
         """TF tensor for the V value at given states"""
-        obs_ns = self._norm.norm_obs(obs_ns)
         v_n1 = build_mlp(
             obs_ns, scope=self._scope,
             output_size=1,
