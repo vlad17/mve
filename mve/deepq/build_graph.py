@@ -403,7 +403,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             for i in range(horizon):
                 action = tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True), axis=1)
                 aph = tf.stop_gradient(tf.one_hot(action, num_actions))
-                qs.append(tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
+                qs.append((1.0 - max_done) * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
                 state, reward, done = tf.split(
                     tf.reshape(
                         tf.stop_gradient(
@@ -412,8 +412,8 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                     [sim.env.observation_space.shape[0], 1, 1], 1)
                 reward = tf.squeeze(reward)
                 done = tf.squeeze(done)
-                max_done = tf.clip_by_value(done + max_done, 0,1)
                 rs.append(reward*(1 - max_done))
+                max_done = tf.clip_by_value(done + max_done, 0,1)
             if double_q:
                 q_tp1_using_online_net = q_func(state, num_actions, scope="q_func", reuse=True)
                 q_tp1_best_using_online_net = tf.argmax(q_tp1_using_online_net, 1)
@@ -434,8 +434,6 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 q = qs[i]
                 if trick or i == horizon:
                     weighted_error += tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back)))
-            weighted_error /= horizon+1.0
-            td_error = weighted_error
 
         # compute optimization op (potentially with gradient clipping)
         if grad_norm_clipping is not None:
@@ -472,7 +470,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 done_mask_ph,
                 importance_weights_ph
             ],
-            outputs=td_error,
+            outputs=rs,
             updates=[optimize_expr]
         )
         update_target = U.function([], [], updates=[update_target_expr])
