@@ -104,6 +104,8 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     for i in range(train_freq):
                         obses_t, actions, rewards, obses_tp1, dones = replay_buffer.sample(batch_size)
                         ret = train(obses_t, actions, rewards, obses_tp1, dones, np.ones_like(rewards))
+                    if not t % 1000:
+                        print(ret)
                         # import IPython; IPython.embed()
                 # Update target network periodically.
                 if t % target_update_freq == 0:
@@ -112,7 +114,8 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     sc = eval(act, testenv, 3)
                     scores.append(sc)
                     print("SCORE", sc)
-                    with open("cartpole-v0-" + str(horizon) + "-true-"+ str(seed) +"-seed-4.pkl", "wb") as f:
+                    sys.stdout.flush()
+                    with open(str(batch_size) + "-" + str(horizon) + "-"+ str(seed) +"-seed-7.pkl", "wb") as f:
                         pickle.dump(scores, f)
 
                 if done and len(episode_rewards) % 10 == 0:

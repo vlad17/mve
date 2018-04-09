@@ -470,7 +470,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 done_mask_ph,
                 importance_weights_ph
             ],
-            outputs=rs,
+            outputs=tf.reduce_sum(max_done),
             updates=[optimize_expr]
         )
         update_target = U.function([], [], updates=[update_target_expr])

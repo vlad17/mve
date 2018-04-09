@@ -14,7 +14,7 @@ class EnvSim(object):
         data = []
         for i in range(state.shape[0]):
             self.env.reset()
-            self.env.state = state[i,:]
+            self.env.state = np.ravel(state[i,:])
             next_state, reward, done, info = self.env.step(action[i,0])
             data.append(list(next_state) + [reward, done])
         return np.array(data).astype(np.float32)
