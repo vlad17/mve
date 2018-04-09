@@ -32,7 +32,7 @@ def eval(act, env, n=1, render=False):
 def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learning_rate=5e-4,
     buffer_size=50000, train_freq=1, learning_starts=1000, max_iter=100000, batch_size=32,
     target_update_freq=1000, eval_freq=100, ema=False, double_q=True, true_dynamics=True,
-    seed=None):
+    seed=None, use_tdk_trick=True):
     with U.make_session(8):
             # Create the environment
             env = gym.make(env_name)
@@ -54,7 +54,8 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                 gamma=gamma,
                 ema=ema,
                 double_q=double_q,
-                true_dynamics=true_dynamics
+                true_dynamics=true_dynamics,
+                use_tdk_trick=use_tdk_trick
             )
             # Create the replay buffer
             replay_buffer = ReplayBuffer(buffer_size)
@@ -111,7 +112,9 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     break
 
 if __name__ == '__main__':
-    seed=None
-    if len(sys.argv) > 2:
-        seed = int(sys.argv[2])
-    run_experiment(deepq.models.mlp([64]), horizon=int(sys.argv[1]), target_update_freq=1, ema=True, seed=seed)
+    run_experiment(deepq.models.mlp([64]),
+        horizon=int(sys.argv[1]),
+        target_update_freq=1,
+        ema=True,
+        seed=int(sys.argv[2]),
+        use_tdk_trick=("True" == sys.argv[3]))

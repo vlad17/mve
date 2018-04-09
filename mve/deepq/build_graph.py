@@ -315,7 +315,8 @@ def build_act_with_param_noise(make_obs_ph, q_func, num_actions, scope="deepq", 
 
 
 def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=None, gamma=1.0,
-    double_q=True, scope="deepq", reuse=None, param_noise=False, param_noise_filter_func=None, horizon=0, true_dynamics=True, sim=None, ema=False):
+    double_q=True, scope="deepq", reuse=None, param_noise=False, param_noise_filter_func=None, horizon=0,
+    true_dynamics=True, sim=None, ema=False, use_tdk_trick=True):
     """Creates the train function:
 
     Parameters
@@ -412,7 +413,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                         [-1, sim.env.observation_space.shape[0]+2]),
                     [sim.env.observation_space.shape[0], 1, 1], 1)
                 imagined_rewards.append(tf.squeeze(reward)*(1 - max_done))
-                max_done = tf.maximum(tf.squeeze(done), max_done)
+                max_done = tf.clip_by_value(tf.squeeze(done) + max_done, 0,1)
             if double_q:
                 q_tp1_using_online_net = q_func(state, num_actions, scope="q_func", reuse=True)
                 q_tp1_best_using_online_net = tf.argmax(q_tp1_using_online_net, 1)
@@ -423,7 +424,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             q_tp1_best_masked = (1.0 - max_done) * q_tp1_best
             
             # TD-k Trick
-            trick=True
+            use_tdk_trick=True
             cumulative_reversed_rewards = q_tp1_best_masked
             weighted_error = 0.0
             imagined_rewards = imagined_rewards[::-1]
@@ -431,7 +432,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             for i in range(horizon + 1):
                 cumulative_reversed_rewards = imagined_rewards[i] + gamma * cumulative_reversed_rewards
                 q_tp1_best_masked *= gamma
-                if trick or i == horizon:
+                if use_tdk_trick or i == horizon:
                     weighted_error += tf.reduce_mean(U.huber_loss(imagined_q_vals[i] - tf.stop_gradient(cumulative_reversed_rewards)))
 
         # compute optimization op (potentially with gradient clipping)
