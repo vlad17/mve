@@ -478,7 +478,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 state, reward, done = tf.split(
                     tf.reshape(
                         tf.stop_gradient(
-                            tf.py_func(sim.simulate, [state, tf.reshape(stochastic_actions, [-1, 1])], tf.float32)),
+                            tf.py_func(sim.simulate, [state, tf.reshape(deterministic_actions, [-1, 1])], tf.float32)),
                         [-1, sim.env.observation_space.shape[0]+2]),
                     [sim.env.observation_space.shape[0], 1, 1], 1)
                 reward = tf.squeeze(reward)
