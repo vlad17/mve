@@ -198,6 +198,60 @@ def build_act(make_obs_ph, q_func, num_actions, scope="deepq", reuse=None):
             return _act(ob, stochastic, update_eps)
         return act
 
+# def build_act2(state, q_func, num_actions, scope="deepq", reuse=None):
+#     """Creates the act function:
+
+#     Parameters
+#     ----------
+#     make_obs_ph: str -> tf.placeholder or TfInput
+#         a function that take a name and creates a placeholder of input with that name
+#     q_func: (tf.Variable, int, str, bool) -> tf.Variable
+#         the model that takes the following inputs:
+#             observation_in: object
+#                 the output of observation placeholder
+#             num_actions: int
+#                 number of actions
+#             scope: str
+#             reuse: bool
+#                 should be passed to outer variable scope
+#         and returns a tensor of shape (batch_size, num_actions) with values of every action.
+#     num_actions: int
+#         number of actions.
+#     scope: str or VariableScope
+#         optional scope for variable_scope.
+#     reuse: bool or None
+#         whether or not the variables should be reused. To be able to reuse the scope must be given.
+
+#     Returns
+#     -------
+#     act: (tf.Variable, bool, float) -> tf.Variable
+#         function to select and action given observation.
+# `       See the top of the file for details.
+#     """
+#     with tf.variable_scope(scope, reuse=reuse):
+#         stochastic_ph = tf.placeholder(tf.bool, (), name="stochastic")
+#         update_eps_ph = tf.placeholder(tf.float32, (), name="update_eps")
+
+#         eps = tf.get_variable("eps", (), initializer=tf.constant_initializer(0))
+
+#         q_values = q_func(state, num_actions, scope="q_func")
+#         deterministic_actions = tf.argmax(q_values, axis=1)
+
+#         batch_size = tf.shape(observations_ph)[0]
+#         random_actions = tf.random_uniform(tf.stack([batch_size]), minval=0, maxval=num_actions, dtype=tf.int64)
+#         chose_random = tf.random_uniform(tf.stack([batch_size]), minval=0, maxval=1, dtype=tf.float32) < eps
+#         stochastic_actions = tf.where(chose_random, random_actions, deterministic_actions)
+
+#         output_actions = tf.cond(stochastic_ph, lambda: stochastic_actions, lambda: deterministic_actions)
+#         update_eps_expr = eps.assign(tf.cond(update_eps_ph >= 0, lambda: update_eps_ph, lambda: eps))
+#         _act = U.function(inputs=[observations_ph, stochastic_ph, update_eps_ph],
+#                          outputs=output_actions,
+#                          givens={update_eps_ph: -1.0, stochastic_ph: True},
+#                          updates=[update_eps_expr])
+#         def act(ob, stochastic=True, update_eps=-1):
+#             return _act(ob, stochastic, update_eps)
+#         return act
+
 
 def build_act_with_param_noise(make_obs_ph, q_func, num_actions, scope="deepq", reuse=None, param_noise_filter_func=None):
     """Creates the act function with support for parameter space noise exploration (https://arxiv.org/abs/1706.01905):
@@ -315,7 +369,8 @@ def build_act_with_param_noise(make_obs_ph, q_func, num_actions, scope="deepq", 
 
 
 def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=None, gamma=1.0,
-    double_q=True, scope="deepq", reuse=None, param_noise=False, param_noise_filter_func=None, horizon=0, true_dynamics=True, sim=None, ema=False):
+    double_q=True, scope="deepq", reuse=None, param_noise=False, param_noise_filter_func=None, horizon=0,
+    true_dynamics=True, sim=None, ema=False, batch_size=32):
     """Creates the train function:
 
     Parameters
@@ -375,6 +430,9 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
     else:
         act_f = build_act(make_obs_ph, q_func, num_actions, scope=scope, reuse=reuse)
 
+    with tf.variable_scope(scope, reuse=True):
+        eps = tf.get_variable("eps", ())
+
     with tf.variable_scope(scope, reuse=reuse):
         # set up placeholders
         obs_t_input = make_obs_ph("obs_t")
@@ -393,24 +451,38 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
         target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_variable_scope().name + "/target_q_func")
 
         # q scores for actions which we know were selected in the given state.
+        trick=True
         q_t_selected = tf.reduce_sum(q_t * tf.one_hot(act_t_ph, num_actions), 1)
-
         qs = [q_t_selected]
         rs = [rew_t_ph]
+        num_done = [0.0]
+        outs = []
         if true_dynamics: # learnt dynamics not yet supported
             state = obs_tp1_input.get()
             max_done = done_mask_ph
             for i in range(horizon):
-                action = tf.argmax(q_func(state, num_actions, scope="q_func", reuse=True), axis=1)
-                aph = tf.stop_gradient(tf.one_hot(action, num_actions))
+                batch_size = tf.shape(obs_t_input.get())[0]
+                random_actions = tf.random_uniform(tf.stack([batch_size]), minval=0, maxval=num_actions, dtype=tf.int64)
+                chose_random = tf.random_uniform(tf.stack([batch_size]), minval=0, maxval=1, dtype=tf.float32) < (eps-0.02)
+                tqstate = q_func(state, num_actions, scope="target_q_func", reuse=True)
+                deterministic_actions = 1-tf.argmax(tqstate, axis=1)
+                outs.append(tqstate)
+                outs.append(tf.argmax(tqstate, axis=1))
+                stochastic_actions = tf.where(chose_random, random_actions, deterministic_actions)
+                
+                if trick:
+                    aph = tf.stop_gradient(tf.one_hot(deterministic_actions, num_actions))
+                else:
+                    aph = tf.stop_gradient(tf.one_hot(deterministic_actions, num_actions))
                 qs.append((1.0 - max_done) * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
                 state, reward, done = tf.split(
                     tf.reshape(
                         tf.stop_gradient(
-                            tf.py_func(sim.simulate, [state, tf.reshape(action, [-1, 1])], tf.float32)),
+                            tf.py_func(sim.simulate, [state, tf.reshape(stochastic_actions, [-1, 1])], tf.float32)),
                         [-1, sim.env.observation_space.shape[0]+2]),
                     [sim.env.observation_space.shape[0], 1, 1], 1)
                 reward = tf.squeeze(reward)
+                num_done.append(tf.reduce_sum(max_done))
                 done = tf.squeeze(done)
                 rs.append(reward*(1 - max_done))
                 max_done = tf.clip_by_value(done + max_done, 0,1)
@@ -423,17 +495,20 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             q_tp1_best_masked = (1.0 - max_done) * q_tp1_best
             
             # TD-k Trick
-            trick=True
             r_back = q_tp1_best_masked
             weighted_error = 0.0
             rs = rs[::-1]
             qs = qs[::-1]
+            num_done = num_done[::-1]
             for i in range(horizon + 1):
                 r_back = rs[i] + gamma * r_back
-                q_tp1_best_masked *= gamma
                 q = qs[i]
                 if trick or i == horizon:
                     weighted_error += tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back)))
+                if i == horizon:
+                    outs.append(q)
+                    outs.append(r_back)
+                    outs.append(tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back))))
 
         # compute optimization op (potentially with gradient clipping)
         if grad_norm_clipping is not None:
@@ -470,7 +545,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 done_mask_ph,
                 importance_weights_ph
             ],
-            outputs=tf.reduce_sum(max_done),
+            outputs=[tf.reduce_sum(max_done), weighted_error] + outs + [eps],
             updates=[optimize_expr]
         )
         update_target = U.function([], [], updates=[update_target_expr])

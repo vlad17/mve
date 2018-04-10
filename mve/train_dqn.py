@@ -41,7 +41,7 @@ def eval(act, env, n=1):
     return score/float(n)
 
 def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learning_rate=5e-4,
-    buffer_size=50000, train_freq=1, learning_starts=1000, max_iter=150000, batch_size=32,
+    buffer_size=50000, train_freq=1, learning_starts=1000, max_iter=20000, batch_size=32,
     target_update_freq=1000, eval_freq=100, ema=False, double_q=True, true_dynamics=True,
     seed=None):
     with U.make_session(8):
@@ -65,7 +65,8 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                 gamma=gamma,
                 ema=ema,
                 double_q=double_q,
-                true_dynamics=true_dynamics
+                true_dynamics=true_dynamics,
+                batch_size=batch_size
             )
             # Create the replay buffer
             replay_buffer = ReplayBuffer(buffer_size)
@@ -85,11 +86,15 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                 # Take action and update exploration to the newest value
                 action = act(obs[None], update_eps=exploration.value(t))[0]
                 new_obs, rew, done, _ = env.step(action)
+                episode_rewards[-1] += rew
+                if episode_rewards[-1] == 200: # cartpole-specific fix
+                    replay_buffer.add(obs, action, rew, new_obs, 0.0)
+                else:
+                    replay_buffer.add(obs, action, rew, new_obs, float(done))
+
                 # Store transition in the replay buffer.
-                replay_buffer.add(obs, action, rew, new_obs, float(done))
                 obs = new_obs
 
-                episode_rewards[-1] += rew
                 if done:
                     obs = env.reset()
                     episode_rewards.append(0)
@@ -115,7 +120,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     scores.append(sc)
                     print("SCORE", sc)
                     sys.stdout.flush()
-                    with open(str(batch_size) + "-" + str(horizon) + "-"+ str(seed) +"-seed-7.pkl", "wb") as f:
+                    with open(str(batch_size) + "-" + str(horizon) + "-"+ str(seed) +"-seed-7-opposite.pkl", "wb") as f:
                         pickle.dump(scores, f)
 
                 if done and len(episode_rewards) % 10 == 0:
