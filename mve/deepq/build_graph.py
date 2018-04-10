@@ -463,8 +463,8 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             for i in range(horizon):
                 tqstate = q_func(state, num_actions, scope="target_q_func", reuse=True)
                 deterministic_actions = 1-tf.argmax(tqstate, axis=1)
-                outs.append(q_func(state, num_actions, scope="target_q_func", reuse=True))
-                outs.append(tf.argmax(outs[-1], axis=1))
+                outs.append(tqstate)
+                outs.append(tf.argmax(tqstate, axis=1))
                 
                 if trick:
                     aph = tf.stop_gradient(tf.one_hot(deterministic_actions, num_actions))
