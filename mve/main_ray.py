@@ -81,6 +81,7 @@ class TuneFlags(Flags):
         yield ArgSpec(
             name='experiment_name',
             required=True,
+            nargs='+',
             type=str,
             help='experiment name, should be a valid, empty s3 directory'
             ' in the parameter s3 bucket')
@@ -94,6 +95,7 @@ class TuneFlags(Flags):
             name='config',
             type=str,
             required=True,
+            nargs='+',
             help='yaml filename of variants to be grid-searched over')
         yield ArgSpec(
             name='ncpus',
@@ -109,20 +111,6 @@ class TuneFlags(Flags):
     def __init__(self):
         super().__init__('tune', 'ray tuning',
                          list(TuneFlags._generate_arguments()))
-
-
-def _verify_s3_newdir(bucket_name, experiment_name):
-    if bucket_name is None:
-        return
-    s3 = boto3.resource('s3')
-    try:
-        s3.meta.client.head_object(Bucket=bucket_name, Key=experiment_name)
-        raise ValueError('key {} exists in bucket {} already'.format(
-            experiment_name, bucket_name))
-    except ClientError as exc:
-        if exc.response['Error']['Code'] != '404':
-            raise exc
-
 
 def _verify_s3(bucket_name):
     if bucket_name is None:
@@ -213,7 +201,6 @@ def ray_train(config, status_reporter):
 
 def _main(args):
     _verify_s3(args.tune.s3)
-    _verify_s3_newdir(args.tune.s3, args.tune.experiment_name)
 
     if args.tune.self_host:
         ray.init(num_gpus=max(ngpus(), 1))
@@ -223,21 +210,24 @@ def _main(args):
 
     register_trainable("ray_train", ray_train)
 
-    with open(args.tune.config) as f:
-        config = yaml.load(f)
+    assert len(args.tune.config) == len(args.tune.experiment_name)
 
-    experiment_setting = {
+    configs = []
+    for c in args.tune.config:
+        with open(c) as f:
+            configs.append(yaml.load(f))
+
+    experiment_setting = {exp_name: {
         'run': 'ray_train',
         'trial_resources': {'cpu': args.tune.ncpus, 'gpu': args.tune.ngpus},
         'stop': {'done': 1},
-        'config': config,
-        'local_dir': './data'
-    }
-    assert 'main' in config
-    assert config['main'] in ['ddpg', 'sac'], config['main']
+        'config': c,
+        'local_dir': './raydata'
+    } for exp_name, c in zip(args.tune.experiment_name, configs)}
+    assert all('main' in c for c in configs)
+    assert all(config['main'] in ['ddpg', 'sac'] for config in configs)
     if args.tune.s3 is not None:
-        bucket_path = 's3://' + args.tune.s3 + '/'
-        bucket_path += args.tune.experiment_name
+        bucket_path = 's3://' + args.tune.s3
         experiment_setting['upload_dir'] = bucket_path
 
     scheduler = None
@@ -247,7 +237,7 @@ def _main(args):
             grace_period=args.tune.median_stop,
             reward_attr='episode_reward_mean')
     run_experiments(
-        {args.tune.experiment_name: experiment_setting},
+        experiment_setting,
         server_port=int(args.tune.server_port),
         with_server=True,
         scheduler=scheduler)
