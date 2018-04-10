@@ -430,9 +430,6 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
     else:
         act_f = build_act(make_obs_ph, q_func, num_actions, scope=scope, reuse=reuse)
 
-    with tf.variable_scope(scope, reuse=True):
-        eps = tf.get_variable("eps", ())
-
     with tf.variable_scope(scope, reuse=reuse):
         # set up placeholders
         obs_t_input = make_obs_ph("obs_t")
@@ -461,14 +458,11 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             state = obs_tp1_input.get()
             max_done = done_mask_ph
             for i in range(horizon):
-                tqstate = q_func(state, num_actions, scope="target_q_func", reuse=True)
-                deterministic_actions = 1-tf.argmax(tqstate, axis=1)
-                outs.append(tqstate)
-                outs.append(tf.argmax(tqstate, axis=1))
+                tqstate = q_func(state, num_actions, scope="q_func", reuse=True)
+                deterministic_actions = tf.argmin(tqstate, axis=1)
                 
-                if trick:
-                    aph = tf.stop_gradient(tf.one_hot(deterministic_actions, num_actions))
-                qs.append((1.0 - max_done) * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
+                action_mask = tf.stop_gradient(tf.one_hot(deterministic_actions, num_actions))
+                qs.append((1.0 - max_done) * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*action_mask, 1))
                 state, reward, done = tf.split(
                     tf.reshape(
                         tf.stop_gradient(
@@ -499,10 +493,6 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 q = qs[i]
                 if trick or i == horizon:
                     weighted_error += tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back)))
-                if i == horizon:
-                    outs.append(q)
-                    outs.append(r_back)
-                    outs.append(tf.reduce_mean(U.huber_loss(q - tf.stop_gradient(r_back))))
 
         # compute optimization op (potentially with gradient clipping)
         if grad_norm_clipping is not None:
@@ -539,7 +529,7 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
                 done_mask_ph,
                 importance_weights_ph
             ],
-            outputs=[tf.reduce_sum(max_done), weighted_error] + outs + [eps],
+            outputs=[tf.reduce_sum(max_done), weighted_error] + outs + num_done[:-1],
             updates=[optimize_expr]
         )
         update_target = U.function([], [], updates=[update_target_expr])
