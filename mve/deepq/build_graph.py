@@ -461,18 +461,12 @@ def build_train(make_obs_ph, q_func, num_actions, optimizer, grad_norm_clipping=
             state = obs_tp1_input.get()
             max_done = done_mask_ph
             for i in range(horizon):
-                batch_size = tf.shape(obs_t_input.get())[0]
-                random_actions = tf.random_uniform(tf.stack([batch_size]), minval=0, maxval=num_actions, dtype=tf.int64)
-                chose_random = tf.random_uniform(tf.stack([batch_size]), minval=0, maxval=1, dtype=tf.float32) < (eps-0.02)
                 tqstate = q_func(state, num_actions, scope="target_q_func", reuse=True)
                 deterministic_actions = 1-tf.argmax(tqstate, axis=1)
                 outs.append(tqstate)
                 outs.append(tf.argmax(tqstate, axis=1))
-                stochastic_actions = tf.where(chose_random, random_actions, deterministic_actions)
                 
                 if trick:
-                    aph = tf.stop_gradient(tf.one_hot(deterministic_actions, num_actions))
-                else:
                     aph = tf.stop_gradient(tf.one_hot(deterministic_actions, num_actions))
                 qs.append((1.0 - max_done) * tf.reduce_sum(q_func(state, num_actions, scope="q_func", reuse=True)*aph, 1))
                 state, reward, done = tf.split(
