@@ -34,7 +34,7 @@ file_mounts: {
 setup_commands:
     - sudo pkill -9 apt-get || true
     - sudo pkill -9 dpkg || true
-    - sudo rm /var/lib/apt/lists/lock && sudo rm /var/cache/apt/archives/lock && sudo rm /var/lib/dpkg/lock
+    - sudo rm -f /var/lib/apt/lists/lock && sudo rm -f /var/cache/apt/archives/lock && sudo rm -f /var/lib/dpkg/lock
     - sudo dpkg --configure -a || true
     - sudo apt-get -f install || true
     - cp /tmp/.tmux.conf $HOME
