@@ -10,11 +10,11 @@ class EnvSim(object):
         self.dynamics = dynamics
 
     def simulate(self, state, action):
-        assert len(state.shape) == 2
         data = []
         for i in range(state.shape[0]):
             self.env.reset()
-            self.env.env.state[:] = np.ravel(state[i,:])
-            next_state, reward, done, info = self.env.step(action[i,0])
+            self.env.env.state[:] = np.ravel(state[i])
+            action = np.ravel(action)
+            next_state, reward, done, info = self.env.step(action[i])
             data.append(list(next_state) + [reward, done])
         return np.array(data).astype(np.float32)

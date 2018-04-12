@@ -79,6 +79,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
             update_target()
 
             scores = []
+            debug_info = []
 
             episode_rewards = [0.0]
             obs = env.reset()
@@ -109,6 +110,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     for i in range(train_freq):
                         obses_t, actions, rewards, obses_tp1, dones = replay_buffer.sample(batch_size)
                         ret = train(obses_t, actions, rewards, obses_tp1, dones, np.ones_like(rewards))
+                        debug_info.append(ret)
                     if not t % 1000:
                         print(ret)
                         # import IPython; IPython.embed()
@@ -120,7 +122,7 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     scores.append(sc)
                     print("SCORE", sc)
                     sys.stdout.flush()
-                    with open(str(batch_size) + "-" + str(horizon) + "-"+ str(seed) +"-seed-7-opposite.pkl", "wb") as f:
+                    with open(str(batch_size) + "-" + str(horizon) + "-"+ str(seed) +"-seed-7-trick-e-greedy.pkl", "wb") as f:
                         pickle.dump(scores, f)
 
                 if done and len(episode_rewards) % 10 == 0:
@@ -132,6 +134,9 @@ def run_experiment(model, horizon=0, gamma=0.99, env_name="CartPole-v0", learnin
                     logger.dump_tabular()
                 if t >= max_iter:
                     break
+            with open("debug_info9.pkl", "wb") as f:
+                print(debug_info)
+                pickle.dump(debug_info, f)
 
 if __name__ == '__main__':
     seed=None
