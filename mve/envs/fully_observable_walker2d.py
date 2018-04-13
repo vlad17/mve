@@ -60,7 +60,7 @@ class FullyObservableWalker2d(RenderFreeMJC, FullyObservable):
             state, action, next_state, curr_reward,
             lambda x: tf.reduce_sum(tf.square(x), axis=1))
 
-    def _step(self, action):
+    def step(self, action):
         reward, state_after = self._mjc_step(action)
         height, ang = state_after[1:3]
         done = not (height > 0.8 and height < 2.0 and

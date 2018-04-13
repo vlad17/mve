@@ -1,6 +1,7 @@
 """Generate random rollouts."""
 
 from context import flags
+from contextlib import closing
 import env_info
 from experiment import ExperimentFlags, setup_experiment_context
 from flags import (Flags, parse_args, ArgSpec)
@@ -20,14 +21,13 @@ class RandomPolicyFlags(Flags):
 
 
 def _train():
-    venv = env_info.make_venv(flags().random.num_paths)
-    random_policy = RandomPolicy(venv)
-    paths = sample_venv(venv, random_policy.exploit_act)
-    rewards = [path.rewards.sum() for path in paths]
-    reporter.advance(timesteps(paths), len(paths))
-    reporter.add_summary_statistics('reward', rewards)
-    reporter.report()
-
+    with closing(env_info.make_venv(flags().random.num_paths)) as venv:
+        random_policy = RandomPolicy(venv)
+        paths = sample_venv(venv, random_policy.exploit_act)
+        rewards = [path.rewards.sum() for path in paths]
+        reporter.advance(timesteps(paths), len(paths))
+        reporter.add_summary_statistics('reward', rewards)
+        reporter.report()
 
 if __name__ == "__main__":
     _args = parse_args([

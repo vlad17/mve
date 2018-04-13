@@ -172,13 +172,13 @@ class ParallelGymVenv(VectorEnv):
         for worker in self._workers:
             worker.set_state_from_ob_finish()
 
-    def _seed(self, seed=None):
+    def seed(self, seed=None):
         for worker in self._workers:
             worker.seed(seed)
         for worker in self._workers:
             worker.seed_finish()
 
-    def _reset(self):
+    def reset(self):
         out_obs = np.empty((self.n,) + self.observation_space.shape)
         for worker in self._workers:
             worker.reset()
@@ -186,7 +186,7 @@ class ParallelGymVenv(VectorEnv):
             worker.reset_finish(out_obs)
         return out_obs
 
-    def _step(self, action):
+    def step(self, action):
         m = len(action)
         assert m <= self.n, m
         obs = np.empty((m,) + self.observation_space.shape)
@@ -199,7 +199,7 @@ class ParallelGymVenv(VectorEnv):
             worker.step_finish(obs, rews, dones)
         return obs, rews, dones, infos
 
-    def _close(self):
+    def close(self):
         for worker in self._workers:
             worker.close()
         for worker in self._workers:

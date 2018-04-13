@@ -59,7 +59,7 @@ class FullyObservableHalfCheetah(RenderFreeMJC, FullyObservable):
             state, action, next_state, curr_reward,
             lambda x: tf.reduce_sum(x, axis=1))
 
-    def _step(self, action):
+    def step(self, action):
         reward, state_after = self._mjc_step(action)
         done = False
         return state_after, reward, done, {}

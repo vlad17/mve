@@ -14,7 +14,7 @@ class RenderFreeMJC(gym.envs.mujoco.mujoco_env.MujocoEnv):
     Don't render in a windowing environment.
     """
 
-    def _render(self, mode='human', close=False):
+    def render(self, mode='human', close=False):
         if close:
             if not hasattr(self, 'viewer'):
                 self.viewer = None
@@ -41,7 +41,7 @@ class RenderFreeMJC(gym.envs.mujoco.mujoco_env.MujocoEnv):
             ctx.cam.type = mujoco_py.const.CAMERA_TRACKING
             ctx.cam.trackbodyid = 0
 
-    def _step(self, action):
+    def step(self, action):
         raise NotImplementedError
 
     def reset_model(self):

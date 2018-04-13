@@ -103,7 +103,7 @@ class FullyObservableHumanoid(RenderFreeMJC, FullyObservable):
             tf.reshape,
             lambda x: tf.shape(x)[0])
 
-    def _step(self, action):
+    def step(self, action):
         if hasattr(self, '_original_action_space'):
             # this attribute may not be defined for weird gym init reasons,
             # don't worry about it (gym is just trying to get the

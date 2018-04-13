@@ -83,10 +83,11 @@ class VectorizedContinuousAcrobot(VectorEnv):
         high = np.array([1.0, 1.0, 1.0, 1.0, self.MAX_VEL_1, self.MAX_VEL_2])
         low = -1 * high
         self.n = n
-        self.observation_space = spaces.Box(low=low, high=high)
+        self.observation_space = spaces.Box(low=low, high=high, dtype=np.float32)
         self.action_space = spaces.Box(
-            low=-np.ones(3),
-            high=np.ones(3))
+            low=np.zeros(3),
+            high=np.ones(3),
+            dtype=np.float32)
         self.state = np.empty((n, 4))  # 4 non-control latent state dims
         # only do one step of rk4 integration
         # could in theory make this [0, self.dt / N, 2 * self.dt / N, ...]
@@ -97,12 +98,12 @@ class VectorizedContinuousAcrobot(VectorEnv):
         self.np_random = None
         self._seed_uncorr(n)
 
-    def _seed(self, seed=None):
+    def seed(self, seed=None):
         seeds = seed
         self.np_random, seeds = zip(*[seeding.np_random(x) for x in seeds])
         return seeds
 
-    def _reset(self):
+    def reset(self):
         self.state = np.asarray([
             np_random.uniform(low=-0.1, high=0.1, size=(4,))
             for np_random in self.np_random])
@@ -113,7 +114,7 @@ class VectorizedContinuousAcrobot(VectorEnv):
         s1 = np.arctan2(obs[:, 3], obs[:, 2])
         self.state = np.array([s0, s1, obs[:, 4], obs[:, 5]]).T
 
-    def _step(self, action):
+    def step(self, action):
         s = self.state
         preferences = np.asarray(action)
         torque = np.array(
@@ -145,7 +146,7 @@ class VectorizedContinuousAcrobot(VectorEnv):
         s = self.state
         return -np.cos(s[:, 0]) - np.cos(s[:, 1] + s[:, 0])
 
-    def _close(self):
+    def close(self):
         if self.viewer:
             self.viewer.close()
 
@@ -203,17 +204,17 @@ class ContinuousAcrobot(core.Env, FullyObservable):
     def set_state_from_ob(self, ob):
         self._venv.set_state_from_ob(np.asarray(ob)[np.newaxis, ...])
 
-    def _seed(self, seed=None):
+    def seed(self, seed=None):
         return self._venv.seed([seed])[0]
 
-    def _reset(self):
+    def reset(self):
         return self._venv.reset()[0]
 
-    def _step(self, action):
+    def step(self, action):
         ob, rew, done, _ = self._venv.step(np.asarray(action)[np.newaxis, ...])
         return ob[0], rew[0], done[0], {}
 
-    def _close(self):
+    def close(self):
         self._venv.close()
 
     def render(self, mode='human', close=False):

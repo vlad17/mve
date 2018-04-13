@@ -70,7 +70,7 @@ class FullyObservableAnt(RenderFreeMJC, FullyObservable):
             state, action, next_state, curr_reward,
             lambda x: tf.reduce_sum(tf.square(x), axis=1))
 
-    def _step(self, action):
+    def step(self, action):
         reward, state_after = self._mjc_step(action)
         qpos_state = self.state_vector()
         notdone = np.isfinite(qpos_state).all() \

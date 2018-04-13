@@ -70,7 +70,7 @@ class FullyObservablePusher(RenderFreeMJC, FullyObservable):
             lambda x: tf.reduce_sum(tf.square(x), axis=1),
             lambda x: tf.norm(x, axis=1))
 
-    def _step(self, action):
+    def step(self, action):
         reward, state_after = self._mjc_step(action)
         done = False
         return state_after, reward, done, {}
