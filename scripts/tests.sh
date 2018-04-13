@@ -104,6 +104,7 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --dynamics_type oracle --ddpg_mve true")
     cmds+=("python $main_ddpg $ddpg_flags --sample_interval 200")
     cmds+=("python $main_ddpg $ddpg_flags --ddpg_min_buf_size 200")
+    cmds+=("python $main_ddpg $ddpg_flags --ddpg_min_buf_size 200 --ddpg_mve true $dynamics_flags --dynamics_early_stop 0.3")
     # SAC
     cmds+=("python $main_sac $sac_flags --reparameterization_trick false")
     cmds+=("python $main_sac $sac_flags --policy_lr 1e-4 --value_lr 1e-4 --temperature 2.0")

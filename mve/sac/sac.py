@@ -145,7 +145,7 @@ class SAC:
         self._qfn = qfn
 
     def _sample(self, batch):
-        obs, next_obs, rewards, acs, terminals = batch
+        obs, next_obs, rewards, acs, terminals, _ = batch
         feed_dict = {
             self.obs_ph_ns: obs,
             self.next_obs_ph_ns: next_obs,

@@ -79,7 +79,11 @@ class Dataset(object):
     Stores up to maxlen transitions.
     """
 
-    def __init__(self, maxlen):
+    def __init__(self, maxlen, mask_probs=None):
+        if mask_probs is None:
+            mask_probs = np.empty([], dtype='float32')
+        else:
+            mask_probs = np.asarray(mask_probs, dtype='float32')
         ac_dim, ob_dim = env_info.ac_dim(), env_info.ob_dim()
         self.max_horizon = flags().experiment.horizon
         self.maxlen = maxlen
@@ -88,6 +92,9 @@ class Dataset(object):
         self._rewards = RingBuffer(maxlen, tuple())
         self._acs = RingBuffer(maxlen, (ac_dim,))
         self._terminals = RingBuffer(maxlen, tuple())
+        num_masks = len(mask_probs)
+        self._masks = RingBuffer(maxlen, (num_masks,), dtype='bool')
+        self._mask_probs = mask_probs
 
     @staticmethod
     def from_paths(paths):
@@ -133,6 +140,13 @@ class Dataset(object):
         """All states transitioned into."""
         return self._next_obs.all_data()
 
+    @property
+    def masks(self):
+        """All binary sampled masks (it's up to the user to keep track of
+        the one they'd like to use; the i-th mask was sampled with the i-th
+        probability passed in during dataset initialization)."""
+        return self._masks.all_data()
+
     def add_paths(self, paths):
         """Aggregate data from a list of paths"""
         for path in paths:
@@ -143,6 +157,12 @@ class Dataset(object):
             self._rewards.append_all(path.rewards)
             self._acs.append_all(path.acs)
             self._terminals.append_all(path.terminals)
+            n = len(path.obs)
+            masks = np.zeros((n, len(self._mask_probs)), dtype='bool')
+            for i, p in enumerate(self._mask_probs):
+                masks[:, i] = np.random.choice(
+                    [True, False], size=n, p=[p, 1 - p])
+            self._masks.append_all(masks)
 
     def get_state(self):
         """return all state in a dictionary mapping to numpy arrays"""
@@ -178,6 +198,8 @@ class Dataset(object):
         self._rewards.append(reward)
         self._acs.append(action)
         self._terminals.append(done)
+        self._masks.append(
+            np.random.rand(len(self._mask_probs)) < self._mask_probs)
 
     def sample_many(self, nbatches, batch_size):
         """
@@ -194,7 +216,7 @@ class Dataset(object):
         batch_idxs = np.random.randint(self.size, size=(
             nbatches, batch_size))
         transitions = [self.obs, self.next_obs, self.rewards, self.acs,
-                       self.terminals]
+                       self.terminals, self.masks]
         for batch_idx in batch_idxs:
             yield [transition_item[batch_idx] for transition_item
                    in transitions]

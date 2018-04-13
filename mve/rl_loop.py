@@ -90,7 +90,9 @@ def rl_loop(learner, norm, dynamics):
             flags().loop.dynamics_evaluation_envs,
             flags().experiment.discount)) as dm:
         sampler = Sampler(env)
-        data = Dataset(flags().experiment.bufsize)
+        masks = [flags().dynamics.dynamics_early_stop]
+        # TODO(masks): supply masks arguments to datasets everywhere in repo
+        data = Dataset(flags().experiment.bufsize, masks)
         add_dataset_to_persistance_registry(data)
         with make_session_as_default():
             tf.global_variables_initializer().run()

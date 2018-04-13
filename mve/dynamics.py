@@ -1,7 +1,9 @@
 """Learn the (stationary) dynamics from transitions"""
 
 import distutils.util
+import itertools
 
+import numpy as np
 import tensorflow as tf
 
 from context import flags
@@ -49,7 +51,7 @@ class DynamicsFlags(Flags):
         yield ArgSpec(
             name='dynamics_batches_per_timestep',
             type=float,
-            default=4,
+            default=1,
             help='number of mini-batches to train dynamics per '
             'new sample observed')
         yield ArgSpec(
@@ -73,6 +75,12 @@ class DynamicsFlags(Flags):
             type=float,
             default=0.,
             help='if nonzero, the dropout probability after every layer')
+        yield ArgSpec(
+            name='dynamics_early_stop',
+            type=float,
+            default=0,
+            help='if nonzero, use that proportion of the data to use for '
+            'validation, which in turn informs early stopping')
 
     def __init__(self):
         super().__init__('dynamics', 'learned dynamics',
@@ -100,6 +108,9 @@ class NNDynamicsModel(TFNode):
         self._next_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], 'true_next_state_diff')
 
+        self._validation_mask_ph_n = tf.placeholder(
+            tf.bool, [None], 'validation')
+
         # only used if dyn_bn is set to true
         self._dyn_training = tf.placeholder_with_default(
             False, [], 'dynamics_dyn_training_mode')
@@ -117,16 +128,26 @@ class NNDynamicsModel(TFNode):
             self._input_state_ph_ns, self._input_action_ph_na)
         true_deltas_ns = self._norm.norm_delta(
             self._next_state_ph_ns - self._input_state_ph_ns)
-        train_mse = tf.losses.mean_squared_error(
-            true_deltas_ns, deltas_ns)
+
+        self._train_loss = tf.losses.mean_squared_error(
+            true_deltas_ns, deltas_ns, weights=tf.expand_dims(
+                1 - tf.to_float(self._validation_mask_ph_n), 1))
+        self._validation_loss = tf.losses.mean_squared_error(
+            true_deltas_ns, deltas_ns, weights=tf.expand_dims(
+                tf.to_float(self._validation_mask_ph_n), 1))
+        self._train_one_step_pred_error = tf.losses.mean_squared_error(
+            self._next_state_ph_ns, pred_states_ns, weights=tf.expand_dims(
+                1 - tf.to_float(self._validation_mask_ph_n), 1))
+        self._validation_one_step_pred_error = tf.losses.mean_squared_error(
+            self._next_state_ph_ns, pred_states_ns, weights=tf.expand_dims(
+                tf.to_float(self._validation_mask_ph_n), 1))
+
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         reg_loss = sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-        self._dyn_loss = reg_loss + train_mse
-        self._one_step_pred_error = tf.losses.mean_squared_error(
-            self._next_state_ph_ns, pred_states_ns)
         with tf.control_dependencies(update_ops):
             self._update_op = tf.train.AdamOptimizer(
-                dyn_flags.dyn_learning_rate).minimize(self._dyn_loss)
+                dyn_flags.dyn_learning_rate).minimize(
+                    self._train_loss + reg_loss)
 
         super().__init__('dynamics', dyn_flags.restore_dynamics)
 
@@ -140,6 +161,25 @@ class NNDynamicsModel(TFNode):
         if data.size < flags().dynamics.dyn_min_buf_size:
             return
 
+        if flags().dynamics.dynamics_early_stop > 0:
+            val_loss = np.inf
+            for i in itertools.count(1):
+                new_val_loss = self._get_losses(data)[1]
+                if new_val_loss >= val_loss:
+                    debug('dyn new val loss {:.4g} >= old one {:.4g}, '
+                          'stopping dynamics training',
+                          new_val_loss, val_loss)
+                    return
+                else:
+                    debug('dyn new val loss {:.4g} >= old one {:.4g}, '
+                          'continuing dynamics training (epoch {})',
+                          new_val_loss, val_loss, i)
+                val_loss = new_val_loss
+                self._do_training_epoch(data, timesteps)
+        else:
+            self._do_training_epoch(data, timesteps)
+
+    def _do_training_epoch(self, data, timesteps):
         # I actually tried out the tf.contrib.train.Dataset API, and
         # it was *slower* than this feed_dict method. I figure that the
         # data throughput per batch is small enough (since the data is so
@@ -148,25 +188,22 @@ class NNDynamicsModel(TFNode):
         nbatches = flags().dynamics.nbatches(timesteps)
         batch_size = flags().dynamics.dyn_batch_size
         for i, batch in enumerate(data.sample_many(nbatches, batch_size), 1):
-            obs, next_obs, _, acs, _ = batch
+            obs, next_obs, _, acs, _, masks = batch
             self._update_op.run(feed_dict={
                 self._input_state_ph_ns: obs,
                 self._input_action_ph_na: acs,
                 self._next_state_ph_ns: next_obs,
-                self._dyn_training: True
+                self._dyn_training: True,
+                self._validation_mask_ph_n: masks[:, 0]
             })
-            if (i % max(nbatches // 10, 1)) == 0:
-                dyn_loss, one_step_error = tf.get_default_session().run(
-                    [self._dyn_loss, self._one_step_pred_error],
-                    feed_dict={
-                        self._input_state_ph_ns: obs,
-                        self._input_action_ph_na: acs,
-                        self._next_state_ph_ns: next_obs,
-                    })
+            if (i % max(nbatches // 3, 1)) == 0:
+                train_loss, val_loss, train_mse, val_mse = self._get_losses(
+                    data)
                 fmt = '{: ' + str(len(str(nbatches))) + 'd}'
                 debug('dynamics ' + fmt + ' of ' + fmt + ' batches - '
-                      'dyn loss {:.4g} one-step mse {:.4g} ',
-                      i, nbatches, dyn_loss, one_step_error)
+                      'dyn train loss {:.4g} val loss {:.4g} '
+                      'train mse {:.4g} val mse {:.4g}',
+                      i, nbatches, train_loss, val_loss, train_mse, val_mse)
 
     def _predict_tf(self, states, actions):
         state_action_pair = tf.concat([
@@ -201,20 +238,31 @@ class NNDynamicsModel(TFNode):
                     flags().dynamics.dyn_dropout))
         return outputs
 
+    def _get_losses(self, data):
+        losses = [
+            self._train_loss,
+            self._validation_loss,
+            self._train_one_step_pred_error,
+            self._validation_one_step_pred_error]
+        batch_size = flags().dynamics.dyn_batch_size * 32
+        batch = next(data.sample_many(1, batch_size))
+        obs, next_obs, _, acs, _, mask = batch
+        return tf.get_default_session().run(
+            losses,
+            feed_dict={
+                self._input_state_ph_ns: obs,
+                self._input_action_ph_na: acs,
+                self._next_state_ph_ns: next_obs,
+                self._validation_mask_ph_n: mask[:, 0]
+            })
+
     def evaluate(self, data, prefix='dynamics'):
         """report dynamics metrics"""
         if not data.size:
             return
         prefix = prefix + ('/' if prefix else '')
-        batch_size = flags().dynamics.dyn_batch_size * 10
-        batch = next(data.sample_many(1, batch_size))
-        obs, next_obs, _, acs, _ = batch
-        dyn_loss, one_step_error = tf.get_default_session().run(
-            [self._dyn_loss, self._one_step_pred_error],
-            feed_dict={
-                self._input_state_ph_ns: obs,
-                self._input_action_ph_na: acs,
-                self._next_state_ph_ns: next_obs,
-            })
-        reporter.add_summary(prefix + 'one-step mse', one_step_error)
-        reporter.add_summary(prefix + 'loss', dyn_loss)
+        train_loss, val_loss, train_mse, val_mse = self._get_losses(data)
+        reporter.add_summary(prefix + 'train mse', train_mse)
+        reporter.add_summary(prefix + 'train loss', train_loss)
+        reporter.add_summary(prefix + 'val mse', val_mse)
+        reporter.add_summary(prefix + 'val loss', val_loss)

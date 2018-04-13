@@ -76,7 +76,8 @@ def _run_dyn_plot():
         norm = Normalizer()
         dynamics = NNDynamicsModel(norm)
 
-        data = Dataset(flags().experiment.bufsize)
+        masks = [flags().dynamics.dynamics_early_stop]
+        data = Dataset(flags().experiment.bufsize, masks)
         add_dataset_to_persistance_registry(data)
 
         s = tf.placeholder(tf.float32, [None, env_info.ob_dim()])

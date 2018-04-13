@@ -255,7 +255,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         if flags().ddpg.imaginary_buffer > 0:
             assert learned_dynamics is not None
             assert not flags().ddpg.ddpg_mve
-            self._imdata = Dataset(flags().experiment.bufsize)
+            self._imdata = Dataset(flags().experiment.bufsize, [0])
             self._simulation_states_ph_ns = tf.placeholder(
                 tf.float32, shape=[None, env_info.ob_dim()])
             self._sim_actions_na = actor.tf_action(
@@ -307,7 +307,7 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         tf.get_default_session().run(self._copy_targets)
 
     def _sample(self, batch):
-        obs, next_obs, rewards, acs, terminals = batch
+        obs, next_obs, rewards, acs, terminals, _ = batch
         feed_dict = {
             self.obs0_ph_ns: obs,
             self.obs1_ph_ns: next_obs,

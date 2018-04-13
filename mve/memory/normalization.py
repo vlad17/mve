@@ -52,8 +52,6 @@ class Normalizer(TFNode):
 
     def __init__(self):
         stats = _Statistics(None)
-        assert _finite_env(env_info.ac_space()), \
-            'expecting bounded action space'
         with tf.variable_scope('normalization'):
             self._ob_tf_stats = AssignableStatistic(
                 'ob', stats.mean_ob, stats.std_ob)
@@ -127,7 +125,3 @@ class _Statistics:
             self.std_delta = np.std(diffs, axis=0)
             self.mean_ac = np.mean(data.acs, axis=0)
             self.std_ac = np.std(data.acs, axis=0)
-
-
-def _finite_env(space):
-    return all(np.isfinite(space.low)) and all(np.isfinite(space.high))
