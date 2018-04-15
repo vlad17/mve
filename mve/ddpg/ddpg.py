@@ -212,9 +212,9 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
             re_perturb = actor.tf_perturb_update(adaptive_noise)
             # actions are in [-1, 1], so asking for a "stddev" is
             # a sensible thing to do since we're scale-invariant
-            mean_ac = actor.tf_action(self.obs0_ph_ns)
+            mean_ac = actor.tf_action(self.obs0_ph_ns) / 2
             with tf.control_dependencies([re_perturb]):
-                perturb_ac = actor.tf_perturbed_action(self.obs0_ph_ns)
+                perturb_ac = actor.tf_perturbed_action(self.obs0_ph_ns) / 2
                 batch_observed_noise = tf.sqrt(
                     tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
                 save_noise = tf.group(
@@ -511,5 +511,8 @@ def _tf_compute_model_value_expansion(
     curr_Q_n = critic.tf_critic(obs0_ns, acs0_na)
     loss = accum_loss + tf.losses.mean_squared_error(
         target_Q_n, curr_Q_n)
+
+    if not flags().ddpg.drop_tdk and flags().ddpg.div_by_h:
+        loss /= h
 
     return loss

@@ -51,7 +51,7 @@ class DynamicsFlags(Flags):
         yield ArgSpec(
             name='dynamics_batches_per_timestep',
             type=float,
-            default=1,
+            default=4,
             help='number of mini-batches to train dynamics per '
             'new sample observed')
         yield ArgSpec(
