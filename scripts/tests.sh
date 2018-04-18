@@ -100,7 +100,7 @@ main() {
     cmds+=("python $main_ddpg $ddpg_flags --drop_tdk true")
     cmds+=("python $main_ddpg $ddpg_flags --dynamics_type oracle --ddpg_mve true")
     cmds+=("python $main_ddpg $ddpg_flags --dynamics_type learned --ddpg_mve true $dynamics_flags")
-    cmds+=("python $main_ddpg $ddpg_flags --dynamics_type learned --ddpg_mve true $dynamics_flags --dyn_bn true")
+    cmds+=("python $main_ddpg $ddpg_flags --dynamics_type learned --ddpg_mve true $dynamics_flags --dyn_bn true --disable_normalization true")
     cmds+=("python $main_ddpg $ddpg_flags --dynamics_type oracle --ddpg_mve true --model_horizon 3 --div_by_h true")
     cmds+=("python $main_ddpg $ddpg_flags --sample_interval 200")
     cmds+=("python $main_ddpg $ddpg_flags --ddpg_min_buf_size 200")

@@ -10,6 +10,7 @@ from context import flags
 from flags import Flags, ArgSpec
 import env_info
 from log import debug
+from memory import DummyNormalizer
 import reporter
 from tfnode import TFNode
 from utils import build_mlp
@@ -66,6 +67,11 @@ class DynamicsFlags(Flags):
             type=distutils.util.strtobool,
             help='Add batch norm to the dynamics net')
         yield ArgSpec(
+            name='disable_normalization',
+            default=False,
+            type=distutils.util.strtobool,
+            help='Disable normalization')
+        yield ArgSpec(
             name='dyn_l2_reg',
             type=float,
             default=0.,
@@ -100,7 +106,10 @@ class NNDynamicsModel(TFNode):
         dyn_flags = flags().dynamics
         ob_dim, ac_dim = env_info.ob_dim(), env_info.ac_dim()
 
-        self._norm = norm
+        if flags().dynamics.disable_normalization:
+            self._norm = DummyNormalizer()
+        else:
+            self._norm = norm
         self._input_state_ph_ns = tf.placeholder(
             tf.float32, [None, ob_dim], 'dynamics_input_state')
         self._input_action_ph_na = tf.placeholder(
