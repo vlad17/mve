@@ -80,6 +80,11 @@ class DDPGFlags(Flags):
                 help='goal action standard deviation for exploration,'
                 ' after rescaling actions to [0, 1]'),
             ArgSpec(
+                name='div_by_h',
+                default=False,
+                type=distutils.util.strtobool,
+                help='scale the learning rate down by H in MVE'),
+            ArgSpec(
                 name='param_noise_adaption_interval',
                 default=50,
                 type=int,

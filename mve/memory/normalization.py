@@ -43,9 +43,6 @@ class Normalizer(TFNode):
     * actions
     * deltas between observations
 
-    Observations and deltas are mean/std centered (std centering is ignored
-    if std is negligible), while actions are scaled into the [-1, 1] range.
-
     The use of "deltas" implicits a notion of continuity between timesteps,
     so MDPs where this change isn't coherent may not work well.
     """
@@ -106,6 +103,47 @@ class Normalizer(TFNode):
                 prefix + name + '/std',
                 stat.std(),
                 hide=True)
+
+
+class DummyNormalizer:
+    """
+    Adheres to the normalizer interface but does no actual normalization.
+    """
+
+    @staticmethod
+    def norm_obs(obs):
+        """normalize observations"""
+        return obs
+
+    @staticmethod
+    def norm_acs(acs):
+        """normalize actions"""
+        return acs
+
+    @staticmethod
+    def denorm_acs(acs):
+        """denormalize actions"""
+        return acs
+
+    @staticmethod
+    def norm_delta(deltas):
+        """normalize deltas"""
+        return deltas
+
+    @staticmethod
+    def denorm_delta(deltas):
+        """denormalize deltas"""
+        return deltas
+
+    @staticmethod
+    def update_stats(data):
+        """update the stateful normalization statistics"""
+        pass
+
+    @staticmethod
+    def log_stats():
+        """report normalization statistics"""
+        pass
 
 
 class _Statistics:
