@@ -6,7 +6,7 @@ import numpy as np
 from context import flags
 import env_info
 from log import debug
-from memory import Dataset
+from memory import Dataset, scale_from_box
 import reporter
 from sample import sample_venv
 from tf_reporter import TFReporter
@@ -210,11 +210,13 @@ class DDPG:  # pylint: disable=too-many-instance-attributes
         # once every iteration.
         with tf.control_dependencies([optimize_actor_op]):
             re_perturb = actor.tf_perturb_update(adaptive_noise)
-            # actions are in [-1, 1], so asking for a "stddev" is
-            # a sensible thing to do since we're scale-invariant
-            mean_ac = actor.tf_action(self.obs0_ph_ns) / 2
+            # asking for a "stddev" is sensible as we're scale-invariant
+            mean_ac = scale_from_box(
+                env_info.ac_space(), actor.tf_action(self.obs0_ph_ns))
             with tf.control_dependencies([re_perturb]):
-                perturb_ac = actor.tf_perturbed_action(self.obs0_ph_ns) / 2
+                perturb_ac = scale_from_box(
+                    env_info.ac_space(),
+                    actor.tf_perturbed_action(self.obs0_ph_ns))
                 batch_observed_noise = tf.sqrt(
                     tf.reduce_mean(tf.square(mean_ac - perturb_ac)))
                 save_noise = tf.group(
