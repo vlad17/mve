@@ -59,6 +59,9 @@ class SerialGymVenv(VectorEnv):
         for env in self._envs:
             env.close()
 
+    def render(self, mode='human'):
+        pass
+
     def multi_step(self, acs_hna):
         h, m = acs_hna.shape[:2]
         assert m <= self.n, (m, self.n)

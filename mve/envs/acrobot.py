@@ -153,6 +153,9 @@ class VectorizedContinuousAcrobot(VectorEnv):
         if self.viewer:
             self.viewer.close()
 
+    def render(self, mode='human'):
+        pass
+
     def _rk4(self, y0):
         """
         Runge-Kutta, 4th-order. only returns endpoint
@@ -220,11 +223,7 @@ class ContinuousAcrobot(core.Env, FullyObservable):
     def close(self):
         self._venv.close()
 
-    def render(self, mode='human', close=False):
-        if close:
-            if self.viewer is not None:
-                self.viewer = None
-            return None
+    def render(self, mode='human'):
         from gym.envs.classic_control import rendering
         if mode == 'human':
             return None

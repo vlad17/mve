@@ -14,14 +14,7 @@ class RenderFreeMJC(gym.envs.mujoco.mujoco_env.MujocoEnv):
     Don't render in a windowing environment.
     """
 
-    def render(self, mode='human', close=False):
-        if close:
-            if not hasattr(self, 'viewer'):
-                self.viewer = None
-            if self.viewer is not None:
-                self.viewer = None  # pylint: disable=attribute-defined-outside-init
-            return None
-
+    def render(self, mode='human'):
         if mode == 'rgb_array':
             width, height = 640, 480
             self._setup_render()
