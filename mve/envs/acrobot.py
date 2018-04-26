@@ -83,7 +83,10 @@ class VectorizedContinuousAcrobot(VectorEnv):
         high = np.array([1.0, 1.0, 1.0, 1.0, self.MAX_VEL_1, self.MAX_VEL_2])
         low = -1 * high
         self.n = n
-        self.observation_space = spaces.Box(low=low, high=high, dtype=np.float32)
+        self.observation_space = spaces.Box(
+            low=low,
+            high=high,
+            dtype=np.float32)
         self.action_space = spaces.Box(
             low=np.zeros(3),
             high=np.ones(3),

@@ -49,16 +49,16 @@ class VectorEnv(gym.Env):
         """
         raise NotImplementedError
 
-    def _seed(self, seed=None):
+    def seed(self, seed=None):
         raise NotImplementedError
 
-    def _reset(self):
+    def reset(self):
         raise NotImplementedError
 
-    def _step(self, action):
+    def step(self, action):
         raise NotImplementedError
 
-    def _close(self):
+    def close(self):
         raise NotImplementedError
 
     def _seed_uncorr(self, n):
