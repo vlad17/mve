@@ -13,7 +13,7 @@ from log import debug
 from memory import DummyNormalizer
 import reporter
 from tfnode import TFNode
-from utils import build_mlp
+from utils import build_mlp, trainable_vars
 
 
 class DynamicsFlags(Flags):
@@ -39,6 +39,11 @@ class DynamicsFlags(Flags):
             type=float,
             default=1e-3,
             help='dynamics NN learning rate',)
+        yield ArgSpec(
+            name='dyn_target_rate',
+            type=float,
+            default=1e-3,
+            help='dynamics NN target update rate',)
         yield ArgSpec(
             name='dyn_batch_size',
             type=int,
@@ -125,7 +130,6 @@ class NNDynamicsModel(TFNode):
             False, [], 'dynamics_dyn_training_mode')
         self._mlp_kwargs = {
             'output_size': ob_dim,
-            'scope': 'dynamics',
             'reuse': tf.AUTO_REUSE,
             'n_layers': dyn_flags.dyn_depth,
             'size': dyn_flags.dyn_width,
@@ -135,6 +139,10 @@ class NNDynamicsModel(TFNode):
 
         pred_states_ns, deltas_ns = self._predict_tf(
             self._input_state_ph_ns, self._input_action_ph_na)
+
+        val_pred_states_ns, val_deltas_ns = self._predict_tf(
+            self._input_state_ph_ns, self._input_action_ph_na, 'target_dynamics')
+
         true_deltas_ns = self._norm.norm_delta(
             self._next_state_ph_ns - self._input_state_ph_ns)
 
@@ -142,13 +150,13 @@ class NNDynamicsModel(TFNode):
             true_deltas_ns, deltas_ns, weights=tf.expand_dims(
                 1 - tf.to_float(self._validation_mask_ph_n), 1))
         self._validation_loss = tf.losses.mean_squared_error(
-            true_deltas_ns, deltas_ns, weights=tf.expand_dims(
+            true_deltas_ns, val_deltas_ns, weights=tf.expand_dims(
                 tf.to_float(self._validation_mask_ph_n), 1))
         self._train_one_step_pred_error = tf.losses.mean_squared_error(
             self._next_state_ph_ns, pred_states_ns, weights=tf.expand_dims(
                 1 - tf.to_float(self._validation_mask_ph_n), 1))
         self._validation_one_step_pred_error = tf.losses.mean_squared_error(
-            self._next_state_ph_ns, pred_states_ns, weights=tf.expand_dims(
+            self._next_state_ph_ns, val_pred_states_ns, weights=tf.expand_dims(
                 tf.to_float(self._validation_mask_ph_n), 1))
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -157,6 +165,19 @@ class NNDynamicsModel(TFNode):
             self._update_op = tf.train.AdamOptimizer(
                 dyn_flags.dyn_learning_rate).minimize(
                     self._train_loss + reg_loss)
+
+        updates = []
+        target_vars = trainable_vars('target_dynamics')
+        current_vars = trainable_vars('dynamics')
+
+        with tf.control_dependencies(self._update_op):
+            for current_var, target_var in zip(current_vars, target_vars):
+                updates.append(
+                    tf.assign_add(
+                        target_var, dyn_flags.dyn_target_rate * (
+                            current_var.read_value() - target_var.read_value())))
+
+        self._update_op = tf.group(*updates)
 
         super().__init__('dynamics', dyn_flags.restore_dynamics)
 
@@ -214,12 +235,12 @@ class NNDynamicsModel(TFNode):
                       'train mse {:.4g} val mse {:.4g}',
                       i, nbatches, train_loss, val_loss, train_mse, val_mse)
 
-    def _predict_tf(self, states, actions):
+    def _predict_tf(self, states, actions, scope='dynamics'):
         state_action_pair = tf.concat([
             self._norm.norm_obs(states),
             self._norm.norm_acs(actions)], axis=1)
         standard_predicted_state_diff_ns = build_mlp(
-            state_action_pair, **self._mlp_kwargs)
+            state_action_pair, scope=scope, **self._mlp_kwargs)
         predicted_state_diff_ns = self._norm.denorm_delta(
             standard_predicted_state_diff_ns)
         return states + predicted_state_diff_ns, \
@@ -227,12 +248,22 @@ class NNDynamicsModel(TFNode):
 
     def predict_tf(self, states, actions):
         """
-        Predict the next state given the current state and action.
+        Predict the current dynamics' next state given the 
+        current state and action.
 
         Assumes input TF tensors are batched states and actions.
         Outputs corresponding predicted next state as a TF tensor.
         """
-        return self._predict_tf(states, actions)[0]
+        return self._predict_tf(states, actions, 'dynamics')[0]
+
+
+    def target_predict_tf(self, states, actions):
+        """
+        Predict the current dynamics' next state given the 
+        current state and action.
+        """
+        return self._predict_tf(states, actions, 'target_dynamics')[0]
+
 
     def _activation_norm(self, inputs):
         outputs = inputs
