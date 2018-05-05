@@ -170,7 +170,7 @@ class NNDynamicsModel(TFNode):
         target_vars = trainable_vars('target_dynamics')
         current_vars = trainable_vars('dynamics')
 
-        with tf.control_dependencies(self._update_op):
+        with tf.control_dependencies([self._update_op]):
             for current_var, target_var in zip(current_vars, target_vars):
                 updates.append(
                     tf.assign_add(
