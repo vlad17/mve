@@ -170,7 +170,7 @@ def _finite_env(space):
 def scale_to_box(space, relative):
     """
     Given a hyper-rectangle specified by a gym box space, scale
-    relative coordinates between -1 and 1 to the box's coordinates,
+    relative coordinates between 0 and 1 to the box's coordinates,
     such that the relative vector of all zeros has the smallest
     coordinates (the "bottom left" corner) and vice-versa for ones.
 
@@ -178,8 +178,6 @@ def scale_to_box(space, relative):
     """
     if not _finite_env(space):
         return relative
-    relative += 1
-    relative /= 2
     relative *= (space.high - space.low)
     relative += space.low
     return relative
@@ -189,7 +187,7 @@ def scale_from_box(space, absolute):
     """
     Given a hyper-rectangle specified by a gym box space, scale
     exact coordinates from within that space to
-    relative coordinates between -1 and 1.
+    relative coordinates between 0 and 1.
 
     If environment is infinite, no scaling is performed.
     """
@@ -197,4 +195,4 @@ def scale_from_box(space, absolute):
         return absolute
     absolute -= space.low
     absolute /= (space.high - space.low)
-    return absolute * 2 - 1
+    return absolute

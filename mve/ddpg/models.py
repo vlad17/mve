@@ -190,6 +190,7 @@ class Critic:
 
     def _tf_critic(self, states_ns, acs_na, scope):
         acs_na = scale_from_box(env_info.ac_space(), acs_na)
+        states_ns = scale_from_box(env_info.ob_space(), states_ns)
         with tf.variable_scope(self._scope, reuse=tf.AUTO_REUSE):
             inputs = tf.concat([states_ns, acs_na], axis=1)
             out = build_mlp(inputs, scope=scope, **self._common_mlp_kwargs)
