@@ -2,6 +2,8 @@
 Utilities for generating rolluts from a vectorized act method
 """
 
+import distutils.util
+
 import numpy as np
 
 from context import flags
@@ -93,13 +95,15 @@ class Sampler:
                 print('ACTION', ac[0], file=sys.stderr)
                 raise
             self.current_timestep += 1
+            if self.current_timestep == self.max_horizon and \
+               not flags().sampler.markovian_termination:
+                # matches original gym behavior
+                # markovian termination is important for SAC
+                done = True
             data.next(self.ob, next_ob, reward, done, ac[0])
             sample_reward += reward
             self.ob = next_ob
             if self.current_timestep == self.max_horizon:
-                # non-terminal done: cut off the episode but don't report as
-                # terminal (doing so would make the environment non-Markov)
-                # This is actually very important for SAC.
                 done = True
             if done:
                 self.ob = self.env.reset()
@@ -123,6 +127,17 @@ class SamplerFlags(Flags):
                 default=100,
                 help='how many timesteps to collect at a time (all parameter '
                 'and statistics updates occur in between collection '
-                'intervals)')
+                'intervals)'),
+            ArgSpec(
+                name='markovian_termination',
+                default=False,
+                type=distutils.util.strtobool,
+                # The ICML submission did not have this feature, so the DDPG
+                # parameters were tuned to this set as "false".
+                help='By default, environments are done when they are played '
+                'for longer than their timestep limit, but this is not a '
+                'Markovian termination condition. If this flag is activated, '
+                'environments still reset after the timecap but the done '
+                'indicator is not activated in that case.'),
         ]
         super().__init__('sampler', 'sampler', arguments)
