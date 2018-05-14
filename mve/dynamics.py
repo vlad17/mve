@@ -11,6 +11,7 @@ from log import debug
 import reporter
 from tfnode import TFNode
 from utils import build_mlp
+from dynamics_da import DADynamicsModel as NNDynamicsModel
 
 
 class DynamicsFlags(Flags):
@@ -85,136 +86,136 @@ class DynamicsFlags(Flags):
         return nbatches
 
 
-class NNDynamicsModel(TFNode):
-    """Stationary neural-network-based dynamics model."""
-
-    def __init__(self, norm):
-        dyn_flags = flags().dynamics
-        ob_dim, ac_dim = env_info.ob_dim(), env_info.ac_dim()
-
-        self._norm = norm
-        self._input_state_ph_ns = tf.placeholder(
-            tf.float32, [None, ob_dim], 'dynamics_input_state')
-        self._input_action_ph_na = tf.placeholder(
-            tf.float32, [None, ac_dim], 'dynamics_input_action')
-        self._next_state_ph_ns = tf.placeholder(
-            tf.float32, [None, ob_dim], 'true_next_state_diff')
-
-        # only used if dyn_bn is set to true
-        self._dyn_training = tf.placeholder_with_default(
-            False, [], 'dynamics_dyn_training_mode')
-        self._mlp_kwargs = {
-            'output_size': ob_dim,
-            'scope': 'dynamics',
-            'reuse': tf.AUTO_REUSE,
-            'n_layers': dyn_flags.dyn_depth,
-            'size': dyn_flags.dyn_width,
-            'activation': tf.nn.relu,
-            'l2reg': dyn_flags.dyn_l2_reg,
-            'activation_norm': self._activation_norm}
-
-        pred_states_ns, deltas_ns = self._predict_tf(
-            self._input_state_ph_ns, self._input_action_ph_na)
-        true_deltas_ns = self._norm.norm_delta(
-            self._next_state_ph_ns - self._input_state_ph_ns)
-        train_mse = tf.losses.mean_squared_error(
-            true_deltas_ns, deltas_ns)
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        reg_loss = sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-        self._dyn_loss = reg_loss + train_mse
-        self._one_step_pred_error = tf.losses.mean_squared_error(
-            self._next_state_ph_ns, pred_states_ns)
-        with tf.control_dependencies(update_ops):
-            self._update_op = tf.train.AdamOptimizer(
-                dyn_flags.dyn_learning_rate).minimize(self._dyn_loss)
-
-        super().__init__('dynamics', dyn_flags.restore_dynamics)
-
-    def fit(self, data, timesteps):
-        """
-        Fit the dynamics to the given dataset of transitions, given that
-        we saw a certain number of new timesteps
-        """
-        if not data.size or not timesteps:
-            return
-        if data.size < flags().dynamics.dyn_min_buf_size:
-            return
-
-        # I actually tried out the tf.contrib.train.Dataset API, and
-        # it was *slower* than this feed_dict method. I figure that the
-        # data throughput per batch is small enough (since the data is so
-        # simple) that up-front shuffling as performed here is probably
-        # saving us more time.
-        nbatches = flags().dynamics.nbatches(timesteps)
-        batch_size = flags().dynamics.dyn_batch_size
-        for i, batch in enumerate(data.sample_many(nbatches, batch_size), 1):
-            obs, next_obs, _, acs, _ = batch
-            self._update_op.run(feed_dict={
-                self._input_state_ph_ns: obs,
-                self._input_action_ph_na: acs,
-                self._next_state_ph_ns: next_obs,
-                self._dyn_training: True
-            })
-            if (i % max(nbatches // 10, 1)) == 0:
-                dyn_loss, one_step_error = tf.get_default_session().run(
-                    [self._dyn_loss, self._one_step_pred_error],
-                    feed_dict={
-                        self._input_state_ph_ns: obs,
-                        self._input_action_ph_na: acs,
-                        self._next_state_ph_ns: next_obs,
-                    })
-                fmt = '{: ' + str(len(str(nbatches))) + 'd}'
-                debug('dynamics ' + fmt + ' of ' + fmt + ' batches - '
-                      'dyn loss {:.4g} one-step mse {:.4g} ',
-                      i, nbatches, dyn_loss, one_step_error)
-
-    def _predict_tf(self, states, actions):
-        state_action_pair = tf.concat([
-            self._norm.norm_obs(states),
-            self._norm.norm_acs(actions)], axis=1)
-        standard_predicted_state_diff_ns = build_mlp(
-            state_action_pair, **self._mlp_kwargs)
-        predicted_state_diff_ns = self._norm.denorm_delta(
-            standard_predicted_state_diff_ns)
-        return states + predicted_state_diff_ns, \
-            standard_predicted_state_diff_ns
-
-    def predict_tf(self, states, actions):
-        """
-        Predict the next state given the current state and action.
-
-        Assumes input TF tensors are batched states and actions.
-        Outputs corresponding predicted next state as a TF tensor.
-        """
-        return self._predict_tf(states, actions)[0]
-
-    def _activation_norm(self, inputs):
-        outputs = inputs
-        if flags().dynamics.dyn_bn:
-            outputs = tf.layers.batch_normalization(
-                outputs, training=self._dyn_training)
-        if flags().dynamics.dyn_dropout:
-            outputs = tf.nn.dropout(
-                outputs,
-                tf.maximum(
-                    1 - tf.to_float(self._dyn_training),
-                    flags().dynamics.dyn_dropout))
-        return outputs
-
-    def evaluate(self, data, prefix='dynamics'):
-        """report dynamics metrics"""
-        if not data.size:
-            return
-        prefix = prefix + ('/' if prefix else '')
-        batch_size = flags().dynamics.dyn_batch_size * 10
-        batch = next(data.sample_many(1, batch_size))
-        obs, next_obs, _, acs, _ = batch
-        dyn_loss, one_step_error = tf.get_default_session().run(
-            [self._dyn_loss, self._one_step_pred_error],
-            feed_dict={
-                self._input_state_ph_ns: obs,
-                self._input_action_ph_na: acs,
-                self._next_state_ph_ns: next_obs,
-            })
-        reporter.add_summary(prefix + 'one-step mse', one_step_error)
-        reporter.add_summary(prefix + 'loss', dyn_loss)
+# class NNDynamicsModel(TFNode):
+#     """Stationary neural-network-based dynamics model."""
+#
+#     def __init__(self, norm):
+#         dyn_flags = flags().dynamics
+#         ob_dim, ac_dim = env_info.ob_dim(), env_info.ac_dim()
+#
+#         self._norm = norm
+#         self._input_state_ph_ns = tf.placeholder(
+#             tf.float32, [None, ob_dim], 'dynamics_input_state')
+#         self._input_action_ph_na = tf.placeholder(
+#             tf.float32, [None, ac_dim], 'dynamics_input_action')
+#         self._next_state_ph_ns = tf.placeholder(
+#             tf.float32, [None, ob_dim], 'true_next_state_diff')
+#
+#         # only used if dyn_bn is set to true
+#         self._dyn_training = tf.placeholder_with_default(
+#             False, [], 'dynamics_dyn_training_mode')
+#         self._mlp_kwargs = {
+#             'output_size': ob_dim,
+#             'scope': 'dynamics',
+#             'reuse': tf.AUTO_REUSE,
+#             'n_layers': dyn_flags.dyn_depth,
+#             'size': dyn_flags.dyn_width,
+#             'activation': tf.nn.relu,
+#             'l2reg': dyn_flags.dyn_l2_reg,
+#             'activation_norm': self._activation_norm}
+#
+#         pred_states_ns, deltas_ns = self._predict_tf(
+#             self._input_state_ph_ns, self._input_action_ph_na)
+#         true_deltas_ns = self._norm.norm_delta(
+#             self._next_state_ph_ns - self._input_state_ph_ns)
+#         train_mse = tf.losses.mean_squared_error(
+#             true_deltas_ns, deltas_ns)
+#         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+#         reg_loss = sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+#         self._dyn_loss = reg_loss + train_mse
+#         self._one_step_pred_error = tf.losses.mean_squared_error(
+#             self._next_state_ph_ns, pred_states_ns)
+#         with tf.control_dependencies(update_ops):
+#             self._update_op = tf.train.AdamOptimizer(
+#                 dyn_flags.dyn_learning_rate).minimize(self._dyn_loss)
+#
+#         super().__init__('dynamics', dyn_flags.restore_dynamics)
+#
+#     def fit(self, data, timesteps):
+#         """
+#         Fit the dynamics to the given dataset of transitions, given that
+#         we saw a certain number of new timesteps
+#         """
+#         if not data.size or not timesteps:
+#             return
+#         if data.size < flags().dynamics.dyn_min_buf_size:
+#             return
+#
+#         # I actually tried out the tf.contrib.train.Dataset API, and
+#         # it was *slower* than this feed_dict method. I figure that the
+#         # data throughput per batch is small enough (since the data is so
+#         # simple) that up-front shuffling as performed here is probably
+#         # saving us more time.
+#         nbatches = flags().dynamics.nbatches(timesteps)
+#         batch_size = flags().dynamics.dyn_batch_size
+#         for i, batch in enumerate(data.sample_many(nbatches, batch_size), 1):
+#             obs, next_obs, _, acs, _ = batch
+#             self._update_op.run(feed_dict={
+#                 self._input_state_ph_ns: obs,
+#                 self._input_action_ph_na: acs,
+#                 self._next_state_ph_ns: next_obs,
+#                 self._dyn_training: True
+#             })
+#             if (i % max(nbatches // 10, 1)) == 0:
+#                 dyn_loss, one_step_error = tf.get_default_session().run(
+#                     [self._dyn_loss, self._one_step_pred_error],
+#                     feed_dict={
+#                         self._input_state_ph_ns: obs,
+#                         self._input_action_ph_na: acs,
+#                         self._next_state_ph_ns: next_obs,
+#                     })
+#                 fmt = '{: ' + str(len(str(nbatches))) + 'd}'
+#                 debug('dynamics ' + fmt + ' of ' + fmt + ' batches - '
+#                       'dyn loss {:.4g} one-step mse {:.4g} ',
+#                       i, nbatches, dyn_loss, one_step_error)
+#
+#     def _predict_tf(self, states, actions):
+#         state_action_pair = tf.concat([
+#             self._norm.norm_obs(states),
+#             self._norm.norm_acs(actions)], axis=1)
+#         standard_predicted_state_diff_ns = build_mlp(
+#             state_action_pair, **self._mlp_kwargs)
+#         predicted_state_diff_ns = self._norm.denorm_delta(
+#             standard_predicted_state_diff_ns)
+#         return states + predicted_state_diff_ns, \
+#             standard_predicted_state_diff_ns
+#
+#     def predict_tf(self, states, actions):
+#         """
+#         Predict the next state given the current state and action.
+#
+#         Assumes input TF tensors are batched states and actions.
+#         Outputs corresponding predicted next state as a TF tensor.
+#         """
+#         return self._predict_tf(states, actions)[0]
+#
+#     def _activation_norm(self, inputs):
+#         outputs = inputs
+#         if flags().dynamics.dyn_bn:
+#             outputs = tf.layers.batch_normalization(
+#                 outputs, training=self._dyn_training)
+#         if flags().dynamics.dyn_dropout:
+#             outputs = tf.nn.dropout(
+#                 outputs,
+#                 tf.maximum(
+#                     1 - tf.to_float(self._dyn_training),
+#                     flags().dynamics.dyn_dropout))
+#         return outputs
+#
+#     def evaluate(self, data, prefix='dynamics'):
+#         """report dynamics metrics"""
+#         if not data.size:
+#             return
+#         prefix = prefix + ('/' if prefix else '')
+#         batch_size = flags().dynamics.dyn_batch_size * 10
+#         batch = next(data.sample_many(1, batch_size))
+#         obs, next_obs, _, acs, _ = batch
+#         dyn_loss, one_step_error = tf.get_default_session().run(
+#             [self._dyn_loss, self._one_step_pred_error],
+#             feed_dict={
+#                 self._input_state_ph_ns: obs,
+#                 self._input_action_ph_na: acs,
+#                 self._next_state_ph_ns: next_obs,
+#             })
+#         reporter.add_summary(prefix + 'one-step mse', one_step_error)
+#         reporter.add_summary(prefix + 'loss', dyn_loss)
