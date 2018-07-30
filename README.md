@@ -1,6 +1,6 @@
 # MVE: Model-based Value Estimation [![Build Status](https://travis-ci.com/vlad17/mve.svg?token=xAqzxKFpxN3pG4om3z4n&branch=master)](https://travis-ci.com/vlad17/mve)
 
-Using short-horizon nonlinear dynamics for on-policy simulation to improve value estimation.
+Using short-horizon nonlinear dynamics for on-policy simulation to improve value estimation. See the [paper](https://arxiv.org/abs/1803.00101) for algorithmic details.
 
 ## Requirements
 
@@ -58,6 +58,14 @@ All scripts are available in `scripts/`, and should be run from the repo root.
 | `fake-display.sh` | create a dummy X11 display (to render on a server) |
 | `launch-ray-aws.sh` | launch an AWS ray cluster at the current branch |
 | `teardown-ray-aws.sh` | tear down a cluster |
+
+## Running experiments
+
+To run experiments locally, use `main_ray.py` (note the resources requirements specified here are only used for scheduling trials; the actual processes are free to create as many threads as they want if you'd like to oversubscribe the machines by setting `tf_parallelism` within the YAML config to larger than the number of guaranteed CPUs). To multiplex the GPUs locally, set `self_host` to the total number of virtual GPUs.
+
+    python mve/main_ray.py --experiment_name hc0 --config experiments/hc0.yaml --ncpus 1 --ngpus 0 --self_host 1
+
+Experiments can also be run in a distributed manner by connecting to a live ray cluster by changing `--self_host` to `--port RAY_REDIS_PORT` above. Multiple experiments can be run by the same driver. See `python mve/main_ray.py --help` for details.
 
 ## Parallelism
 

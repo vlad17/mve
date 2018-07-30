@@ -1,0 +1,48 @@
+timesteps: 1500000
+main: ddpg
+env_name: swimmer
+exp_name: {"eval": "lambda spec: spec.config.env_name"}
+learner_batch_size: 64
+evaluate_every: 5000
+save_every: 1000000
+ddpg_min_buf_size: 10000
+dyn_min_buf_size: 5000
+env_parallelism: 8
+tf_parallelism: 8
+learner_batches_per_timestep: 4
+sample_interval: 100
+explore_stddev: 0.2
+seed:
+    grid_search: [1, 2, 3, 4, 5]
+actor_lr: {"eval": "lambda spec: {
+  'swimmer': '1e-4',
+  'hc': '1e-3',
+  'walker2d': '1e-4'
+  }[spec.config.env_name]"}
+critic_lr: {"eval": "lambda spec: {
+  'swimmer': '1e-3',
+  'hc': '1e-3',
+  'walker2d': '1e-4'
+  }[spec.config.env_name]"}
+actor_target_rate: {"eval": "lambda spec: {
+  'swimmer': '1e-2',
+  'hc': '1e-2',
+  'walker2d': '1e-3'
+  }[spec.config.env_name]"}
+critic_target_rate: {"eval": "lambda spec: {
+  'swimmer': '1e-2',
+  'hc': '1e-2',
+  'walker2d': '1e-3'
+  }[spec.config.env_name]"}
+learner_depth: 2
+learner_width: 64
+dynamics_early_stop: 0
+dynamics_batches_per_timestep: {"eval": "lambda spec: {
+  0: 4,
+  0.3: 0.1
+  }[spec.config.dynamics_early_stop]"}
+model_horizon: 5
+ddpg_mve: {"eval": "lambda spec: ('true' if spec.config.model_horizon else 'false')"}
+dynamics_type: learned
+div_by_h: true
+disable_normalization: true

@@ -60,9 +60,10 @@ class TuneFlags(Flags):
         """Adds flags to an argparse parser."""
         yield ArgSpec(
             name='self_host',
-            default=False,
-            action='store_true',
-            help='whether to create a local ray cluster')
+            default=0,
+            type=int,
+            help='if >0, create a local ray cluster with the specified number '
+            'of virtual GPUs')
         yield ArgSpec(
             name='port',
             default='7001',
@@ -203,7 +204,7 @@ def _main(args):
     _verify_s3(args.tune.s3)
 
     if args.tune.self_host:
-        ray.init(num_gpus=max(ngpus(), 1))
+        ray.init(num_gpus=args.tune.self_host)
     else:
         ip = ray.services.get_node_ip_address()
         ray.init(redis_address=(ip + ':' + args.tune.port))

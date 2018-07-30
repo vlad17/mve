@@ -1,0 +1,29 @@
+timesteps: 1500000
+main: ddpg
+env_name: hc
+exp_name: {"eval": "lambda spec: spec.config.env_name"}
+learner_batch_size: 64
+evaluate_every: 5000
+save_every: 1000000
+ddpg_min_buf_size: 10000
+dyn_min_buf_size: 5000
+env_parallelism: 8
+tf_parallelism: 8
+learner_batches_per_timestep: 4
+sample_interval: 100
+explore_stddev: 0.2
+seed:
+    grid_search: [1, 2, 3, 4, 5]
+actor_lr: 1e-3
+critic_lr: 1e-3
+actor_target_rate: 1e-2
+critic_target_rate: 1e-2
+learner_depth: 2
+learner_width: 64
+dynamics_early_stop: 0.3
+dynamics_batches_per_timestep: 0.1
+model_horizon: 0
+ddpg_mve: {"eval": "lambda spec: ('true' if spec.config.model_horizon else 'false')"}
+dynamics_type: learned
+div_by_h: true
+disable_normalization: true
