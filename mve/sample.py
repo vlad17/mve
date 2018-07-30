@@ -3,6 +3,7 @@ Utilities for generating rolluts from a vectorized act method
 """
 
 import distutils.util
+import collections
 
 import numpy as np
 
@@ -79,13 +80,16 @@ class Sampler:
         self.ob = env.reset()
         self.max_horizon = flags().experiment.horizon
         self.current_timestep = 0
+        self._window_size = flags().sampler.multistep
+        self._past_sar = collections.deque([], self._window_size)
 
     def sample(self, act, data):
         """
         Given a single environment env, perform a rollout up to update_every
         steps, possibly rendering, with the given controller.
         """
-        sample_reward = n_episodes = 0
+        n_episodes = 0
+        window_reward = 0
 
         for _ in range(self.update_every):
             ac = act(self.ob[np.newaxis, ...])
@@ -94,21 +98,30 @@ class Sampler:
             except:
                 print('ACTION', ac[0], file=sys.stderr)
                 raise
+
             self.current_timestep += 1
             if self.current_timestep == self.max_horizon and \
                not flags().sampler.markovian_termination:
                 # matches original gym behavior
                 # markovian termination is important for SAC
                 done = True
-            data.next(self.ob, next_ob, reward, done, ac[0])
-            sample_reward += reward
+            self._past_sar.append((self.ob, ac[0], reward))
             self.ob = next_ob
+            window_reward += reward
+
+            if len(self._past_sar) == self._window_size:
+                prev_s, prev_a, prev_r = self._past_sar.popleft()
+                data.next(prev_s, next_ob, window_reward, done, prev_a)
+                window_reward -= prev_r
+
             if self.current_timestep == self.max_horizon:
                 done = True
             if done:
                 self.ob = self.env.reset()
                 n_episodes += 1
                 self.current_timestep = 0
+                window_reward = 0
+                self._past_sar.clear()
         return n_episodes
 
     def nsteps(self):
@@ -128,6 +141,11 @@ class SamplerFlags(Flags):
                 help='how many timesteps to collect at a time (all parameter '
                 'and statistics updates occur in between collection '
                 'intervals)'),
+            ArgSpec(
+                name='multistep',
+                type=int,
+                default=1,
+                help='record (and learn) n-step returns'),
             ArgSpec(
                 name='markovian_termination',
                 default=False,
